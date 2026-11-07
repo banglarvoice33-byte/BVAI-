@@ -2,8 +2,8 @@
 
 Point-in-time reports. Re-check anything time-sensitive before relying on it.
 
-- `automation-king_build_and_QC_report.md` — Flutter/Dart build + analysis results for the five apps (test-signed).
-- `automation-king_optimized_APK_and_Supabase_QC.md` — ABI-split APK sizes and a Supabase/backend check.
+- `bv-ai_build_and_QC_report.md` — Flutter/Dart build + analysis results for the five apps (test-signed).
+- `bv-ai_optimized_APK_and_Supabase_QC.md` — ABI-split APK sizes and a Supabase/backend check.
 
 Notes added after review (2026-11-06):
 

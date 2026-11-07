@@ -174,7 +174,7 @@
     "docs/MIGRATION_HISTORY_REPAIR_2026-11-04.md",
     "docs/POST_DEPLOYMENT_REPORT_2026-10-15.md",
     "docs/production-audit-2026-11-02.md",
-    "docs/qc/automation-king_optimized_APK_and_Supabase_QC.md",
+    "docs/qc/bv-ai_optimized_APK_and_Supabase_QC.md",
     "docs/security-hardening-report.json",
     "frontend/next.config.mjs",
     "gitleaks.tar.gz",

@@ -14,7 +14,7 @@ export const RSS_FEEDS = [
 ];
 
 const UA =
-  "AutomationKing/1.0 (newsroom automation; contact: operator@example.invalid)";
+  "BVAi/1.0 (newsroom automation; contact: operator@example.invalid)";
 
 export async function fetchWithTimeout(
   url: string,

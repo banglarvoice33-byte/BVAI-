@@ -24,11 +24,11 @@ export function buildManagerShadowEvent(
   const articleId = stablePart(article.id ?? article.slug);
   const version = stablePart(article.updated_at ?? article.published_at ?? article.created_at);
   return {
-    event_id: `automation-king:article:${articleId}:${eventType}:${version}`,
+    event_id: `bv-ai:article:${articleId}:${eventType}:${version}`,
     event_type: eventType,
     occurred_at: occurredAt,
     payload: {
-      source: 'automation-king',
+      source: 'bv-ai',
       article_id: typeof article.id === 'string' ? article.id : null,
       slug: typeof article.slug === 'string' ? article.slug : null,
       title: typeof article.title === 'string' ? article.title.slice(0, 500) : null,

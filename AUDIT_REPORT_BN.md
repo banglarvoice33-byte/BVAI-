@@ -2,7 +2,7 @@
 
 **তারিখ:** 2026-11-07  
 **পরীক্ষার ধরন:** ZIP source audit, local Node CI, static Supabase migration audit, local video render  
-**পরীক্ষিত source:** `automation-king-fresh-portable.zip`
+**পরীক্ষিত source:** `bv-ai-fresh-portable.zip`
 
 ## Executive result
 
