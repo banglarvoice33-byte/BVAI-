@@ -52,9 +52,9 @@ Deno.serve(async (req) => {
     if (jobError || !job) return reply(404, { error: "generation_job_not_found" });
 
     const { data: article, error: articleError } = await supabase.from("articles")
-      .select("id,status,workflow_status,title_bn,title_en,content_bn,category_key,thumbnail_url,source_url")
+      .select("id,status,title_bn,title_en,content_bn,category,thumbnail_url")
       .eq("id", articleId).maybeSingle();
-    if (articleError || !article || article.status !== "published" || article.workflow_status !== "published") {
+    if (articleError || !article || article.status !== "published") {
       return reply(403, { error: "article_not_published" });
     }
 
@@ -117,8 +117,9 @@ Deno.serve(async (req) => {
           title_bn: article.title_bn,
           title_en: article.title_en ?? "",
           description_bn: article.content_bn ?? "",
-          category_key: article.category_key ?? "national",
+          category_key: article.category ?? "national",
           thumbnail_url: article.thumbnail_url ?? "",
+          video_url: signed.signedUrl,
           source_url: article.source_url ?? null,
           duration_sec: Math.round(durationSec),
           status: "draft",
