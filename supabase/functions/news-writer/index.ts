@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { verifyServiceCredential } from "../_shared/service-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -550,7 +551,12 @@ async function fetchPexelsImage(
 
   return null;
 }
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (!SERVICE_ROLE || !(await verifyServiceCredential(req, SERVICE_ROLE))) {
+    return json({ error: "service_role_required" }, 403);
+  }
+
   const started = Date.now();
   const now = new Date().toISOString();
   const freshSince = new Date(Date.now() - FRESHNESS_MS).toISOString();
