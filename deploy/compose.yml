@@ -1,0 +1,25 @@
+services:
+  web:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?set new site URL}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set new Supabase URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set public key}
+    env_file: .env
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 1g
+  worker:
+    profiles: [automation]
+    build: ../worker
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      BV_BASE_URL: ${NEXT_PUBLIC_SITE_URL}
+      SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+    restart: unless-stopped
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    mem_limit: 512m

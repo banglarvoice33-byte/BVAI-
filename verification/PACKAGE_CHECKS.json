@@ -1,0 +1,8 @@
+{
+  "old_account_marker_check": "passed across all packaged file bytes",
+  "yaml_toml_parse": "passed",
+  "manual_schedule_sql_syntax": "passed",
+  "private_config_and_build_state": "excluded",
+  "original_feature_source_directories": "retained",
+  "known_forbidden_marker_values": "intentionally not included"
+}

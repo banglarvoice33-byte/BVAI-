@@ -1,0 +1,5 @@
+{
+  "parser": "pglast PostgreSQL syntax only; NOT execution, role/RLS or extension validation",
+  "files": 81,
+  "errors": []
+}

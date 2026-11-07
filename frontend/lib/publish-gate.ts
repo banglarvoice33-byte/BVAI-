@@ -1,0 +1,464 @@
+// Canonical: worker/src/lib/publish-gate.ts
+// Keep byte-identical with frontend/lib/publish-gate.ts (npm run check:publish-gate).
+
+export const PIPELINE_INTERVAL_MINUTES = 12
+export const PIPELINE_CRON = '*/12 * * * *'
+export const ITEM_MAX_AGE_MS = 48 * 60 * 60 * 1000
+export const FEED_403_DISABLE_THRESHOLD = 3
+export const STALE_LOCK_MS = 10 * 60 * 1000
+// Accept concise 60–300-word news items while retaining all other gates.
+export const MIN_BODY_CHARS = 200
+export const DEFAULT_MIN_AI_SCORE = 40
+export const COPY_SIMILARITY_MAX = 0.85
+export const SOURCE_DUE_GRACE_MINUTES = 2
+export const MAX_NGRAM_OVERLAP = 0.2
+export const NGRAM_SIZE = 4
+export const MAX_IDENTICAL_RUN = 8
+
+export type RiskLevel = 'low' | 'medium' | 'high'
+export type PublishAction = 'publish' | 'hold' | 'reject'
+export type SourceFetchStatus = 'ok' | '403' | 'error' | 'skipped_not_due'
+
+export type SourceFetchOutcome = {
+  status: SourceFetchStatus
+  http_status?: number
+  at: string
+}
+
+export type PublishGateInput = {
+  autoPublish: boolean
+  sourceEnabled: boolean
+  killSwitch: boolean
+  sourceUrl: string
+  imageUrl: string
+  isFallback: boolean
+  rewriteMethod: string
+  bodyBn: string
+  titleBn: string
+  sourceText?: string
+  sourcePublishedAt?: string | null
+  category?: string
+  now?: number
+  minAiScore?: number
+  aiSensitive?: boolean
+  aiSensitivityFailed?: boolean
+  imageSource?: string
+  licenceAllowsReuse?: boolean
+}
+
+export type PublishGateResult = {
+  action: PublishAction
+  reason: string
+  riskLevel: RiskLevel
+  score: number
+}
+
+const HIGH_TERMS = [
+  'হত্যা',
+  'নিহত',
+  'মৃতদেহ',
+  'খুন',
+  'গণহত্যা',
+  'আত্মহত্যা',
+  'ধর্ষণ',
+  'শিশু নির্যাতন',
+  'যৌন নির্যাতন',
+  'সাম্প্রদায়িক',
+  'সাম্প্রদায়িক',
+  'মন্দির ভাঙচুর',
+  'মসজিদ ভাঙচুর',
+  'গণপিটুনি',
+  'lynching',
+  'murder',
+  'murdered',
+  'killed',
+  'genocide',
+  'rape',
+  'suicide',
+  'communal riot',
+  'blasphemy',
+]
+
+const MEDIUM_TERMS = [
+  'গ্রেপ্তার',
+  'অভিযোগ',
+  'মামলা',
+  'নির্বাচন',
+  'ভোট',
+  'সহিংসতা',
+  'সংঘর্ষ',
+  'হামলা',
+  'গুজব',
+  'ওষুধ',
+  'চিকিৎসা',
+  'ভ্যাকসিন',
+  'নিরাময়',
+  'নিরাময়',
+  'arrest',
+  'accused',
+  'allegation',
+  'election',
+  'vote',
+  'clash',
+  'attack',
+  'rumour',
+  'rumor',
+  'unverified',
+  'vaccine',
+  'miracle cure',
+  'treatment claim',
+]
+
+const HIGH_CATEGORIES = new Set(['politics', 'health'])
+
+export function minAiScore(env: NodeJS.ProcessEnv = process.env): number {
+  const n = Number.parseInt(env.MIN_AI_SCORE ?? '', 10)
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : DEFAULT_MIN_AI_SCORE
+}
+
+export function isAutoPublish(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env.AUTO_PUBLISH ?? 'false').toLowerCase()
+  return raw !== 'false' && raw !== '0' && raw !== 'off'
+}
+
+export function isRecentEnough(iso: string | null | undefined, now = Date.now()): boolean {
+  if (!iso) return true
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return true
+  return now - t <= ITEM_MAX_AGE_MS
+}
+
+export function isSourceDue(
+  lastFetchedAt: string | null | undefined,
+  intervalMinutes: number,
+  now = Date.now(),
+): boolean {
+  if (!lastFetchedAt) return true
+  const t = Date.parse(lastFetchedAt)
+  if (Number.isNaN(t)) return true
+  const minutes = intervalMinutes > 0 ? intervalMinutes : PIPELINE_INTERVAL_MINUTES
+  const effectiveMinutes = Math.max(1, minutes - SOURCE_DUE_GRACE_MINUTES)
+  return now - t >= effectiveMinutes * 60 * 1000
+}
+
+export function lastFetchAt(
+  runs: Array<{ details?: { sources?: Record<string, SourceFetchOutcome> } | null }>,
+  sourceKey: string,
+): string | null {
+  for (const run of runs) {
+    const at = run.details?.sources?.[sourceKey]?.at
+    if (at) return at
+  }
+  return null
+}
+
+export function isValidHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    const host = url.hostname.toLowerCase().replace(/\.$/, '')
+    if (url.protocol !== 'https:') return false
+    if (url.username || url.password) return false
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return false
+    return host.includes('.')
+  } catch {
+    return false
+  }
+}
+
+export function isValidHttpsImageUrl(value: string): boolean {
+  if (!isValidHttpsUrl(value)) return false
+  try {
+    const url = new URL(value)
+    return (
+      /\.(jpe?g|png|webp|gif|avif)(\?|$)/i.test(url.pathname) ||
+      url.pathname.includes('/api/brand-card') ||
+      url.pathname.includes('/api/social-card/') ||
+      url.hostname.includes('pexels') ||
+      url.hostname.includes('wikimedia') ||
+      url.hostname.includes('openverse')
+    )
+  } catch {
+    return false
+  }
+}
+
+export function bengaliRatio(text: string): number {
+  const chars = [...text].filter((ch) => !/\s/u.test(ch))
+  if (chars.length === 0) return 0
+  let bn = 0
+  for (const ch of chars) {
+    const code = ch.codePointAt(0) ?? 0
+    if (code >= 0x0980 && code <= 0x09ff) bn += 1
+  }
+  return bn / chars.length
+}
+
+function tokenSet(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/\s+/u)
+      .map((t) => t.replace(/[^\p{L}\p{N}]+/gu, ''))
+      .filter((t) => t.length > 2),
+  )
+}
+
+export function copySimilarity(a: string, b: string): number {
+  const left = tokenSet(a)
+  const right = tokenSet(b)
+  if (left.size === 0 || right.size === 0) return 0
+  let inter = 0
+  for (const token of left) {
+    if (right.has(token)) inter += 1
+  }
+  return inter / (left.size + right.size - inter)
+}
+
+function wordTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/\s+/u)
+    .map((t) => t.replace(/[^\p{L}\p{N}]+/gu, ''))
+    .filter((t) => t.length > 0)
+}
+
+export function ngramOverlap(output: string, source: string, n = NGRAM_SIZE): number {
+  const outTokens = wordTokens(output)
+  const srcTokens = wordTokens(source)
+  if (outTokens.length < n || srcTokens.length < n) return 0
+  const srcSet = new Set<string>()
+  for (let i = 0; i <= srcTokens.length - n; i += 1) {
+    srcSet.add(srcTokens.slice(i, i + n).join(' '))
+  }
+  let hits = 0
+  let total = 0
+  for (let i = 0; i <= outTokens.length - n; i += 1) {
+    total += 1
+    if (srcSet.has(outTokens.slice(i, i + n).join(' '))) hits += 1
+  }
+  return total === 0 ? 0 : hits / total
+}
+
+export function longestIdenticalRun(output: string, source: string): number {
+  const outTokens = wordTokens(output)
+  const srcTokens = wordTokens(source)
+  if (outTokens.length === 0 || srcTokens.length === 0) return 0
+  const srcJoined = ` ${srcTokens.join(' ')} `
+  let longest = 0
+  let i = 0
+  while (i < outTokens.length) {
+    let run = 0
+    while (i + run < outTokens.length) {
+      const slice = outTokens.slice(i, i + run + 1).join(' ')
+      if (!srcJoined.includes(` ${slice} `)) break
+      run += 1
+    }
+    if (run > longest) longest = run
+    i += run > 0 ? run : 1
+  }
+  return longest
+}
+
+export function numbersAndYears(text: string): string[] {
+  const found = text.match(/[\d\u09e6-\u09ef]{4}|[\d\u09e6-\u09ef]+/g) ?? []
+  return [...new Set(found)]
+}
+
+function normalizeNumberText(text: string): string {
+  const bengaliDigits = '০১২৩৪৫৬৭৮৯'
+  return text
+    .replace(/[০-৯]/g, (digit) => String(bengaliDigits.indexOf(digit)))
+    .replace(/[,.٬]/g, '')
+}
+
+function stripSourceLine(text: string): string {
+  return text
+    .replace(/সূত্র\s*:.*$/gm, '')
+    .replace(/https?:\/\/\S+/g, '')
+}
+
+export function missingSourceNumbers(output: string, source: string): string[] {
+  const src = normalizeNumberText(source)
+  return numbersAndYears(normalizeNumberText(stripSourceLine(output))).filter((n) => !src.includes(n))
+}
+
+export function originalityHoldReason(output: string, source: string | undefined): string | null {
+  if (!source || source.trim().length === 0) return 'source_text_missing'
+  if (longestIdenticalRun(output, source) >= MAX_IDENTICAL_RUN) return 'identical_run'
+  if (ngramOverlap(output, source) > MAX_NGRAM_OVERLAP) return 'ngram_overlap'
+  if (missingSourceNumbers(output, source).length > 0) return 'number_not_in_source'
+  return null
+}
+
+export function parseSensitivityJson(raw: string): { sensitive: boolean; reasons: string[] } | null {
+  try {
+    const start = raw.indexOf('{')
+    const end = raw.lastIndexOf('}')
+    if (start < 0 || end <= start) return null
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as {
+      sensitive?: unknown
+      reasons?: unknown
+    }
+    if (typeof parsed.sensitive !== 'boolean') return null
+    const reasons = Array.isArray(parsed.reasons)
+      ? parsed.reasons.filter((r): r is string => typeof r === 'string')
+      : []
+    return { sensitive: parsed.sensitive, reasons }
+  } catch {
+    return null
+  }
+}
+
+export function licenceNoteAllowsReuse(note?: string | null): boolean {
+  const t = (note || '').toLowerCase()
+  if (!t.trim()) return false
+  if (/\b(forbidden|prohibited|all rights reserved|no reuse|do not reuse)\b/.test(t)) return false
+  return /\b(reuse|allowed|permitted|cc-?by|cc0|public domain|public rss|syndication|royalty-?free)\b/.test(t)
+}
+
+export function imagePublishable(input: {
+  imageUrl: string
+  isFallback: boolean
+  imageSource?: string
+  licenceAllowsReuse?: boolean
+}): { ok: boolean; reason: string } {
+  if (input.isFallback || input.imageSource === 'brand') {
+    return { ok: false, reason: 'image_fallback' }
+  }
+  if (!isValidHttpsImageUrl(input.imageUrl)) {
+    return { ok: false, reason: 'missing_image' }
+  }
+  const source = (input.imageSource || '').toLowerCase()
+  // A headline card is branded fallback artwork, not a related news photograph.
+  // It may be shown on a draft, but it must never satisfy the premium auto-publish gate.
+  if (source === 'brand-card' || input.imageUrl.toLowerCase().includes('/api/brand-card')) {
+    return { ok: false, reason: 'image_not_related' }
+  }
+  if (source === 'pexels' || input.imageUrl.toLowerCase().includes('pexels')) {
+    return { ok: true, reason: 'ok' }
+  }
+  if (source === 'wikimedia' || input.imageUrl.toLowerCase().includes('wikimedia')) {
+    return { ok: true, reason: 'ok' }
+  }
+  if ((source === 'rss' || source === 'source') && input.licenceAllowsReuse) {
+    return { ok: true, reason: 'ok' }
+  }
+  return { ok: false, reason: 'image_licence' }
+}
+
+export function computeScore(input: {
+  titleBn: string
+  bodyBn: string
+  sourceUrl: string
+  imageUrl: string
+  isFallback: boolean
+  rewriteMethod: string
+  sourceText?: string
+}): number {
+  let score = 0
+  if (bengaliRatio(input.bodyBn) >= 0.6) score += 20
+  if (input.bodyBn.trim().length >= MIN_BODY_CHARS) score += 20
+  if (input.titleBn.trim().length >= 8 && bengaliRatio(input.titleBn) >= 0.3) score += 15
+  if (isValidHttpsImageUrl(input.imageUrl) && !input.isFallback) score += 15
+  if (isValidHttpsUrl(input.sourceUrl)) score += 10
+  const similar = copySimilarity(input.bodyBn, input.sourceText || '')
+  if (!input.sourceText || similar < COPY_SIMILARITY_MAX) score += 10
+  if (input.rewriteMethod === 'ai') score += 10
+  return Math.max(0, Math.min(100, score))
+}
+
+export function computeRiskLevel(
+  titleBn: string,
+  bodyBn: string,
+  category = '',
+): { level: RiskLevel; matched: string | null } {
+  const text = `${titleBn} ${bodyBn}`.toLowerCase()
+  for (const term of HIGH_TERMS) {
+    if (text.includes(term.toLowerCase())) return { level: 'high', matched: term }
+  }
+  for (const term of MEDIUM_TERMS) {
+    if (text.includes(term.toLowerCase())) return { level: 'medium', matched: term }
+  }
+  if (HIGH_CATEGORIES.has(category.trim().toLowerCase())) {
+    return { level: 'medium', matched: `category:${category}` }
+  }
+  return { level: 'low', matched: null }
+}
+
+export function decidePublish(input: PublishGateInput): PublishGateResult {
+  const now = input.now ?? Date.now()
+  const threshold = input.minAiScore ?? minAiScore()
+  const score = computeScore(input)
+  const risk = computeRiskLevel(input.titleBn, input.bodyBn, input.category)
+  const riskLevel = risk.level
+
+  if (!input.sourceEnabled || input.killSwitch) {
+    return { action: 'reject', reason: input.killSwitch ? 'kill_switch' : 'source_disabled', riskLevel, score }
+  }
+  if (!isRecentEnough(input.sourcePublishedAt, now)) {
+    return { action: 'reject', reason: 'older_than_48h', riskLevel, score }
+  }
+  if (!isValidHttpsUrl(input.sourceUrl)) {
+    return { action: 'hold', reason: 'missing_source_url', riskLevel, score }
+  }
+  if (input.rewriteMethod !== 'ai') {
+    return { action: 'hold', reason: 'rewrite_not_ai', riskLevel, score }
+  }
+  if (input.bodyBn.trim().length < MIN_BODY_CHARS) {
+    return { action: 'hold', reason: 'body_too_short', riskLevel, score }
+  }
+  if (bengaliRatio(input.bodyBn) < 0.6 || bengaliRatio(input.titleBn) < 0.3) {
+    return { action: 'hold', reason: 'bengali_quality', riskLevel, score }
+  }
+  const image = imagePublishable({
+    imageUrl: input.imageUrl,
+    isFallback: input.isFallback,
+    imageSource: input.imageSource,
+    licenceAllowsReuse: input.licenceAllowsReuse,
+  })
+  if (!image.ok) {
+    return { action: 'hold', reason: image.reason, riskLevel, score }
+  }
+  if (!input.sourceText || input.sourceText.trim().length === 0) {
+    return { action: 'hold', reason: 'source_text_missing', riskLevel, score }
+  }
+  const originality = originalityHoldReason(input.bodyBn, input.sourceText)
+  if (originality && originality !== 'source_text_missing') {
+    return { action: 'hold', reason: originality, riskLevel, score }
+  }
+  if (missingSourceNumbers(input.bodyBn, input.sourceText).length > 0) {
+    return { action: 'hold', reason: 'number_not_in_source', riskLevel, score }
+  }
+  if (!input.autoPublish) {
+    return { action: 'hold', reason: 'auto_publish_disabled', riskLevel, score }
+  }
+  if (score < threshold) {
+    return { action: 'hold', reason: 'score_below_min', riskLevel, score }
+  }
+  return { action: 'publish', reason: 'ok', riskLevel, score }
+}
+
+export function consecutive403Count(
+  runsNewestFirst: Array<{ details?: { sources?: Record<string, SourceFetchOutcome> } | null }>,
+  sourceKey: string,
+): number {
+  let n = 0
+  for (const run of runsNewestFirst) {
+    const outcome = run.details?.sources?.[sourceKey]
+    if (!outcome) continue
+    if (outcome.status === '403') {
+      n += 1
+      if (n >= FEED_403_DISABLE_THRESHOLD) return n
+    } else {
+      break
+    }
+  }
+  return n
+}
+
+export function shouldDisableAfter403(
+  previousRunsNewestFirst: Array<{ details?: { sources?: Record<string, SourceFetchOutcome> } | null }>,
+  sourceKey: string,
+): boolean {
+  return consecutive403Count(previousRunsNewestFirst, sourceKey) + 1 >= FEED_403_DISABLE_THRESHOLD
+}

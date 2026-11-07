@@ -1,0 +1,22 @@
+name: admin_app
+description: Banglar Voice Editorial & Admin Command App
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.10.5+9
+  bv_shared:
+    path: ../../packages/bv_shared
+  supabase_core:
+    path: ../../packages/supabase_core
+  supabase_flutter: ^2.8.1
+  http: ^1.2.2
+  shared_preferences: ^2.3.3
+
+flutter:
+  uses-material-design: true

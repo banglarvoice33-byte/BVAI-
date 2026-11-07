@@ -1,0 +1,39 @@
+project_id = "fresh-newsroom-local"
+
+# Supabase CLI configuration for the production project.
+# Sensitive functions use platform JWT verification by default.
+
+[functions.newsroom-worker]
+verify_jwt = true
+
+# The collector is invoked by the server-side scheduled pipeline and performs
+# an exact configured service-key comparison in the handler (no decoded-claim trust).
+[functions.news-pipeline]
+verify_jwt = false
+
+# Vault decryption is an authenticated admin/chief-editor operation. Platform
+# JWT validation runs before the handler's profile-role authorization check.
+[functions.getApiKey]
+verify_jwt = true
+
+# Central AI routing authenticates service_role inside the function body.
+# Platform JWT verification is off so newer sb_secret_* keys are accepted,
+# then isServiceRole() still rejects anonymous callers.
+[functions.ai-gateway]
+verify_jwt = false
+
+# Newsletter queue worker requires both a verified Supabase service JWT and
+# NEWSLETTER_WORKER_SECRET; it is not scheduled until provider secrets exist.
+[functions.send-newsletter]
+verify_jwt = true
+
+# These jobs are invoked by pg_cron with a Vault-backed NEWSROOM_INGEST_KEY.
+# The handlers perform exact service-credential validation themselves.
+[functions.social-dispatch]
+verify_jwt = false
+
+[functions.social-manager]
+verify_jwt = false
+
+[functions.youtube-sync]
+verify_jwt = false

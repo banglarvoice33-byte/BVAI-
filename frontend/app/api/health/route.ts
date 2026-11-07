@@ -1,0 +1,117 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { ingestConfigured } from '../../../lib/ingest-auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const STALE_HOURS = 6;
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+export async function GET() {
+  const now = new Date().toISOString();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    return json({
+      status: 'degraded',
+      timestamp: now,
+      last_success_at: null,
+      stale: true,
+      stale_hours: STALE_HOURS,
+      published: 0,
+      ingest_configured: ingestConfigured(),
+      supabase_configured: false,
+      error: 'supabase_unconfigured',
+    }, 503);
+  }
+
+  try {
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: rpcAt, error: rpcError } = await supabase.rpc('news_pipeline_last_success');
+    let lastSuccessAt: string | null = typeof rpcAt === 'string' ? rpcAt : null;
+    let stage: string | null = null;
+    let published = 0;
+
+    const { count: publishedCount } = await supabase
+      .from('articles')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'published');
+    published = publishedCount ?? 0;
+
+    if (!lastSuccessAt) {
+      const { data, error } = await supabase
+        .from('news_pipeline_runs')
+        .select('completed_at, created_at, status, stage, published, error_message')
+        .in('status', ['success', 'partial'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastSuccessAt = data?.completed_at || data?.created_at || null;
+      stage = data?.stage ?? null;
+      if (!lastSuccessAt) {
+        const { data: latest } = await supabase
+          .from('articles')
+          .select('published_at')
+          .eq('status', 'published')
+          .not('published_at', 'is', null)
+          .order('published_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        lastSuccessAt = latest?.published_at || null;
+        if (lastSuccessAt) {
+          stage = stage || 'articles';
+        }
+      }
+      if (!lastSuccessAt && error && rpcError) {
+        return json({
+          status: 'error',
+          timestamp: now,
+          last_success_at: null,
+          stale: true,
+          stale_hours: STALE_HOURS,
+          published,
+          ingest_configured: ingestConfigured(),
+          supabase_configured: true,
+          error: error.message,
+        }, 503);
+      }
+    }
+    const ageMs = lastSuccessAt ? Date.now() - new Date(lastSuccessAt).getTime() : Number.POSITIVE_INFINITY;
+    const stale = !lastSuccessAt || ageMs > STALE_HOURS * 60 * 60 * 1000;
+
+    return json({
+      status: stale ? 'stale' : 'ok',
+      timestamp: now,
+      last_success_at: lastSuccessAt,
+      age_hours: lastSuccessAt ? Number((ageMs / 3_600_000).toFixed(2)) : null,
+      stale,
+      stale_hours: STALE_HOURS,
+      stage,
+      published,
+      ingest_configured: ingestConfigured(),
+      supabase_configured: true,
+    }, stale ? 503 : 200);
+  } catch (e) {
+    return json({
+      status: 'error',
+      timestamp: now,
+      last_success_at: null,
+      stale: true,
+      stale_hours: STALE_HOURS,
+      published: 0,
+      ingest_configured: ingestConfigured(),
+      supabase_configured: true,
+      error: e instanceof Error ? e.message : String(e),
+    }, 503);
+  }
+}

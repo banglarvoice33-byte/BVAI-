@@ -1,0 +1,11 @@
+# Merge-only example, NOT a complete workflow.
+# Assumes matrix.app is a verified application directory.
+# Use a reviewed full action commit SHA for hardened deployments.
+- name: Upload split APKs
+  uses: actions/upload-artifact@v4
+  with:
+    name: apks-${{ matrix.app }}-${{ github.run_attempt }}
+    path: ${{ matrix.app }}/build/app/outputs/flutter-apk/*.apk
+    if-no-files-found: error
+    compression-level: 0
+    retention-days: 14

@@ -1,0 +1,35 @@
+name: reporter_app
+description: Banglar Voice Field Journalist App — with live streaming
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  bv_shared:
+    path: ../../packages/bv_shared
+  intl: ^0.20.2
+  supabase_flutter: ^2.8.1
+
+  # ─── Live streaming (Agora.io) ───
+  agora_rtc_engine: ^6.3.2
+  permission_handler: ^11.3.1
+
+  # ─── Media / audio ───
+  camera: ^0.10.5+9
+  image_picker: ^1.1.2
+  path_provider: ^2.1.4
+
+  # ─── Voice-to-text (Bengali) ───
+  speech_to_text: ^7.0.0
+
+  # ─── Network state ───
+  connectivity_plus: ^6.1.0
+
+  http: ^1.2.2
+  shared_preferences: ^2.3.3
+flutter:
+  uses-material-design: true

@@ -1,0 +1,4 @@
+# Banglar Voice — Git LFS tracking (repo is PRIVATE; LFS is enabled for future large media).
+# No .apk/.aab are tracked in git (CI builds them and uploads to GitHub Releases).
+# No large binaries are tracked today — these patterns are reserved so that if a large
+# binary is ever added deliberately, it goes through LFS instead of bloating the repo.

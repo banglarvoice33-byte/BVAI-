@@ -1,0 +1,40 @@
+{
+  "date_utc": "2026-11-07",
+  "frontend": {
+    "vitest_tests_passed": 137,
+    "vitest_files": 37,
+    "typecheck": "pass",
+    "fresh_source_no_next_artifacts": "pass",
+    "production_build": "pass",
+    "lint": "pass_with_three_image_warnings"
+  },
+  "worker": {
+    "vitest_tests_passed": 59,
+    "typecheck": "pass"
+  },
+  "deployment_tools_tests": 8,
+  "deno": {
+    "entrypoints_typechecked": 3,
+    "tests_passed": 6
+  },
+  "recovery_python_tests": 17,
+  "isolated_database": {
+    "version": "PostgreSQL 16",
+    "queue_pgtap_passed": 32,
+    "two_session_skip_locked": "pass",
+    "comments_rls": "pass",
+    "new_origin_and_atomic_budget": "pass"
+  },
+  "full_supabase_replay": "NOT_RUN; run manual database-replay workflow before production",
+  "live_new_account_deployment": "NOT_RUN; no account credentials supplied",
+  "docker_build": "NOT_RUN",
+  "flutter_build": "NOT_RUN",
+  "production_dependency_advisories": {
+    "frontend": 0,
+    "worker": 0,
+    "root": 0
+  },
+  "frontend_dev_graph_moderate_advisories": 6,
+  "sql_migration_files_syntax_checked": 81,
+  "portability": "pass; bounded patterns, not exhaustive secret scanner"
+}
