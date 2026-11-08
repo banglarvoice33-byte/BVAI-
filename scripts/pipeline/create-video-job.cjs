@@ -8,6 +8,7 @@ async function main() {
   const client = new Client({ connectionString: db, ssl: { rejectUnauthorized: true }, connectionTimeoutMillis: 10000 });
   await client.connect();
   try {
+    await client.query('SELECT public.recover_expired_video_generation_jobs()');
     const { rows } = await client.query(
       'SELECT article_id, job_id, claim_token FROM public.claim_video_generation_job($1::uuid)',
       [requested]
