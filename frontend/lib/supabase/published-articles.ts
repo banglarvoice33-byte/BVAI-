@@ -35,7 +35,15 @@ export async function fetchPublishedArticlesFeed(supabase?: SupabaseClient | num
   }
   const { data, error } = await client.from('articles').select(PUBLISHED_ARTICLE_COLUMNS).eq('status','published').order('published_at',{ascending:false}).limit(take);
   if (error) {
-    const { data: d2 } = await client.from('articles').select('id, slug, title_bn, title_en, content_bn, content_en, excerpt_bn, thumbnail_url, featured_image, category, status, published_at').eq('status','published').order('published_at',{ascending:false}).limit(take);
+    // Minimal compatibility query: older production schemas may not yet have the
+    // optional newsroom columns. Keep the public feed usable while migrations catch up.
+    const { data: d2, error: fallbackError } = await client
+      .from('articles')
+      .select('id, title_bn, title_en, content_bn, content_en, thumbnail_url, category, status, published_at, created_at')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
+      .limit(take);
+    if (fallbackError) throw fallbackError;
     return (d2 || []) as any[];
   }
   return (data || []) as any[];
