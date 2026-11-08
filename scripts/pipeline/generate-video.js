@@ -74,7 +74,7 @@ async function fetchMedia(article, count = 3) {
   const fallback = async (reason) => {
     if (!article.thumbnail_url) throw new Error(reason + '; no thumbnail');
     console.log('   ⚠️  Fallback: ' + reason);
-    const r = await fetch(article.thumbnail_url, { signal: AbortSignal.timeout(30000) });
+    const r = await fetch(article.thumbnail_url, { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': 'BVAI/1.0 (https://bvai-chi.vercel.app; contact@bvai.local)', 'Accept': 'image/*,*/*' }, redirect: 'follow' });
     if (!r.ok) throw new Error('Thumbnail HTTP ' + r.status);
     const buf = Buffer.from(await r.arrayBuffer());
     const p = path.join(TMP, 'thumb.jpg');
