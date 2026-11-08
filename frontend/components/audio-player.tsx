@@ -17,6 +17,7 @@ export function AudioPlayerWidget({ text, title, locale = 'bn' }: { text: string
   const [supported, setSupported] = useState(false);
   const [error, setError] = useState('');
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const playerRef = useRef<HTMLDivElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteUrlRef = useRef<string | null>(null);
   const chunksRef = useRef<string[]>([]);
@@ -31,11 +32,25 @@ export function AudioPlayerWidget({ text, title, locale = 'bn' }: { text: string
     );
   }, []);
 
+  // Reserve the player's measured height and fixed offset so it never covers
+  // the final article on mobile browsers or devices with safe-area insets.
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !playerRef.current) return;
+    const player = playerRef.current;
     const previousPadding = document.body.style.paddingBottom;
-    document.body.style.paddingBottom = 'calc(9rem + env(safe-area-inset-bottom, 0px))';
+    const updateReservedSpace = () => {
+      const height = player.getBoundingClientRect().height;
+      const bottom = Number.parseFloat(window.getComputedStyle(player).bottom) || 0;
+      const reserve = Math.ceil(height + bottom + 16);
+      document.body.style.paddingBottom = `calc(${reserve}px + env(safe-area-inset-bottom, 0px))`;
+    };
+    updateReservedSpace();
+    const observer = new ResizeObserver(updateReservedSpace);
+    observer.observe(player);
+    window.addEventListener('resize', updateReservedSpace, { passive: true });
     return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateReservedSpace);
       document.body.style.paddingBottom = previousPadding;
     };
   }, [mounted]);
@@ -145,6 +160,7 @@ export function AudioPlayerWidget({ text, title, locale = 'bn' }: { text: string
 
   return (
     <div
+      ref={playerRef}
       className="fixed inset-x-0 bottom-20 z-40 border-t border-border bg-paper/95 backdrop-blur-md dark:border-neutral-800 dark:bg-ink/95 md:bottom-6"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
