@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/video-pipeline-ci.yml"
       - ".github/workflows/video-render.yml"
       - "scripts/pipeline/**"
       - "supabase/functions/video-upload-authorize/**"
