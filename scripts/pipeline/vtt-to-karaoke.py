@@ -43,7 +43,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Karaoke,Noto Sans Bengali,56,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,1,0,2,80,80,300,1,3,1
 
 [Events]
-Format: Layer, Start, End, Style, Text
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 out_lines = [header]
 for i in range(0, len(words), 2):
