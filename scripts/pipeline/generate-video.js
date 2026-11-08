@@ -26,7 +26,7 @@ fs.mkdirSync(OUTPUT, { recursive: true });
 // Env loaded via config
 
 const { Client } = require('pg');
-const PEXELS_KEY = process.env.PEXELS_API_KEY;
+const PIXABAY_KEY = process.env.PIXABAY_API_KEY;
 const DB = process.env.SUPABASE_DB_URL;
 
 // ─── Helper: Fetch latest article ───
@@ -75,65 +75,54 @@ function synthesizeVoice(script, outPath) {
   return { voicePath: outPath, subtitlePath };
 }
 
-// ─── Helper: Pexels → background images ───
+// ─── Helper: Pixabay Videos API → background video clips ───
 async function fetchImages(article, count = 3) {
-  console.log('🖼️  Fetching ' + count + ' background images...');
-  // Prefer Pexels stock imagery when configured. If the key is unavailable,
-  // use the article's already-published thumbnail rather than failing the job
-  // or inventing a visual that could misrepresent the report.
-  if (!PEXELS_KEY) {
-    if (!article.thumbnail_url) throw new Error('PEXELS_API_KEY is missing and article has no published thumbnail fallback');
-    const response = await fetch(article.thumbnail_url);
-    if (!response.ok) throw new Error(`Published article thumbnail fetch failed (${response.status})`);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length < 1024) throw new Error('Published article thumbnail is empty or invalid');
-    const imagePath = path.join(TMP, 'article-thumbnail.jpg');
-    fs.writeFileSync(imagePath, buffer);
-    console.log('   ⚠️  Using the published article thumbnail as a representative visual fallback');
-    return Array.from({ length: count }, () => imagePath);
-  }
-
-  const query = encodeURIComponent(
-    article.category_key === 'sports' ? 'bangladesh cricket'
-    : article.category_key === 'politics' ? 'bangladesh parliament'
-    : article.category_key === 'economy' ? 'dhaka city business'
-    : article.category_key === 'international' ? 'middle east city skyline'
-    : 'bangladesh news'
-  );
-
-  try {
-    const res = await fetch(
-      `https://api.pexels.com/v1/search?query=${query}&orientation=landscape&per_page=${count}`,
-      { headers: { Authorization: PEXELS_KEY } }
-    );
-    if (!res.ok) throw new Error(`Pexels HTTP ${res.status}`);
-    const j = await res.json();
-    if (!j.photos || j.photos.length === 0) throw new Error('Pexels returned no photos');
-    const paths = [];
-    for (let i = 0; i < Math.min(count, j.photos.length); i++) {
-      const url = j.photos[i].src.large2x || j.photos[i].src.large;
-      const imgPath = path.join(TMP, `bg-${i}.jpg`);
-      const imgRes = await fetch(url);
-      if (!imgRes.ok) throw new Error(`Pexels image fetch failed (${imgRes.status})`);
-      const buf = Buffer.from(await imgRes.arrayBuffer());
-      fs.writeFileSync(imgPath, buf);
-      paths.push(imgPath);
-      console.log('   ✅ Image ' + (i + 1) + ': ' + (buf.length / 1024).toFixed(0) + ' KB');
-    }
-    return paths;
-  } catch (error) {
-    if (!article.thumbnail_url) throw error;
-    console.log('   ⚠️  Pexels unavailable; using published article thumbnail: ' + error.message);
+  console.log('🎞️  Fetching ' + count + ' Pixabay background video clips...');
+  const fallbackToThumbnail = async (reason) => {
+    if (!article.thumbnail_url) throw new Error(reason + '; article has no published thumbnail fallback');
     const response = await fetch(article.thumbnail_url);
     if (!response.ok) throw new Error(`Published article thumbnail fallback failed (${response.status})`);
     const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length < 1024) throw new Error('Published article thumbnail fallback is invalid');
+    if (buffer.length < 1024) throw new Error('Published article thumbnail fallback is empty or invalid');
     const imagePath = path.join(TMP, 'article-thumbnail.jpg');
     fs.writeFileSync(imagePath, buffer);
+    console.log('   ⚠️  Using the published article thumbnail fallback: ' + reason);
     return Array.from({ length: count }, () => imagePath);
+  };
+  if (!PIXABAY_KEY) return fallbackToThumbnail('PIXABAY_API_KEY is not configured');
+  const query = article.category_key === 'sports' ? 'cricket stadium sports'
+    : article.category_key === 'politics' ? 'parliament government building'
+    : article.category_key === 'economy' ? 'city business stock market'
+    : article.category_key === 'international' ? 'world city skyline'
+    : 'Bangladesh Dhaka city';
+  try {
+    const apiUrl = `https://pixabay.com/api/videos/?key=${encodeURIComponent(PIXABAY_KEY)}&q=${encodeURIComponent(query)}&per_page=3`;
+    const response = await fetch(apiUrl, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error(`Pixabay Videos API HTTP ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.hits) || payload.hits.length === 0) throw new Error('Pixabay Videos API returned no matching clips');
+    const paths = [];
+    for (let i = 0; i < Math.min(count, payload.hits.length); i++) {
+      const variants = payload.hits[i].videos || {};
+      const selected = ['large', 'medium', 'small', 'tiny'].map((quality) => variants[quality] && variants[quality].url).find(Boolean);
+      if (!selected) continue;
+      const videoResponse = await fetch(selected, { signal: AbortSignal.timeout(60000) });
+      if (!videoResponse.ok) throw new Error(`Pixabay clip download failed (${videoResponse.status})`);
+      const buffer = Buffer.from(await videoResponse.arrayBuffer());
+      if (buffer.length < 1024) throw new Error('Pixabay returned an empty or invalid video file');
+      const videoPath = path.join(TMP, `pixabay-bg-${i}.mp4`);
+      fs.writeFileSync(videoPath, buffer);
+      paths.push(videoPath);
+      console.log('   ✅ Pixabay clip ' + (i + 1) + ': ' + (buffer.length / 1024 / 1024).toFixed(2) + ' MB');
+    }
+    if (paths.length === 0) throw new Error('Pixabay results contained no usable video URLs');
+    while (paths.length < count) paths.push(paths[paths.length - 1]);
+    return paths;
+  } catch (error) {
+    console.log('   ⚠️  Pixabay request/download failed: ' + error.message);
+    return fallbackToThumbnail('Pixabay unavailable');
   }
 }
-
 // ─── Helper: ffmpeg → slideshow MP4 ───
 function composeVideo(images, voicePath, outPath, title, subtitlePath) {
   console.log('🎬 Composing animated, captioned Bengali MP4...');
@@ -147,7 +136,11 @@ function composeVideo(images, voicePath, outPath, title, subtitlePath) {
   const totalDuration = Math.ceil((audioDuration + 1.25) * 100) / 100;
   const durationPerImage = totalDuration / images.length;
   const args = [];
-  for (const img of images) args.push(`-loop 1 -framerate 25 -t ${durationPerImage.toFixed(3)} -i "${img}"`);
+  for (const img of images) {
+    const duration = durationPerImage.toFixed(3);
+    if (/\.mp4$/i.test(img)) args.push(`-stream_loop -1 -t ${duration} -i "${img}"`);
+    else args.push(`-loop 1 -framerate 25 -t ${duration} -i "${img}"`);
+  }
   args.push(`-i "${voicePath}"`);
 
   // Shape Bengali with librsvg/Pango; FFmpeg only composites the rasterized PNG.
