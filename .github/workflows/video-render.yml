@@ -1,106 +1,95 @@
-name: Video Render (manual, budget-capped)
+name: BVAI Article Video Pipeline
 
 on:
   workflow_dispatch:
     inputs:
-      text:
-        description: "Narration text (Bengali or English)"
-        required: true
-        type: string
-      voice:
-        description: "Microsoft Edge TTS voice"
-        required: true
-        default: "bn-BD-NabanitaNeural"
-        type: choice
-        options:
-          - bn-BD-NabanitaNeural
-          - bn-BD-PradeepNeural
-          - en-US-AriaNeural
-      title:
-        description: "Optional video title"
+      article_id:
+        description: "Optional published article UUID; blank selects the latest eligible article"
         required: false
-        default: "Banglar Voice"
         type: string
+  schedule:
+    # Once daily, 12-minute timeout: at most ~360 runner minutes in a 30-day month.
+    - cron: "0 3 * * *"
 
-# Manual dispatch only: no push/PR auto-runs. One job at a time, bounded runtime.
 concurrency:
-  group: video-render-${{ github.ref }}
+  group: bvai-video-render
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  render:
-    name: Render short video
+  render-and-upload:
+    # Do not burn runner minutes if required protected secrets are not configured.
+    if: ${{ secrets.SUPABASE_DB_URL != '' && secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.VIDEO_UPLOAD_TOKEN != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VIDEO_UPLOAD_TOKEN: ${{ secrets.VIDEO_UPLOAD_TOKEN }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      ARTICLE_ID: ${{ inputs.article_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Install FFmpeg, Python and Bengali fonts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg python3 python3-pip fonts-noto-bengali
-          ffmpeg -version
-          python3 --version
-
-      - name: Install Edge TTS
-        run: python3 -m pip install --user --break-system-packages edge-tts
-
-      - name: Generate narration and render MP4
-        env:
-          NARRATION_TEXT: ${{ inputs.text }}
-          TTS_VOICE: ${{ inputs.voice }}
-          VIDEO_TITLE: ${{ inputs.title }}
+      - name: Validate production target
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p output
-          python3 - <<'PY'
-          import asyncio, os, re, subprocess
-          from pathlib import Path
-          import edge_tts
+          test "${SUPABASE_URL%/}" = "https://rtejxeamxeycnpcwnseo.supabase.co" || {
+            echo "::error::SUPABASE_URL does not target the configured BVAI production project"
+            exit 1
+          }
 
-          text = os.environ["NARRATION_TEXT"].strip()
-          voice = os.environ["TTS_VOICE"].strip()
-          title = os.environ["VIDEO_TITLE"].strip() or "Banglar Voice"
-          if not text or len(text) > 5000:
-              raise SystemExit("Narration must contain 1–5000 characters.")
-          if len(title) > 120:
-              raise SystemExit("Title must be 120 characters or fewer.")
-          audio = Path("output/narration.mp3")
-          async def synthesize():
-              await edge_tts.Communicate(text, voice).save(str(audio))
-          asyncio.run(synthesize())
-
-          # Render a portrait social-video canvas with Bengali-capable Noto fonts.
-          # Escape drawtext special characters; user input is never shell-evaluated.
-          def escape_drawtext(value):
-              return value.replace("\\", r"\\").replace(":", r"\\:").replace("'", r"\\'").replace("%", r"\\%").replace(",", r"\\,").replace("[", r"\\[").replace("]", r"\\]").replace("\n", " ")
-          Path("output/title.txt").write_text(title, encoding="utf-8")
-          # ffmpeg drawtext reads text from a file, avoiding command-line interpolation.
-          title_filter = "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf:textfile=output/title.txt:fontcolor=white:fontsize=54:x=(w-text_w)/2:y=h*0.18:box=1:boxcolor=black@0.35:boxborderw=24"
-          cmd = [
-              "ffmpeg", "-hide_banner", "-y",
-              "-f", "lavfi", "-i", "color=c=0x10243a:s=1080x1920:r=30",
-              "-i", str(audio),
-              "-vf", title_filter,
-              "-c:v", "libx264", "-preset", "veryfast", "-crf", "25",
-              "-c:a", "aac", "-b:a", "128k",
-              "-shortest", "-pix_fmt", "yuv420p",
-              "-movflags", "+faststart", "output/bvai-video.mp4"
-          ]
-          subprocess.run(cmd, check=True)
-          if not Path("output/bvai-video.mp4").is_file() or Path("output/bvai-video.mp4").stat().st_size < 1024:
-              raise SystemExit("Render output is missing or unexpectedly small.")
-          PY
-
-      - name: Upload rendered video
-        uses: actions/upload-artifact@v4
+      - name: Install Node.js 20
+        uses: actions/setup-node@v4
         with:
-          name: bvai-rendered-video
-          path: output/bvai-video.mp4
-          if-no-files-found: error
-          retention-days: 7
+          node-version: "20"
+
+      - name: Install FFmpeg, Bengali fonts and SVG renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg ffprobe fonts-noto-bengali librsvg2-bin
+          ffmpeg -version
+          rsvg-convert --version
+
+      - name: Install pipeline dependencies
+        run: |
+          python3 -m pip install --user --break-system-packages edge-tts
+          npm install --prefix scripts/pipeline --no-audit --no-fund pg@8.16.3
+
+      - name: Claim one published article
+        id: claim
+        run: node scripts/pipeline/create-video-job.cjs
+
+      - name: Render Bengali video
+        run: node scripts/pipeline/generate-video.js "${{ steps.claim.outputs.article_id }}"
+
+      - name: Upload and verify in private Supabase Storage
+        env:
+          ARTICLE_ID: ${{ steps.claim.outputs.article_id }}
+          VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
+          VIDEO_FILE: scripts/pipeline/output/video-${{ steps.claim.outputs.article_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIDEO_FILE="scripts/pipeline/output/video-${ARTICLE_ID:0:8}.mp4"
+          test -s "$VIDEO_FILE"
+          export VIDEO_FILE
+          node scripts/pipeline/upload-supabase-video.mjs
+
+      - name: Mark claimed job failed on pipeline error
+        if: failure() && steps.claim.outputs.video_job_id != ''
+        env:
+          VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
+          FAILURE_REASON: "GitHub Actions render/upload step failed; inspect workflow logs"
+        run: node scripts/pipeline/fail-video-job.cjs
+
+      - name: Cleanup generated media
+        if: always()
+        run: rm -rf scripts/pipeline/tmp scripts/pipeline/output
