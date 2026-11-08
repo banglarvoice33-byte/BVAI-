@@ -172,3 +172,5 @@ archive/**/bv-pocketbase
 *.bin
 
 fix-emails.sh
+.env
+temp_assets/
