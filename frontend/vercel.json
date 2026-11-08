@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/newsroom/cron-trigger",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
