@@ -62,6 +62,17 @@ Deno.serve(async (req) => {
       return reply(403, { error: "article_not_published" });
     }
 
+    if (action === "cleanup") {
+      if (job.status !== "processing") return reply(409, { error: "job_not_cleanup_eligible" });
+      const path = String(body.path ?? "");
+      if (!path.startsWith(`${articleId}/${jobId}-`) || !path.endsWith(".mp4")) {
+        return reply(400, { error: "invalid_cleanup_path" });
+      }
+      const { error: removeError } = await supabase.storage.from("reels").remove([path]);
+      if (removeError) return reply(502, { error: "orphan_cleanup_failed" });
+      return reply(200, { cleaned: true, bucket: "reels", path });
+    }
+
     if (action === "upload") {
       if (!(req.headers.get("content-type") ?? "").toLowerCase().startsWith("video/mp4")) {
         return reply(415, { error: "video_mp4_required" });
