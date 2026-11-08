@@ -21,14 +21,14 @@ permissions:
 jobs:
   render-and-upload:
     # Do not burn runner minutes if required protected secrets are not configured.
-    if: ${{ secrets.SUPABASE_DB_URL != '' && secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.VIDEO_UPLOAD_TOKEN != '' }}
+    if: ${{ secrets.SUPABASE_DB_URL != '' && secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && true }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VIDEO_UPLOAD_TOKEN: ${{ secrets.VIDEO_UPLOAD_TOKEN }}
+      VIDEO_UPLOAD_TOKEN: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       ARTICLE_ID: ${{ inputs.article_id }}
     steps:
@@ -51,12 +51,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install FFmpeg, Bengali fonts and SVG renderer
+      - name: Install FFmpeg and Bengali fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg ffprobe fonts-noto-bengali librsvg2-bin
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-bengali
           ffmpeg -version
-          rsvg-convert --version
 
       - name: Install pipeline dependencies
         run: |
