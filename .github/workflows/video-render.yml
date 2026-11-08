@@ -81,10 +81,13 @@ jobs:
             exit 1
           }
           ffmpeg -version
+          ffprobe -version
 
       - name: Install pipeline dependencies
         run: |
+          set -euo pipefail
           python3 -m pip install --user --break-system-packages edge-tts
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           npm install --prefix scripts/pipeline --no-audit --no-fund pg@8.16.3
 
       - name: Claim one published article
@@ -98,6 +101,7 @@ jobs:
         env:
           ARTICLE_ID: ${{ steps.claim.outputs.article_id }}
           VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
+          VIDEO_CLAIM_TOKEN: ${{ steps.claim.outputs.claim_token }}
           VIDEO_FILE: scripts/pipeline/output/video-${{ steps.claim.outputs.article_id }}
         shell: bash
         run: |
@@ -111,6 +115,7 @@ jobs:
         if: failure() && steps.claim.outputs.video_job_id != ''
         env:
           VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
+          VIDEO_CLAIM_TOKEN: ${{ steps.claim.outputs.claim_token }}
           FAILURE_REASON: "GitHub Actions render/upload step failed; inspect workflow logs"
         run: node scripts/pipeline/fail-video-job.cjs
 
