@@ -90,6 +90,15 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           npm install --prefix scripts/pipeline --no-audit --no-fund pg@8.16.3
 
+      - name: Validate pipeline JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/pipeline/create-video-job.cjs
+          node --check scripts/pipeline/fail-video-job.cjs
+          node --check scripts/pipeline/generate-video.js
+          node --check scripts/pipeline/upload-supabase-video.mjs
+
       - name: Claim one published article
         id: claim
         run: node scripts/pipeline/create-video-job.cjs
