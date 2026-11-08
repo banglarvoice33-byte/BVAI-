@@ -19,9 +19,29 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check required protected secrets without printing values
+        id: check
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          API_URL: ${{ secrets.SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        shell: bash
+        run: |
+          if [[ -n "$DB_URL" && -n "$API_URL" && -n "$SERVICE_KEY" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Video pipeline skipped: required GitHub Actions secrets are not all configured."
+          fi
+
   render-and-upload:
-    # Do not burn runner minutes if required protected secrets are not configured.
-    if: ${{ secrets.SUPABASE_DB_URL != '' && secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && true }}
+    needs: preflight
+    if: ${{ needs.preflight.outputs.configured == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
