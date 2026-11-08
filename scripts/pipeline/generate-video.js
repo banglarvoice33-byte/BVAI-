@@ -209,74 +209,47 @@ function composeVideo(images, voicePath, outPath, title, subtitlePath) {
 // ─── Main flow ───
 async function main() {
   const arg = process.argv[2] || '--latest';
-  console.log('');
-  console.log('══════════════════════════════════════');
-  console.log('  VIDEO GENERATOR — Article → MP4');
-  console.log('══════════════════════════════════════');
-  console.log('');
+  if (!DB) throw new Error('SUPABASE_DB_URL is not set');
 
-  if (!DB) {
-    throw new Error('SUPABASE_DB_URL is not set');
-  }
-
-  const client = new Client({ connectionString: DB, ssl: { rejectUnauthorized: true } });
+  const client = new Client({
+    connectionString: DB,
+    ssl: { rejectUnauthorized: true },
+    connectionTimeoutMillis: 10000,
+    statement_timeout: 120000,
+  });
   await client.connect();
+  try {
+    const article = await fetchArticle(client, arg);
+    if (!article) throw new Error('No article found for the claimed article ID');
+    console.log('📰 Article: ' + article.title_bn.slice(0, 60));
+    console.log('   Category: ' + article.category_key);
 
-  // 1. Fetch article
-  const article = await fetchArticle(client, arg);
-  if (!article) {
-    console.error('❌ No article found');
-    await client.end();
-    process.exit(1);
+    const script = await generateScript(article);
+    const voicePath = path.join(TMP, 'voice.mp3');
+    const voice = synthesizeVoice(script, voicePath);
+    const images = await fetchImages(article, 3);
+    const slug = article.id.slice(0, 8);
+    const outPath = path.join(OUTPUT, `video-${slug}.mp4`);
+    composeVideo(images, voice.voicePath, outPath, article.title_bn, voice.subtitlePath);
+
+    const metaPath = path.join(OUTPUT, `video-${slug}.json`);
+    fs.writeFileSync(metaPath, JSON.stringify({
+      article_id: article.id,
+      title_bn: article.title_bn,
+      title_en: '',
+      category: article.category_key,
+      script_bn: script,
+      video_path: outPath,
+      generated_at: new Date().toISOString(),
+    }, null, 2), { mode: 0o600 });
+
+    console.log('VIDEO_READY=' + outPath);
+  } finally {
+    await client.end().catch(() => {});
   }
-  console.log('📰 Article: ' + article.title_bn.slice(0, 60));
-  console.log('   Category: ' + article.category_key);
-  console.log('');
-
-  // 2. Generate script
-  const script = await generateScript(article);
-  console.log('');
-
-  // 3. Synthesize voice
-  const voicePath = path.join(TMP, 'voice.mp3');
-  const voice = synthesizeVoice(script, voicePath);
-  console.log('');
-
-  // 4. Fetch images
-  const images = await fetchImages(article, 3);
-  console.log('');
-
-  // 5. Compose video
-  const slug = article.id.slice(0, 8);
-  const outPath = path.join(OUTPUT, `video-${slug}.mp4`);
-  composeVideo(images, voice.voicePath, outPath, article.title_bn, voice.subtitlePath);
-
-  // 6. Save metadata
-  const metaPath = path.join(OUTPUT, `video-${slug}.json`);
-  fs.writeFileSync(metaPath, JSON.stringify({
-    article_id: article.id,
-    article_id_full: article.id,
-    title_bn: article.title_bn,
-    title_en: '',
-    category: article.category_key,
-    script_bn: script,
-    video_path: outPath,
-    generated_at: new Date().toISOString(),
-  }, null, 2));
-
-  console.log('');
-  console.log('══════════════════════════════════════');
-  console.log('  ✅ VIDEO READY');
-  console.log('══════════════════════════════════════');
-  console.log('  Path: ' + outPath);
-  console.log('  Meta: ' + metaPath);
-  console.log('');
-
-  await client.end();
 }
 
-main().catch(e => {
-  console.error('');
-  console.error('❌ FATAL:', e.message);
-  process.exit(1);
+main().catch(error => {
+  console.error('FATAL:', error.message);
+  process.exitCode = 1;
 });
