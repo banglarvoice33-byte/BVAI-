@@ -18,35 +18,23 @@ export async function GET(req: Request) {
     const limit = Math.min(Math.max(Number.parseInt(requestUrl.searchParams.get('limit') || '20', 10) || 20, 1), 50);
     const supabase = getSupabase();
 
+    // Query only columns that exist in the production videos schema.
+    // The old query referenced embed_url/youtube_id/is_live/view_count/published_at,
+    // which are not columns in public.videos and caused every request to return 503.
     let videosQuery = supabase
       .from('videos')
-      .select('id, title_bn, title_en, description_bn, category_key, thumbnail_url, video_url, embed_url, youtube_id, duration_sec, is_live, view_count, published_at')
+      .select('id, article_id, title_bn, title_en, description_bn, category_key, thumbnail_url, video_url, duration_sec, duration_seconds, status, created_at')
       .in('status', ['published', 'live']);
-    if (articleId) {
-      const { data: linked, error: linkedError } = await supabase
-        .from('video_generation_jobs')
-        .select('video_id, render_path')
-        .eq('article_id', articleId)
-        .eq('status', 'publishing')
-        .not('video_id', 'is', null)
-        .not('render_path', 'is', null)
-        .order('updated_at', { ascending: false })
-        .limit(1);
-      if (linkedError) throw linkedError;
-      if (!linked?.length) return NextResponse.json({ video: null }, { headers: { 'Cache-Control': 'no-store' } });
-      videosQuery = videosQuery.eq('id', linked[0].video_id);
-    }
+    if (articleId) videosQuery = videosQuery.eq('article_id', articleId);
 
     const { data: videos, error } = await videosQuery
-      .order('is_live', { ascending: false })
-      .order('published_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(articleId ? 1 : limit);
     if (error) throw error;
-
     const ids = (videos || []).map((video) => video.id);
     const { data: jobs, error: jobsError } = ids.length
       ? await supabase.from('video_generation_jobs').select('video_id, render_path')
-          .in('video_id', ids).eq('status', 'publishing').not('render_path', 'is', null)
+          .in('video_id', ids).not('render_path', 'is', null)
           .order('updated_at', { ascending: false })
       : { data: [], error: null };
     if (jobsError) throw jobsError;
@@ -69,12 +57,12 @@ export async function GET(req: Request) {
         category: video.category_key || '',
         thumbnail_url: video.thumbnail_url || null,
         video_url: playbackUrl,
-        embed_url: video.embed_url || null,
-        youtube_id: video.youtube_id || null,
-        duration_sec: video.duration_sec || 0,
-        is_live: Boolean(video.is_live),
-        view_count: video.view_count || 0,
-        published_at: video.published_at,
+        embed_url: null,
+        youtube_id: null,
+        duration_sec: video.duration_sec || video.duration_seconds || 0,
+        is_live: video.status === 'live',
+        view_count: 0,
+        published_at: video.created_at,
       };
     }));
 
