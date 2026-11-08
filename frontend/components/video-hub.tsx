@@ -70,6 +70,7 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
     ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtube_id)}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
     : video.embed_url || null;
   const hasDirectVideo = Boolean(video.video_url);
+  const isVertical = hasDirectVideo && !video.youtube_id;
   const poster = video.thumbnail_url || youtubeHqThumbnail(video.youtube_id);
   const posterFallback = youtubeHqThumbnail(video.youtube_id);
 
@@ -102,7 +103,7 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   }
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+    <div className="relative aspect-[9/16] max-w-[420px] mx-auto w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
       {hasDirectVideo ? (
         <video ref={videoRef} key={video.id || video.video_url} src={video.video_url} poster={poster || undefined}
           controls autoPlay playsInline preload="metadata" className="h-full w-full object-contain" />

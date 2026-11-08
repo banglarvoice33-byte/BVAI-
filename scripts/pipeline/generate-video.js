@@ -42,7 +42,7 @@ function synthesizeVoice(text, audioPath, subPath) {
   for (const voice of ['bn-BD-PradeepNeural', 'bn-BD-NabanitaNeural']) {
     try {
       execFileSync('python3', ['-m', 'edge_tts',
-        '--voice', voice, '--rate', '+5%',
+        '--voice', voice, '--rate', '-8%', '--pitch', '-2Hz', '--volume', '+5%',
         '--file', textPath,
         '--write-media', audioPath,
         '--write-subtitles', subPath,
@@ -149,7 +149,7 @@ function renderOverlay(title, outPath) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
   const lines = wrapTitle(title);
   const font = "'Noto Sans Bengali','Lohit Bengali','SolaimanLipi',sans-serif";
-  const boxTop = 1320 - (lines.length - 1) * 62;
+  const boxTop = 120;
   const boxH = 200 + lines.length * 62;
   const tspans = lines.map((l, i) =>
     '<tspan x="90" dy="' + (i === 0 ? 0 : 62) + '">' + esc(l) + '</tspan>'
@@ -189,25 +189,27 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   args.push('-loop','1','-framerate','25','-t',totalDur.toFixed(3),'-i',overlayPath);
 
   const parts = images.map((_, i) =>
-    '[' + i + ':v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v' + i + ']'
+    '[' + i + ':v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[v' + i + ']'
   ).join(';');
   const concat = images.map((_, i) => '[v' + i + ']').join('');
   const ovIdx = images.length + 1;
-  const hasSubs = fs.existsSync(subPath) && fs.statSync(subPath).size > 50;
+  const assPath = subPath.replace(/\.vtt$/i, '.ass');
+  try { if (fs.existsSync(subPath) && fs.statSync(subPath).size > 50) execFileSync('python3', [path.join(__dirname, 'vtt-to-karaoke.py'), subPath, assPath], { timeout: 60000, stdio: 'pipe' }); } catch (e) { console.log('   ⚠️  karaoke convert failed: ' + e.message); }
+  const hasSubs = fs.existsSync(assPath) && fs.statSync(assPath).size > 50;
   const subStep = hasSubs
-    ? ';[withov]subtitles=filename=' + subPath.replace(/([:\\'])/g, '\\$1') +
-      ":force_style='FontName=Noto Sans Bengali,FontSize=22,Outline=2,Shadow=1,Alignment=2,MarginV=140'[outv]"
+    ? ';[withov]subtitles=filename=' + assPath.replace(/([:\\'])/g, '\\$1') +
+      "[outv]"
     : ';[withov]null[outv]';
 
   const filter = parts + ';' + concat + 'concat=n=' + images.length + ':v=1:a=0[base];' +
-    '[base][' + ovIdx + ':v]overlay=0:0:shortest=1[withov]' + subStep;
+    '[base][' + ovIdx + ':v]overlay=0:0:enable=\'between(t,0,2.5)\'[withov]' + subStep;
   args.push('-filter_complex', filter);
   args.push('-map', '[outv]', '-map', images.length + ':a');
   args.push('-af', 'loudnorm=I=-16:TP=-1.5:LRA=11,apad=pad_dur=1.25');
   args.push('-t', totalDur.toFixed(2));
-  args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '23');
+  args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '26');
   args.push('-pix_fmt', 'yuv420p', '-movflags', '+faststart');
-  args.push('-c:a', 'aac', '-b:a', '128k', outPath);
+  args.push('-c:a', 'aac', '-b:a', '96k', '-ar', '48000', '-ac', '2', outPath);
 
   execFileSync('ffmpeg', args, { timeout: 900000, stdio: 'pipe' });
   const renderDur = Number(execFileSync('ffprobe', [
@@ -237,7 +239,7 @@ async function main() {
   const videoPath = path.join(TMP, 'final_output.mp4');
 
   const text = (article.title_bn || '') + '। ' +
-    (article.excerpt_bn || (article.content_bn || '').substring(0, 220));
+    (article.excerpt_bn || (article.content_bn || '').substring(0, 600));
   const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
   if (cleanText.length < 20) throw new Error('Script too short');
 
