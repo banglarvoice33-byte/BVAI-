@@ -241,7 +241,9 @@ export default async function HomePage() {
       {/* Membership / newsletter hook */}
       <NewsletterCta locale={locale} />
 
-      <AudioPlayerWidget text={feed.map((a) => `${a.title_bn}। ${a.dek_bn || ''}`).join(' ')} title={t(locale, 'audio_today_headlines')} locale={locale} />
+      {feed.length > 0 ? (
+        <AudioPlayerWidget text={feed.map((a) => `${a.title_bn}। ${a.dek_bn || ''}`).join(' ')} title={t(locale, 'audio_today_headlines')} locale={locale} />
+      ) : null}
     </main>
   );
 }
