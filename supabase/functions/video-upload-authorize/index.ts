@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const cors = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, content-type, x-video-job-id, x-video-article-id, x-video-sha256",
+  "access-control-allow-headers": "authorization, content-type, x-video-job-id, x-video-article-id, x-video-sha256, x-video-claim-token",
   "access-control-allow-methods": "POST, OPTIONS",
   "content-type": "application/json",
 };
@@ -41,15 +41,19 @@ Deno.serve(async (req) => {
     const body = uploadAction ? {} : await req.json();
     const action = uploadAction ? "upload" : body.action;
     const jobId = String(req.headers.get("x-video-job-id") ?? body.job_id ?? "");
+    const claimToken = String(req.headers.get("x-video-claim-token") ?? "");
     const articleId = String(req.headers.get("x-video-article-id") ?? body.article_id ?? "");
-    if (!/^[0-9a-f-]{36}$/i.test(jobId) || !/^[0-9a-f-]{36}$/i.test(articleId)) {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId) || !/^[0-9a-f-]{36}$/i.test(articleId) || !/^[0-9a-f-]{36}$/i.test(claimToken)) {
       return reply(400, { error: "invalid_job_or_article_id" });
     }
 
     const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data: job, error: jobError } = await supabase.from("video_generation_jobs")
-      .select("id,article_id,video_id,status").eq("id", jobId).eq("article_id", articleId).maybeSingle();
+      .select("id,article_id,video_id,status,claim_token").eq("id", jobId).eq("article_id", articleId).maybeSingle();
     if (jobError || !job) return reply(404, { error: "generation_job_not_found" });
+    if (!job.claim_token || !safeEqual(String(job.claim_token), claimToken)) return reply(401, { error: "invalid_job_claim" });
+    if (action === "upload" && job.status !== "processing") return reply(409, { error: "job_not_processing" });
+    if (action === "finalize" && !["processing", "needs_review"].includes(job.status)) return reply(409, { error: "job_not_finalizable" });
 
     const { data: article, error: articleError } = await supabase.from("articles")
       .select("id,status,title_bn,title_en,content_bn,category,thumbnail_url")
@@ -111,44 +115,23 @@ Deno.serve(async (req) => {
       const { data: signed, error: signedError } = await supabase.storage.from("reels").createSignedUrl(path, 86400);
       if (signedError || !signed?.signedUrl) return reply(502, { error: "signed_read_url_failed" });
 
-      let videoId = job.video_id as string | null;
-      if (!videoId) {
-        const { data: video, error: videoError } = await supabase.from("videos").insert({
-          title_bn: article.title_bn,
-          title_en: article.title_en ?? "",
-          description_bn: article.content_bn ?? "",
-          category_key: article.category ?? "national",
-          thumbnail_url: article.thumbnail_url ?? "",
-          video_url: signed.signedUrl,
-          source_url: null,
-          duration_sec: Math.round(durationSec),
-          status: "draft",
-        }).select("id").single();
-        if (videoError || !video) return reply(500, { error: "video_record_create_failed", detail: videoError?.message });
-        videoId = video.id;
+      const { data: finalized, error: finalizeError } = await supabase.rpc("finalize_video_generation_job", {
+        p_job_id: jobId,
+        p_article_id: articleId,
+        p_claim_token: claimToken,
+        p_path: path,
+        p_signed_url: signed.signedUrl,
+        p_duration_sec: Math.round(durationSec),
+        p_sha256: actualHash,
+        p_size_bytes: file.size,
+      });
+      if (finalizeError || !Array.isArray(finalized) || !finalized[0]) {
+        return reply(500, { error: "atomic_finalization_failed", detail: finalizeError?.message ?? "No finalization result" });
       }
-
-      const { data: asset, error: assetError } = await supabase.from("video_generation_assets").insert({
-        job_id: jobId,
-        kind: "render",
-        provider: "supabase_storage",
-        external_id: path,
-        url: signed.signedUrl,
-        license: "original_or_cleared",
-        metadata: {
-          bucket: "reels", path, sha256: actualHash, size_bytes: file.size,
-          duration_sec: durationSec, mime_type: "video/mp4", verified_at: new Date().toISOString(),
-        },
-      }).select("id,job_id,kind,provider,external_id,metadata").single();
-      if (assetError || !asset) return reply(500, { error: "asset_record_insert_failed", detail: assetError?.message });
-
-      const { error: updateError } = await supabase.from("video_generation_jobs")
-        .update({ video_id: videoId, render_path: path, status: "needs_review", updated_at: new Date().toISOString() })
-        .eq("id", jobId);
-      if (updateError) return reply(500, { error: "job_asset_link_failed", asset_id: asset.id });
+      const result = finalized[0];
       return reply(200, {
-        verified: true, quality_gate: "storage_integrity", review_status: "needs_review",
-        video_id: videoId, asset_id: asset.id, bucket: "reels", path,
+        verified: true, quality_gate: "storage_integrity", review_status: result.job_status,
+        video_id: result.video_id, asset_id: result.asset_id, bucket: "reels", path,
         size_bytes: file.size, duration_sec: durationSec, sha256: actualHash,
       });
     }
