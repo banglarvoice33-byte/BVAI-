@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
 
-  const expected = Deno.env.get("VIDEO_UPLOAD_TOKEN");
+  const expected = Deno.env.get("VIDEO_UPLOAD_TOKEN") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const supplied = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!expected || !supplied || !safeEqual(supplied, expected)) return reply(401, { error: "unauthorized" });
 
