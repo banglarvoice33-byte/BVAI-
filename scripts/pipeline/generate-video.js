@@ -33,15 +33,15 @@ const DB = process.env.SUPABASE_DB_URL;
 async function fetchArticle(client, arg) {
   let query, params;
   if (arg === '--latest') {
-    query = `SELECT id,  title_bn,  content_bn, category_key, thumbnail_url, published_at
-             FROM articles
-             WHERE status = 'published' AND content_bn IS NOT NULL AND LENGTH(content_bn) > 200
-               AND video_id IS NULL
-             ORDER BY published_at DESC LIMIT 1`;
+    query = `SELECT a.id, a.title_bn, a.content_bn, a.category AS category_key, a.thumbnail_url, a.published_at
+             FROM public.articles a
+             WHERE a.status = 'published' AND a.content_bn IS NOT NULL AND LENGTH(a.content_bn) > 200
+               AND NOT EXISTS (SELECT 1 FROM public.videos v WHERE v.article_id = a.id)
+             ORDER BY a.published_at DESC LIMIT 1`;
     params = [];
   } else {
-    query = `SELECT id,  title_bn,  content_bn, category_key, thumbnail_url, published_at
-             FROM articles WHERE id = $1`;
+    query = `SELECT id, title_bn, content_bn, category AS category_key, thumbnail_url, published_at
+             FROM public.articles WHERE id = $1 AND status = 'published'`;
     params = [arg];
   }
   const { rows } = await client.query(query, params);
