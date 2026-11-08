@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { youtubeHqThumbnail } from '../lib/video-thumbnail';
 
 export type VideoItem = {
@@ -55,6 +55,8 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   const title = locale === 'en' ? video?.title_en || video?.title_bn : video?.title_bn || video?.title_en;
   const playLabel = locale === 'en' ? 'Play video' : 'ভিডিও চালান';
   const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => { if (playing) { void videoRef.current?.play().catch(() => {}); } }, [playing]);
 
   if (!video) {
     return (
@@ -102,8 +104,8 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
       {hasDirectVideo ? (
-        <video key={video.id || video.video_url} src={video.video_url} poster={poster || undefined}
-          controls autoPlay playsInline preload="metadata" className="h-full w-full" />
+        <video ref={videoRef} key={video.id || video.video_url} src={video.video_url} poster={poster || undefined}
+          controls autoPlay playsInline preload="metadata" className="h-full w-full object-contain" />
       ) : (
         <iframe key={video.id || src} src={src || undefined} title={title || (locale === 'en' ? 'Video' : 'ভিডিও')}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

@@ -12,6 +12,7 @@ type VideoRow = {
   thumbnail_url: string | null;
   youtube_id: string | null;
   embed_url: string | null;
+  video_url: string | null;
   published_at: string | null;
 };
 
@@ -40,7 +41,7 @@ async function getVaultSecret(client: SupabaseClient, serviceName: string): Prom
 async function latestPublished(client: SupabaseClient): Promise<VideoRow | null> {
   const { data, error } = await client
     .from('videos')
-    .select('id,title_bn,title_en,thumbnail_url,youtube_id,embed_url,published_at')
+    .select('id,title_bn,title_en,thumbnail_url,youtube_id,embed_url,video_url,published_at')
     .eq('status', 'published')
     .order('published_at', { ascending: false })
     .limit(1)
