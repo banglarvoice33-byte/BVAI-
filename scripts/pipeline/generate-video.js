@@ -15,7 +15,7 @@ cfg.loadEnv();
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 const TMP = path.resolve(__dirname, 'tmp');
@@ -150,19 +150,36 @@ function composeVideo(images, voicePath, outPath, title, subtitlePath) {
   for (const img of images) args.push(`-loop 1 -framerate 25 -t ${durationPerImage.toFixed(3)} -i "${img}"`);
   args.push(`-i "${voicePath}"`);
 
-  // Break the Bengali headline at word boundaries to keep it readable on mobile.
-  const words = String(title || '').split(/\\s+/);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    const next = line ? line + ' ' + word : word;
-    if (next.length > 32 && line) { lines.push(line); line = word; }
-    else line = next;
+  // Shape Bengali with librsvg/Pango; FFmpeg only composites the rasterized PNG.
+  function xmlEscape(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
   }
-  if (line) lines.push(line);
-  const titlePath = path.join(TMP, 'headline.txt');
-  fs.writeFileSync(titlePath, lines.slice(0, 2).join('\\n'), 'utf8');
-  const fontPath = '/usr/share/fonts/truetype/noto/NotoSansBengali-Regular.ttf';
+  const words = String(title || '').trim().split(/\\s+/).filter(Boolean);
+  const lines = [];
+  let headlineLine = '';
+  for (const word of words) {
+    const candidate = headlineLine ? headlineLine + ' ' + word : word;
+    if (candidate.length > 34 && headlineLine) { lines.push(headlineLine); headlineLine = word; }
+    else headlineLine = candidate;
+  }
+  if (headlineLine) lines.push(headlineLine);
+  const visibleLines = lines.slice(0, 2);
+  const headlineSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="180" viewBox="0 0 1280 180">' +
+    '<rect width="1280" height="180" fill="#07111f" fill-opacity="0.78"/>' +
+    '<text x="48" y="34" font-family="Noto Sans Bengali" font-size="20" font-weight="700" fill="#ffcf4a">বাংলার ভয়েস | NEWS</text>' +
+    visibleLines.map((line, index) =>
+      '<text x="48" y="' + (88 + index * 48) + '" font-family="Noto Sans Bengali" font-size="36" font-weight="700" fill="#ffffff">' +
+      xmlEscape(line) + '</text>'
+    ).join('') + '</svg>';
+  const svgPath = path.join(TMP, 'headline-overlay.svg');
+  const overlayPath = path.join(TMP, 'headline-overlay.png');
+  fs.writeFileSync(svgPath, headlineSvg, 'utf8');
+  execFileSync('rsvg-convert', ['--format', 'png', '--output', overlayPath, svgPath]);
+  if (!fs.existsSync(overlayPath) || fs.statSync(overlayPath).size < 512) {
+    throw new Error('Pango/librsvg Bengali headline rasterization failed');
+  }
+  args.push(`-loop 1 -framerate 25 -t ${totalDuration.toFixed(3)} -i "${overlayPath}"`);
 
   const motion = [
     "x='iw/2-(iw/zoom/2)+12*sin(on/55)':y='ih/2-(ih/zoom/2)'",
@@ -173,8 +190,9 @@ function composeVideo(images, voicePath, outPath, title, subtitlePath) {
     `[${i}:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,zoompan=z='min(zoom+0.00045,1.14)':${motion[i % motion.length]}:d=1:s=1280x720:fps=25,setsar=1[v${i}]`
   ).join(';');
   const concatInputs = images.map((_, i) => `[v${i}]`).join('');
-  const overlay = `subtitles='${subtitlePath}':fontsdir='/usr/share/fonts/truetype/noto':force_style='FontName=Noto Sans Bengali,FontSize=24,Outline=2,Shadow=1,Alignment=2,MarginV=36',drawbox=x=0:y=0:w=iw:h=150:color=black@0.48:t=fill,drawtext=fontfile='${fontPath}':textfile='${titlePath}':fontcolor=white:fontsize=36:line_spacing=8:x=48:y=32`;
-  const filter = `${filterParts};${concatInputs}concat=n=${images.length}:v=1:a=0,${overlay}[outv]`;
+  const captions = `subtitles='${subtitlePath}':fontsdir='/usr/share/fonts/truetype/noto':force_style='FontName=Noto Sans Bengali,FontSize=24,Outline=2,Shadow=1,Alignment=2,MarginV=36'`;
+  const overlayInput = images.length + 1;
+  const filter = `${filterParts};${concatInputs}concat=n=${images.length}:v=1:a=0,${captions}[base];[base][${overlayInput}:v]overlay=0:0:shortest=1[outv]`;
   const cmd = `ffmpeg -y ${args.join(' ')} -filter_complex "${filter}" -map "[outv]" -map ${images.length}:a -af "loudnorm=I=-16:TP=-1.5:LRA=11,apad=pad_dur=1.25" -t ${totalDuration.toFixed(2)} -c:v ${VIDEO_CODEC} ${CODEC_OPTS} -c:a aac -b:a 128k -pix_fmt yuv420p "${outPath}" 2>&1 | tail -8`;
 
   try {
