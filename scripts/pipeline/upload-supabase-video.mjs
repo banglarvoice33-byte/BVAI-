@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const required = ["SUPABASE_URL", "VIDEO_UPLOAD_TOKEN", "VIDEO_JOB_ID", "ARTICLE_ID", "VIDEO_FILE"];
+const required = ["SUPABASE_URL", "VIDEO_UPLOAD_TOKEN", "VIDEO_JOB_ID", "VIDEO_CLAIM_TOKEN", "ARTICLE_ID", "VIDEO_FILE"];
 for (const key of required) if (!process.env[key]) throw new Error(`Missing environment variable: ${key}`);
 
 const base = process.env.SUPABASE_URL.replace(/\/$/, "");
@@ -22,7 +22,7 @@ const sha256 = sha.digest("hex");
 async function endpoint(body) {
   const response = await fetch(`${base}/functions/v1/video-upload-authorize`, {
     method: "POST",
-    headers: { authorization: auth, "content-type": "application/json" },
+    headers: { authorization: auth, "content-type": "application/json", "x-video-claim-token": process.env.VIDEO_CLAIM_TOKEN },
     body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
@@ -44,6 +44,7 @@ const uploadResponse = await fetch(`${base}/functions/v1/video-upload-authorize?
     "x-video-job-id": jobId,
     "x-video-article-id": articleId,
     "x-video-sha256": sha256,
+    "x-video-claim-token": process.env.VIDEO_CLAIM_TOKEN,
   },
   body: createReadStream(file),
   duplex: "half",
