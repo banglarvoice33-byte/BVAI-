@@ -39,11 +39,21 @@ async function upload() {
   const publicUrl = urlData.publicUrl;
   console.log('✅ URL: ' + publicUrl);
 
-  const { error: insErr } = await supabase.from('videos').insert({
+  const { data: art } = await supabase.from('articles').select('title_bn,title_en,excerpt_bn,category_key,thumbnail_url').eq('id', m.article_id).single();
+    const now = new Date().toISOString();
+    const { error: insErr } = await supabase.from('videos').insert({
     article_id: m.article_id,
     video_url: publicUrl,
     duration_seconds: Math.round(m.audio_duration || 0),
     platform_posted: {},
+      status: 'published',
+      title_bn: art?.title_bn || m.title_bn || '',
+      title_en: art?.title_en || '',
+      description_bn: art?.excerpt_bn || '',
+      category_key: art?.category_key || 'national',
+      thumbnail_url: art?.thumbnail_url || '',
+      published_at: now,
+      duration_sec: Math.round(m.audio_duration || 0),
   });
   if (insErr) throw new Error('videos insert: ' + insErr.message);
   console.log('✅ videos row inserted');
