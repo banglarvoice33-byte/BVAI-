@@ -1,41 +1,28 @@
 const { Client } = require('pg');
+const fs = require('node:fs');
 
 async function main() {
   const db = process.env.SUPABASE_DB_URL;
   if (!db) throw new Error('SUPABASE_DB_URL is required');
-  const client = new Client({ connectionString: db, ssl: { rejectUnauthorized: true } });
+  const requested = (process.env.ARTICLE_ID || '').trim() || null;
+  const client = new Client({ connectionString: db, ssl: { rejectUnauthorized: true }, connectionTimeoutMillis: 10000 });
   await client.connect();
   try {
-    const requested = (process.env.ARTICLE_ID || '').trim();
-    const articleQuery = requested
-      ? { text: "SELECT id FROM public.articles WHERE id=$1 AND status='published' AND length(content_bn)>200", values: [requested] }
-      : { text: "SELECT a.id FROM public.articles a WHERE a.status='published' AND length(a.content_bn)>200 AND NOT EXISTS (SELECT 1 FROM public.videos v WHERE v.article_id=a.id) AND NOT EXISTS (SELECT 1 FROM public.video_generation_jobs j WHERE j.article_id=a.id AND j.status IN ('queued','processing','needs_review')) ORDER BY a.published_at DESC NULLS LAST LIMIT 1", values: [] };
-    const { rows } = await client.query(articleQuery);
-    if (!rows.length) throw new Error('No eligible published article is available for video generation');
-    const articleId = rows[0].id;
-    const existing = await client.query(
-      "SELECT id FROM public.video_generation_jobs WHERE article_id=$1 AND status IN ('queued','processing','needs_review') ORDER BY created_at DESC LIMIT 1",
-      [articleId]
+    const { rows } = await client.query(
+      'SELECT article_id, job_id, claim_token FROM public.claim_video_generation_job($1::uuid)',
+      [requested]
     );
-    let jobId;
-    if (existing.rows.length) {
-      jobId = existing.rows[0].id;
-      await client.query("UPDATE public.video_generation_jobs SET status='processing',attempt_count=attempt_count+1,updated_at=now() WHERE id=$1", [jobId]);
-    } else {
-      const inserted = await client.query(
-        "INSERT INTO public.video_generation_jobs(article_id,status,attempt_count) VALUES($1,'processing',1) RETURNING id",
-        [articleId]
-      );
-      jobId = inserted.rows[0].id;
-    }
+    if (!rows.length) throw new Error('No eligible published article is available; it may already have a video or active job');
+    const { article_id: articleId, job_id: jobId, claim_token: claimToken } = rows[0];
     console.log(`article_id=${articleId}`);
     console.log(`video_job_id=${jobId}`);
     if (process.env.GITHUB_OUTPUT) {
-      const fs = require('fs');
-      fs.appendFileSync(process.env.GITHUB_OUTPUT, `article_id=${articleId}\nvideo_job_id=${jobId}\n`);
+      fs.appendFileSync(process.env.GITHUB_OUTPUT,
+        `article_id=${articleId}\nvideo_job_id=${jobId}\nclaim_token=${claimToken}\n`,
+        { mode: 0o600 });
     }
   } finally {
-    await client.end();
+    await client.end().catch(() => {});
   }
 }
-main().catch(error => { console.error(error.message); process.exit(1); });
+main().catch(error => { console.error(error.message); process.exitCode = 1; });
