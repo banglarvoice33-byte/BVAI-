@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
           category_key: article.category ?? "national",
           thumbnail_url: article.thumbnail_url ?? "",
           video_url: signed.signedUrl,
-          source_url: article.source_url ?? null,
+          source_url: null,
           duration_sec: Math.round(durationSec),
           status: "draft",
         }).select("id").single();
