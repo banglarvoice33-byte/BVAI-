@@ -174,3 +174,5 @@ archive/**/bv-pocketbase
 fix-emails.sh
 .env
 temp_assets/
+.vercel
+.env*
