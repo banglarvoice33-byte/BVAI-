@@ -54,7 +54,7 @@ if (!uploadResponse.ok || !uploaded.uploaded || uploaded.sha256 !== sha256) {
   throw new Error(`Server-side Storage upload failed (${uploadResponse.status}): ${uploaded.error ?? "unknown"}`);
 }
 
-const verified = await endpoint({
+const finalizePayload = {
   action: "finalize",
   job_id: jobId,
   article_id: articleId,
@@ -62,7 +62,31 @@ const verified = await endpoint({
   size_bytes: size,
   duration_sec: durationSec,
   sha256,
-});
+};
+
+// Finalization is idempotent. Retry once to handle a lost HTTP response after
+// the database transaction committed; only then attempt claim-guarded cleanup.
+let verified;
+try {
+  verified = await endpoint(finalizePayload);
+} catch (firstError) {
+  try {
+    verified = await endpoint(finalizePayload);
+  } catch (retryError) {
+    try {
+      await endpoint({
+        action: "cleanup",
+        job_id: jobId,
+        article_id: articleId,
+        path: uploaded.path,
+      });
+      console.error("Unfinalized Storage object cleaned up after finalization failure.");
+    } catch {
+      console.error("Storage cleanup was not confirmed; inspect this job's object path in the private reels bucket.");
+    }
+    throw retryError;
+  }
+}
 console.log(JSON.stringify(verified, null, 2));
 if (!verified.verified || verified.sha256 !== sha256 || verified.path !== uploaded.path) {
   throw new Error("Storage verification did not pass");
