@@ -148,7 +148,7 @@ function composeVideo(images, voicePath, outPath, title, subtitlePath) {
     return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;')
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
   }
-  const words = String(title || '').trim().split(/\\s+/).filter(Boolean);
+  const words = String(title || '').trim().split(/\s+/).filter(Boolean);
   const lines = [];
   let headlineLine = '';
   for (const word of words) {
