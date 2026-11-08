@@ -17,6 +17,7 @@ async function main() {
     const { article_id: articleId, job_id: jobId, claim_token: claimToken } = rows[0];
     console.log(`article_id=${articleId}`);
     console.log(`video_job_id=${jobId}`);
+    if (process.env.GITHUB_ACTIONS) console.log(`::add-mask::${claimToken}`);
     if (process.env.GITHUB_OUTPUT) {
       fs.appendFileSync(process.env.GITHUB_OUTPUT,
         `article_id=${articleId}\nvideo_job_id=${jobId}\nclaim_token=${claimToken}\n`,
