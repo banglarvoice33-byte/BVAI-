@@ -85,12 +85,12 @@ export function sourceLabelFromUrl(url: string): string {
 }
 
 export async function publishViaSupabase(cfg: WorkerConfig, draft: DraftArticle): Promise<PublishResult | null> {
-  const client = supabaseAdmin(cfg);
-  if (!client) return null;
   const rewriteIsFallback = draft.fallback || draft.rewriteMethod === "fallback";
   if (rewriteIsFallback && draft.status === "published") {
     return { ok: false, error: "fallback_not_publishable" };
   }
+  const client = supabaseAdmin(cfg);
+  if (!client) return null;
 
   const hash = contentHash(draft.raw.link, draft.titleBn, draft.contentBn);
   const sourceUrl = draft.raw.link.trim();
