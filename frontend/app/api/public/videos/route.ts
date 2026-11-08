@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     let videosQuery = supabase
       .from('videos')
       .select('id, article_id, title_bn, title_en, description_bn, category_key, thumbnail_url, video_url, duration_sec, duration_seconds, status, created_at')
-      .in('status', ['published', 'live']);
+      .eq('status', 'published');
     if (articleId) videosQuery = videosQuery.eq('article_id', articleId);
 
     const { data: videos, error } = await videosQuery
