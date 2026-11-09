@@ -105,7 +105,7 @@ export const dict = {
     nav_mobile: 'মোবাইল নেভিগেশন',
     language_bengali: 'বাংলা',
     language_english: 'ইংরেজি',
-    video_heading: 'ভিডিও ও পডকাস্ট',
+    video_heading: 'বাংলার ভয়েস',
     video_hub_badge: 'ভিডিও হাব',
     video_live_badge: 'লাইভ',
     video_default_title: 'লাইভ সম্প্রচার',

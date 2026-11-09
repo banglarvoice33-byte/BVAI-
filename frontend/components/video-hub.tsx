@@ -179,7 +179,7 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
     >
       <div className="mb-5 flex items-center justify-between gap-3">
         <h2 id="videohub-heading" className="flex items-center gap-2 font-serifbn text-2xl font-extrabold tracking-tight">
-          <span aria-hidden>🎬</span> {locale === 'en' ? 'Video & Podcasts' : 'ভিডিও ও পডকাস্ট'}
+          <span aria-hidden>🎬</span> {locale === 'en' ? 'Banglar Voice' : 'বাংলার ভয়েস'}
         </h2>
         <span className="flex items-center gap-1.5 rounded-full bg-[#CC0000] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />

@@ -176,3 +176,6 @@ fix-emails.sh
 temp_assets/
 .vercel
 .env*
+*.mp3
+*.mp4
+*.vtt

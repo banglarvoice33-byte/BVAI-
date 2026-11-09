@@ -23,7 +23,7 @@ describe('VideoHub locale rendering', () => {
 
   it('renders Bengali title and localized accessible controls in Bengali', () => {
     const html = renderToStaticMarkup(<VideoHub locale="bn" videos={[video]} />);
-    expect(html).toContain('ভিডিও ও পডকাস্ট');
+    expect(html).toContain('বাংলার ভয়েস');
     expect(html).toContain('বাংলা শিরোনাম');
     expect(html).toContain('aria-label="বাংলা শিরোনাম — ভিডিও চালান"');
     expect(html).toContain('লাইভ');
