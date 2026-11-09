@@ -186,3 +186,9 @@ temp_assets/
 logs/
 
 .bvai-backups/
+
+# Reviewed media patch: public template only; keep recovery/session secrets out of Git.
+!.env.video.example
+recovery.bvai.enc
+recovery.tar.gz
+.bvaipatch-backups/

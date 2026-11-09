@@ -1,51 +1,8 @@
-/**
- * auto-pipeline.js — Full Article → YouTube automation
- * Usage:
- *   node scripts/pipeline/auto-pipeline.js                  # unlisted, latest
- *   node scripts/pipeline/auto-pipeline.js --public         # public
- *   node scripts/pipeline/auto-pipeline.js --article <id>   # specific
- */
-
-const { execSync } = require('child_process');
-const path = require('path');
-
-const args = process.argv.slice(2);
-const isPublic = args.includes('--public');
-let articleArg = '--latest';
-const artIdx = args.indexOf('--article');
-if (artIdx !== -1 && args[artIdx + 1]) articleArg = args[artIdx + 1];
-
-console.log('');
-console.log('╔══════════════════════════════════════╗');
-console.log('║  BANGLAR VOICE — AUTO PIPELINE       ║');
-console.log('╚══════════════════════════════════════╝');
-console.log('Mode:   ' + (isPublic ? 'PUBLIC' : 'UNLISTED'));
-console.log('Source: ' + articleArg);
-console.log('');
-
-const t0 = Date.now();
-
-console.log('▶️  STEP 1: Generate video');
-try {
-  execSync(`node "${path.join(__dirname, 'generate-video.js')}" ${articleArg}`, {
-    stdio: 'inherit',
-    shell: '/data/data/com.termux/files/usr/bin/bash',
-  });
-} catch (e) { console.error('❌ Step 1 failed'); process.exit(1); }
-
-console.log('');
-console.log('▶️  STEP 2: Upload to YouTube');
-try {
-  const upArgs = isPublic ? '--latest --public' : '--latest';
-  execSync(`node "${path.join(__dirname, 'upload-youtube.js')}" ${upArgs}`, {
-    stdio: 'inherit',
-    shell: '/data/data/com.termux/files/usr/bin/bash',
-  });
-} catch (e) { console.error('❌ Step 2 failed'); process.exit(1); }
-
-const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
-console.log('');
-console.log('╔══════════════════════════════════════╗');
-console.log('║  ✅ PIPELINE COMPLETE (' + elapsed + 's)');
-console.log('╚══════════════════════════════════════╝');
-console.log('');
+// Unified portable entry point. Configure VIDEO_PUBLISH_MODE explicitly in environment.
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const args=process.argv.slice(2);
+const i=args.indexOf('--article');
+if(i>=0){if(!/^[a-f0-9-]{36}$/i.test(args[i+1] || ''))throw new Error('Invalid article UUID');process.env.ARTICLE_ID=args[i+1];}
+if(args.includes('--public'))throw new Error('Use VIDEO_PUBLISH_MODE=distribute and explicit target accounts; legacy --public is retired');
+try{execFileSync('bash',[fileURLToPath(new URL('../../run-bvai.sh',import.meta.url))],{stdio:'inherit',env:process.env});}catch{process.exitCode=1;}

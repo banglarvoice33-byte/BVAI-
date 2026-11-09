@@ -1,0 +1,42 @@
+name: BVAI Durable Video Delivery
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: bvai-media-delivery
+  cancel-in-progress: false
+jobs:
+  deliver:
+    if: vars.VIDEO_DELIVERY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VIDEO_DELIVERY_ENABLED: 'true'
+      VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
+      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
+      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
+      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+      FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION }}
+      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'unlisted' }}
+      OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+      OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      SOCIAL_FACEBOOK_PAGE_TOKEN: ${{ secrets.SOCIAL_FACEBOOK_PAGE_TOKEN }}
+      SOCIAL_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.SOCIAL_INSTAGRAM_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Dispatch queued work and verify provider receipts
+        run: node scripts/pipeline/delivery-worker.mjs

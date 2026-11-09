@@ -13,10 +13,10 @@ test('narration uses source facts and complete sentences, not invented impacts o
   const text = buildVoiceScript(article);
   assert.ok(text.endsWith('ওয়েবসাইটে।')); assert.ok(text.includes('২০টি'));
   assert.ok(!text.includes('আনন্দ ছড়িয়ে'));assert.ok(!text.includes('পরিস্থিতি আরও জটিল'));
-  assert.ok(text.length <= 780);
+  assert.ok(text.length <= 1200);
 });
 test('too-long body is rejected rather than cut mid-sentence',()=>{
-  assert.throws(()=>buildVoiceScript({...article,content_bn:'বাক্য '.repeat(300)+'।'}),/complete source/);
+  assert.throws(()=>buildVoiceScript({...article,content_bn:'বাক্য '.repeat(900)+'।'}),/complete source/);
 });
 test('TTS chunks preserve spaces and keep every word within the bound',()=>{
   const original = 'বাংলা সংবাদ বিশ্বের খবর '.repeat(70).trim();

@@ -13,16 +13,24 @@ if [[ "${1:-}" == '--setup' ]]; then
   if [[ "${PREFIX:-}" == *com.termux* ]]; then python3 -m pip install edge-tts;
   else python3 -m pip install --user --break-system-packages edge-tts; fi
   npm ci --no-audit --no-fund
-  echo 'Setup complete. Configure .env from .env.video.example, then run bash run-bvai.sh'
+  echo 'Setup complete. Merge .env.video.example into your existing .env without replacing secrets.'
   exit 0
 fi
-if [[ -f .env ]]; then set -a; source .env; set +a; fi
+if [[ -f .env && "${BVAI_ENV_LOADED:-}" != 1 ]]; then
+  exec node --env-file=.env scripts/pipeline/launch.mjs "$@"
+fi
 : "${SUPABASE_URL:?SUPABASE_URL missing}"
 : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY missing}"
-export VIDEO_PUBLISH_MODE="${VIDEO_PUBLISH_MODE:-website}"
+export VIDEO_PUBLISH_MODE="${VIDEO_PUBLISH_MODE:-review}"
 export VIDEO_REQUIRE_CAPTIONS=true
-export SOCIAL_AUTOMATION_ENABLED=false
+if [[ "${VIDEO_DISTRIBUTION_WORKER_ENABLED:-false}" == true ]]; then
+  echo 'Disable legacy video distribution worker first; never run two independent video publishers.'; exit 1
+fi
 export VIDEO_DISTRIBUTION_WORKER_ENABLED=false
+if [[ "${1:-}" == '--deliver-only' ]]; then
+  node scripts/pipeline/delivery-worker.mjs
+  exit $?
+fi
 for tool in node npm python3 ffmpeg ffprobe rsvg-convert flock; do
   command -v "$tool" >/dev/null || { echo "Missing $tool — run bash run-bvai.sh --setup"; exit 1; }
 done
@@ -44,4 +52,7 @@ if [[ "${1:-}" != '--upload-only' ]]; then
 fi
 node scripts/pipeline/upload-supabase-video.mjs
 # Keep receipt, captions and rendered file for inspection/retry; never erase on failure.
-echo "✅ Website pipeline finished. Social publishing OFF. Log: $LOG"
+if [[ "$VIDEO_PUBLISH_MODE" == distribute && "${VIDEO_DELIVERY_ENABLED:-false}" == true ]]; then
+  node scripts/pipeline/delivery-worker.mjs
+fi
+echo "Render/upload stage finished. Confirm receipt and per-platform outbox status. Log: $LOG"

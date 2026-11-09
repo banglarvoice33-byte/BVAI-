@@ -9,12 +9,14 @@ on:
       - "scripts/pipeline/**"
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
+      - "supabase/migrations/*media_delivery*"
   pull_request:
     paths:
       - ".github/workflows/video-render.yml"
       - "scripts/pipeline/**"
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
+      - "supabase/migrations/*media_delivery*"
 
 permissions:
   contents: read
@@ -40,13 +42,59 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Install offline test tools
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core
       - name: Regression tests
         run: |
           node --test scripts/pipeline/tests/*.test.mjs
           python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
-      - name: Validate website-only transaction contract
+      - name: Offline forty-second render smoke
+        env:
+          VIDEO_PRESET: ultrafast
+        run: node scripts/pipeline/tests/render-smoke.mjs
+      - name: Validate transactional media contract
         run: |
-          grep -q "claim_video_generation_job" scripts/pipeline/generate-video.js
-          grep -q "finalize_website_video" scripts/pipeline/upload-supabase-video.mjs
+          grep -q "claim_reviewed_video_job" scripts/pipeline/generate-video.js
+          grep -q "finalize_media_delivery" scripts/pipeline/upload-supabase-video.mjs
           grep -q "FOR UPDATE OF a SKIP LOCKED" supabase/migrations/20261109060000_website_only_video_delivery.sql
+
+  database-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bvai_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bvai_ci_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Apply isolated test fixture and exact baseline/new migrations
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends postgresql-client
+          psql -h localhost -U postgres -d bvai_ci_test -X -v ON_ERROR_STOP=1 \
+            -f scripts/pipeline/tests/media-contract-bootstrap.sql \
+            -f supabase/migrations/20261108000000_add_public_media_tables_and_service_role_policies.sql \
+            -f supabase/migrations/20261108010000_reconcile_video_generation_jobs_and_assets.sql \
+            -f supabase/migrations/20261108012807_harden_video_pipeline_transactions.sql \
+            -f supabase/migrations/20261109060000_website_only_video_delivery.sql \
+            -f supabase/migrations/20261110000000_media_delivery_reliability.sql \
+            -f supabase/migrations/20261110000000_media_delivery_reliability.sql \
+            -f scripts/pipeline/tests/media-contract.test.sql \
+            -f scripts/pipeline/deployment-preflight.sql
+      - name: Test two-session claim race
+        run: node scripts/pipeline/tests/database-concurrency.mjs
