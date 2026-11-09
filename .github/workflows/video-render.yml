@@ -1,134 +1,99 @@
-name: BVAI Article Video Pipeline
+name: BVAI Website Video Pipeline
 
 on:
   workflow_dispatch:
     inputs:
       article_id:
-        description: "Optional published article UUID; blank selects the latest eligible article"
+        description: 'Published article UUID; blank selects latest eligible article'
         required: false
         type: string
+      publish_mode:
+        description: 'website publishes only to site; review keeps video hidden'
+        type: choice
+        default: review
+        options: [review, website]
   schedule:
-    # Once daily, 12-minute timeout: at most ~360 runner minutes in a 30-day month.
-    - cron: "0 3 * * *"
+    # Existing daily slot, gated OFF until repository variable is explicitly set.
+    - cron: '0 3 * * *'
 
 concurrency:
   group: bvai-video-render
   cancel-in-progress: false
-
 permissions:
   contents: read
 
 jobs:
-  preflight:
-    runs-on: ubuntu-latest
-    outputs:
-      configured: ${{ steps.check.outputs.configured }}
-    steps:
-      - name: Check required protected secrets without printing values
-        id: check
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          API_URL: ${{ secrets.SUPABASE_URL }}
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          UPLOAD_TOKEN: ${{ secrets.VIDEO_UPLOAD_TOKEN || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        shell: bash
-        run: |
-          if [[ -n "$DB_URL" && -n "$API_URL" && -n "$SERVICE_KEY" && -n "$UPLOAD_TOKEN" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Video pipeline skipped: required GitHub Actions secrets are not all configured."
-          fi
-
   render-and-upload:
-    needs: preflight
-    if: ${{ needs.preflight.outputs.configured == 'true' }}
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_VIDEO_AUTOMATION == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 24
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VIDEO_UPLOAD_TOKEN: ${{ secrets.VIDEO_UPLOAD_TOKEN || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      TTS_SARVAM_1: ${{ secrets.TTS_SARVAM_1 }}
+      TTS_SARVAM_2: ${{ secrets.TTS_SARVAM_2 }}
+      TTS_SARVAM_3: ${{ secrets.TTS_SARVAM_3 }}
+      TTS_SONEXLABS_1: ${{ secrets.TTS_SONEXLABS_1 }}
+      TTS_SONEXLABS_2: ${{ secrets.TTS_SONEXLABS_2 }}
+      TTS_SONEXLABS_3: ${{ secrets.TTS_SONEXLABS_3 }}
+      TTS_CARTESIA_1: ${{ secrets.TTS_CARTESIA_1 }}
+      TTS_CARTESIA_2: ${{ secrets.TTS_CARTESIA_2 }}
+      TTS_ELEVENLABS_1: ${{ secrets.TTS_ELEVENLABS_1 }}
+      TTS_ELEVENLABS_2: ${{ secrets.TTS_ELEVENLABS_2 }}
+      TTS_ELEVENLABS_3: ${{ secrets.TTS_ELEVENLABS_3 }}
+      TTS_ELEVENLABS_4: ${{ secrets.TTS_ELEVENLABS_4 }}
+      TTS_ELEVENLABS_5: ${{ secrets.TTS_ELEVENLABS_5 }}
+      CARTESIA_VOICE_ID: ${{ secrets.CARTESIA_VOICE_ID }}
+      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ARTICLE_ID: ${{ inputs.article_id }}
+      VIDEO_PUBLISH_MODE: ${{ inputs.publish_mode || 'website' }}
+      VIDEO_REQUIRE_CAPTIONS: 'true'
+      SOCIAL_AUTOMATION_ENABLED: 'false'
+      VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Validate production target
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "${SUPABASE_URL%/}" = "https://rtejxeamxeycnpcwnseo.supabase.co" || {
-            echo "::error::SUPABASE_URL does not target the configured BVAI production project"
-            exit 1
-          }
-
-      - name: Install Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-
-      - name: Install FFmpeg and Bengali fonts
+          node-version: '22.12'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check required secrets
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-noto-core fonts-beng librsvg2-bin
-          sudo fc-cache -f
-          fc-match "Noto Sans Bengali" | grep -qi "Noto Sans Bengali" || {
-            echo "::error::Noto Sans Bengali font family is unavailable after installation"
-            exit 1
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" && test -n "$GROQ_API_KEY" || {
+            echo '::error::Configure SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and GROQ_API_KEY'; exit 1;
           }
-          ffmpeg -version
-          ffprobe -version
-
-      - name: Install pipeline dependencies
+          test -n "$TTS_SARVAM_1$TTS_CARTESIA_1$TTS_ELEVENLABS_1$TTS_SONEXLABS_1" || {
+            echo '::error::Configure at least one primary TTS provider secret'; exit 1;
+          }
+      - name: Install render tools and Bengali fonts
         run: |
-          set -euo pipefail
-          python3 -m pip install --user --break-system-packages edge-tts
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          npm install --prefix scripts/pipeline --no-audit --no-fund pg@8.16.3
-
-      - name: Validate pipeline JavaScript syntax
-        shell: bash
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core util-linux
+          fc-match 'Noto Sans Bengali'
+          python3 -m pip install edge-tts
+          npm ci --no-audit --no-fund
+      - name: Offline pipeline regression tests
         run: |
-          set -euo pipefail
-          node --check scripts/pipeline/create-video-job.cjs
-          node --check scripts/pipeline/fail-video-job.cjs
-          node --check scripts/pipeline/generate-video.js
-          node --check scripts/pipeline/upload-supabase-video.mjs
-
-      - name: Claim one published article
-        id: claim
-        run: node scripts/pipeline/create-video-job.cjs
-
-      - name: Render Bengali video
-        run: node scripts/pipeline/generate-video.js "${{ steps.claim.outputs.article_id }}"
-
-      - name: Upload and verify in private Supabase Storage
-        env:
-          ARTICLE_ID: ${{ steps.claim.outputs.article_id }}
-          VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
-          VIDEO_CLAIM_TOKEN: ${{ steps.claim.outputs.claim_token }}
-          VIDEO_FILE: scripts/pipeline/output/video-${{ steps.claim.outputs.article_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VIDEO_FILE="scripts/pipeline/output/video-${ARTICLE_ID:0:8}.mp4"
-          test -s "$VIDEO_FILE"
-          export VIDEO_FILE
-          node scripts/pipeline/upload-supabase-video.mjs
-
-      - name: Mark claimed job failed on pipeline error
-        if: failure() && steps.claim.outputs.video_job_id != ''
-        env:
-          VIDEO_JOB_ID: ${{ steps.claim.outputs.video_job_id }}
-          VIDEO_CLAIM_TOKEN: ${{ steps.claim.outputs.claim_token }}
-          FAILURE_REASON: "GitHub Actions render/upload step failed; inspect workflow logs"
-        run: node scripts/pipeline/fail-video-job.cjs
-
-      - name: Cleanup generated media
+          node --test scripts/pipeline/tests/*.test.mjs
+          python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
+      - name: Render and publish to website only
+        run: bash run-bvai.sh
+      - name: Keep non-secret diagnostic logs
         if: always()
-        run: rm -rf scripts/pipeline/tmp scripts/pipeline/output
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvai-website-diagnostics
+          path: |
+            logs/*.log
+            temp_assets/receipt.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Mark unfinished claim failed on runner failure
+        if: failure()
+        run: node scripts/pipeline/fail-claim.mjs

@@ -179,3 +179,10 @@ temp_assets/
 *.mp3
 *.mp4
 *.vtt
+
+# Website renderer state; claims contain sensitive lease tokens
+.bvaivideo.lock
+temp_assets/
+logs/
+
+.bvai-backups/

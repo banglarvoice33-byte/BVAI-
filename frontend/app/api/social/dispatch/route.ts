@@ -234,8 +234,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!(await authorized(request))) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  // Social dispatch is enabled by default; an explicit false is the only kill switch.
-  if (process.env.SOCIAL_AUTOMATION_ENABLED === 'false') {
+  // Website-only release: publishing requires explicit opt-in after social setup.
+  if (process.env.SOCIAL_AUTOMATION_ENABLED !== 'true') {
     return NextResponse.json({ ok: true, processed: 0, disabled: true });
   }
 

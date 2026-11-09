@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.12"
       - name: Validate JavaScript syntax
         shell: bash
         run: |
@@ -37,12 +37,16 @@ jobs:
           node --check scripts/pipeline/fail-video-job.cjs
           node --check scripts/pipeline/generate-video.js
           node --check scripts/pipeline/upload-supabase-video.mjs
-      - name: Validate required transactional contracts
-        shell: bash
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install offline test tools
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Regression tests
         run: |
-          set -euo pipefail
-          grep -q "claim_video_generation_job" scripts/pipeline/create-video-job.cjs
-          grep -q "finalize_video_generation_job" supabase/functions/video-upload-authorize/index.ts
-          grep -q "x-video-claim-token" scripts/pipeline/upload-supabase-video.mjs
-          grep -q "FOR UPDATE OF a SKIP LOCKED" supabase/migrations/20261108012807_harden_video_pipeline_transactions.sql
-          grep -q "video_generation_assets_job_kind_uidx" supabase/migrations/20261108012807_harden_video_pipeline_transactions.sql
+          node --test scripts/pipeline/tests/*.test.mjs
+          python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
+      - name: Validate website-only transaction contract
+        run: |
+          grep -q "claim_video_generation_job" scripts/pipeline/generate-video.js
+          grep -q "finalize_website_video" scripts/pipeline/upload-supabase-video.mjs
+          grep -q "FOR UPDATE OF a SKIP LOCKED" supabase/migrations/20261109060000_website_only_video_delivery.sql

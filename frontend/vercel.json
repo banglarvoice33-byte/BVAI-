@@ -2,11 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install --no-audit --no-fund",
-  "crons": [
-    {
-      "path": "/api/newsroom/cron-trigger",
-      "schedule": "0 0 * * *"
-    }
-  ]
+  "installCommand": "npm ci --legacy-peer-deps --no-audit --no-fund",
+  "crons": []
 }

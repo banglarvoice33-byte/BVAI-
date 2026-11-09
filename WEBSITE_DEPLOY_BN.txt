@@ -1,0 +1,100 @@
+বাংলার ভয়েস — Website-only Video Release
+তারিখ: ৯ নভেম্বর ২০২৬
+
+অবস্থা ও সীমা
+কোড সম্পাদনা, স্থানীয় পরীক্ষা ও প্যাকেজ তৈরি সম্পন্ন। GitHub push, live Supabase migration, Vercel deploy বা প্রকৃত TTS API call করা হয়নি। ZIP-এ কোনো প্রকৃত .env/credential নেই। সোশ্যাল প্রকাশ default OFF; শুধু ভবিষ্যতে সংযোগ করার বিদ্যমান সুবিধা রাখা হয়েছে।
+কোনো নিউজের সত্যতা এই সফটওয়্যার পরীক্ষায় নিশ্চিত করা হয়নি। প্রথম প্রকৃত ভিডিওর ভাষা, সূত্র, উচ্চারণ, ফুটেজের অধিকার ও ক্যাপশন সম্পাদকীয়ভাবে পরীক্ষা করুন। এটি ভিডিও/ভয়েস-ওভার পাইপলাইন, নতুন realistic talking-avatar generator নয়।
+
+১. বর্তমান Termux রিপোজিটরিতে নিরাপদে patch
+প্রথমে চলমান renderer বন্ধ করুন এবং বর্তমান কাজ commit বা backup করুন। GitHub/Vercel credentials চ্যাটে দেবেন না।
+ডাউনলোড করা patch ZIP খুললে BVAI-website-patch নামে directory পাবেন। নিচের command-এ তার প্রকৃত অবস্থান ব্যবহার করুন:
+
+  unzip BVAI-website-patch.zip -d "$HOME/bvai-update"
+  bash "$HOME/bvai-update/BVAI-website-patch/APPLY.sh" "$HOME/BVAI-fresh"
+  cd "$HOME/BVAI-fresh"
+  bash run-bvai.sh --setup
+
+APPLY.sh শুধু তালিকাভুক্ত source file বদলায়। .git বা প্রকৃত .env বদলায় না। পুরোনো source .bvai-backups/<timestamp>/files-এ থাকে। incompatible duplicate .github/workflows/render-video.yml থাকলে backup রেখে সরায়। পুরো repository ZIP আবার বর্তমান folder-এর উপর unzip করা থেকে patch পদ্ধতি নিরাপদ। Patch প্রয়োগে পুরোনো unrelated স্থানীয় কোডের পরিবর্তন merge হয় না; আগে commit/backup করুন।
+
+২. Supabase database প্রস্তুত করা
+DB backup নিন। migration history দেখে existing schema ও নিচের পূর্বশর্তের উপস্থিতি নিশ্চিত করুন:
+  public.articles, public.videos, public.video_generation_jobs, public.video_generation_assets
+  private.video_distribution_config
+  public.finalize_video_generation_job ও public.recover_expired_video_generation_jobs
+প্রাসঙ্গিক বিদ্যমান migrations:
+  20261108010000_reconcile_video_generation_jobs_and_assets.sql
+  20261108012807_harden_video_pipeline_transactions.sql
+private.video_distribution_config আগের 20261104025433 migration থেকে আসে। এই release-এর নতুন migration পূর্ববর্তী migration history-এর পরে প্রয়োগযোগ্য। পূর্বশর্ত না থাকলে আগে history/schema মিলিয়ে নিন; পুরোনো সব migration অন্ধভাবে পুনরায় চালাবেন না।
+নতুন migration:
+  supabase/migrations/20261109060000_website_only_video_delivery.sql
+Supabase SQL Editor-এ এই ফাইল চালান, অথবা সঠিক project-এ linked Supabase CLI দিয়ে migration history যাচাই করে db push করুন। শুধু migration file upload করলেই database বদলায় না।
+এই migration private reels bucket নিশ্চিত করে, video distribution DB gate বন্ধ করে এবং claim-token-যাচাইকৃত atomic website publication RPC যোগ করে। পুরোনো public videos bucket বা তার আগের ভিডিও মুছে না।
+এই SQL স্থানীয় PGlite/PostgreSQL fixture-এ পরীক্ষা করা হয়েছে; আপনার live schema/roles/RLS-সহ rehearsal এখনো প্রয়োজন।
+
+৩. স্থানীয় .env
+প্রকৃত .env আগে থেকে থাকলে সেটি রেখে শুধু অনুপস্থিত field যোগ করুন। না থাকলে .env.video.example কপি করে .env বানান। service_role key frontend NEXT_PUBLIC_ variable-এ দেবেন না।
+প্রয়োজনীয়:
+  SUPABASE_URL
+  SUPABASE_SERVICE_ROLE_KEY
+  GROQ_API_KEY
+  অন্তত একটি TTS provider, যেমন TTS_SARVAM_1
+বিকল্প provider-এর জন্য CARTESIA_VOICE_ID / ELEVENLABS_VOICE_ID-ও প্রয়োজন। PIXABAY_API_KEY ঐচ্ছিক; না থাকলে খবরের thumbnail লাগে। Stock footage প্রতীকী হিসেবে labelled; ব্যবহার-অধিকার ও thumbnail-এর প্রাসঙ্গিকতা নিজ দায়িত্বে যাচাই করুন।
+প্রথম পরীক্ষায়:
+  VIDEO_PUBLISH_MODE=review
+  SOCIAL_AUTOMATION_ENABLED=false
+  VIDEO_DISTRIBUTION_WORKER_ENABLED=false
+  VIDEO_REQUIRE_CAPTIONS=true
+
+  bash run-bvai.sh
+
+review mode-এ ভিডিও needs_review থাকে, public site-এ আসে না। প্রকাশ করার আগে private Supabase asset দেখে সম্পাদকীয় যাচাই করুন। একই review ভিডিও প্রকাশ করতে receipt.json-এর job_id ব্যবহার করুন:
+  node --env-file=.env scripts/pipeline/publish-review.mjs JOB_ID --approve-website
+এখানে JOB_ID-এর জায়গায় প্রকৃত UUID দিন। এই command claim ও asset checksum যাচাই করে শুধু website-এ প্রকাশ করে। শুধু .env website করলেই পুরোনো review ভিডিও publish হয় না।
+নতুন পরবর্তী ভিডিও সরাসরি সাইটে পাঠাতে .env-এ VIDEO_PUBLISH_MODE=website দিন, তারপর run করুন।
+ব্যর্থ upload-এর manifest রাখা থাকে। সেটি মুছবেন না; retry:
+  bash run-bvai.sh --upload-only
+রেন্ডার ব্যর্থ হলে claim failed হয়। upload failure-এ local claim lease সাধারণত ২৫ মিনিট; lease expire/reclaim হলে পুরোনো manifest দিয়ে finalization নাও হতে পারে। তখন DB job দেখে asset/claim reconcile করে নতুন render চালান।
+
+৪. GitHub ও Vercel
+পরিবর্তিত files review করে commit/push করুন; প্রকৃত .env, temp_assets ও logs commit করবেন না।
+Vercel project-এর Root Directory হবে frontend, Node.js 22.x। frontend/vercel.json আছে।
+Vercel environment-এ রাখুন:
+  NEXT_PUBLIC_SUPABASE_URL
+  NEXT_PUBLIC_SUPABASE_ANON_KEY
+  SUPABASE_SERVICE_ROLE_KEY (server-only)
+  NEXT_PUBLIC_SITE_URL=https://bvai-chi.vercel.app
+  SOCIAL_AUTOMATION_ENABLED=false
+এ ছাড়া আপনার আগে থেকে প্রয়োজনীয় newsletter/newsroom অন্যান্য env বজায় রাখুন। Deploy/redeploy করুন। Render FFmpeg দিয়ে Vercel serverless request-এর ভিতরে হয় না; render হবে Termux বা GitHub Actions-এ। Vercel শুধু website ও playback API চালায়।
+আপনার আগে থেকে live Supabase social-dispatch Edge Function থাকলে নতুন default-off source deploy করুন অথবা সেখানে SOCIAL_AUTOMATION_ENABLED=false secret সেট করুন। Worker deployment থাকলে VIDEO_DISTRIBUTION_WORKER_ENABLED=false রাখুন। স্থানীয় .env বদলালে অন্য live deployment-এর env নিজে থেকে বদলায় না।
+
+৫. GitHub Actions — ঐচ্ছিক automation
+একটিই canonical renderer: .github/workflows/video-render.yml
+GitHub repository Secrets-এ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GROQ_API_KEY, TTS_SARVAM_1 বা বিকল্প provider secret এবং প্রয়োজনে PIXABAY_API_KEY রাখুন।
+প্রথমে Actions → BVAI Website Video Pipeline → Run workflow → publish_mode=review দিয়ে পরীক্ষা করুন।
+পরবর্তী website-only run-এর publish_mode=website দিন।
+বিদ্যমান daily slot UTC 03:00 / বাংলাদেশ সময় সকাল ৯টা। Schedule default-এ gated OFF: পরীক্ষার পর automation চাইলে Repository Variable ENABLE_VIDEO_AUTOMATION=true দিন। এটি এই কাজ থেকে live চালু করা হয়নি। Scheduled run-এ website mode ব্যবহৃত হয়। GitHub Actions schedule বিলম্বিত হতে পারে; নির্দিষ্ট সেকেন্ডে চলার নিশ্চয়তা নয়।
+Database দৈনিক UTC budget ১০ active/successful jobs সীমা রাখে, provider fallback সেটি bypass করে না। TTS API-র প্রকৃত মূল্য provider account অনুযায়ী; এই প্রস্তুতির সময়ে কোনো প্রকৃত media API generation হয়নি।
+
+৬. ডিপ্লয়মেন্টের পরে যাচাই
+  https://bvai-chi.vercel.app/api/public/videos?limit=5
+যাচাই করুন videos array-এ প্রকাশিত ভিডিও আছে, homepage থেকে click করলে audio/video চলে, ফোনে 9:16 অনুপাত ঠিক আছে ও বাংলা caption দৃশ্যমান। Private reels-এর signed URL server route নতুন করে বানায়; expiring URL permanent public URL নয়। open homepage প্রতি ৬০ সেকেন্ডে তালিকা refresh করে। ভিডিও paused/playing থাকলে active selection অক্ষুণ্ণ থাকে।
+Current live read-only observation: API-তে ভিডিও পাওয়া গেছে, অথচ পাওয়া homepage content-এ no-video message ছিল। এই release সরাসরি server-side DB read ও browser polling দিয়ে সেই self-fetch dependency সরিয়েছে; live fix কার্যকর হতে deploy প্রয়োজন।
+
+৭. পরবর্তী সোশ্যাল সংযোগ
+বর্তমান Facebook/YouTube/Instagram/TikTok/X queue/adapters মুছে দেওয়া হয়নি। এখন social dispatch explicit true ছাড়া কাজ করে না, DB video distribution gate-ও OFF। পরে platform OAuth, account permissions, readiness, editorial approval ও rate limits যাচাই করে আলাদা release-এ application flags ও DB gate enable করুন। সব platform স্বয়ংক্রিয়ভাবে connected/ready — এমন দাবি এই release করে না।
+
+৮. পরীক্ষাগুলি পুনরায় চালানো
+  npm ci --no-audit --no-fund
+  node --test scripts/pipeline/tests/*.test.mjs
+  python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
+  node scripts/pipeline/tests/render-smoke.mjs
+  cd frontend
+  npm ci --legacy-peer-deps --no-audit --no-fund
+  npm run typecheck
+  npm run lint
+  npm test
+  npm run build
+Smoke test synthetic color/tone ব্যবহার করে; এটি প্রকৃত news sample নয়।
+
+সূত্র: https://console.groq.com/docs/speech-to-text
+https://docs.sarvam.ai/api-reference/text-to-speech/convert

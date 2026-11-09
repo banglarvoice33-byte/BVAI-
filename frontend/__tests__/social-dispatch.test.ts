@@ -39,6 +39,7 @@ describe('POST /api/social/dispatch', () => {
     readiness.mockResolvedValue({ ready: [], limits: {}, degraded: true });
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+    process.env.SOCIAL_AUTOMATION_ENABLED = 'true';
   });
 
   afterEach(() => {
@@ -69,6 +70,15 @@ describe('POST /api/social/dispatch', () => {
     const res = await post({ Authorization: 'Bearer test-secret' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, processed: 0, disabled: true });
+  });
+
+  it('keeps social posting off when the opt-in flag is absent', async () => {
+    maybeSingle.mockResolvedValue({ data: { key_encrypted: 'vault-ref' } });
+    rpc.mockResolvedValue({ data: 'test-secret' });
+    delete process.env.SOCIAL_AUTOMATION_ENABLED;
+    const res = await post({ Authorization: 'Bearer test-secret' });
+    expect(await res.json()).toEqual({ ok: true, processed: 0, disabled: true });
+    expect(readiness).not.toHaveBeenCalled();
   });
 
   it('fails closed when readiness is unreadable', async () => {

@@ -1,0 +1,276 @@
+BVAI WEBSITE-ONLY RELEASE VALIDATION — 2026-11-09
+
+Scope: local repository edits and offline verification only. No remote deployment or live TTS call.
+Frontend: 141 tests, 38 files, passed. Pipeline: 6 Node tests passed. Caption: 7 Python tests passed. PostgreSQL fixture: 7 integration checks passed. FFmpeg synthetic 1080x1920 H.264/AAC and ASS render passed. Production Next.js build/type/lint checks passed; existing non-blocking img-element and tool deprecation warnings remain.
+PGlite fixture is not a production Supabase RLS/storage/OAuth integration test. Real provider voices, live schema compatibility, storage quota and production browser playback require deployment smoke testing.
+
+
+===== Pipeline unit tests =====
+TAP version 13
+# Subtest: narration uses source facts and complete sentences, not invented impacts or render date
+ok 1 - narration uses source facts and complete sentences, not invented impacts or render date
+  ---
+  duration_ms: 1.215373
+  type: 'test'
+  ...
+# Subtest: too-long body is rejected rather than cut mid-sentence
+ok 2 - too-long body is rejected rather than cut mid-sentence
+  ---
+  duration_ms: 0.486081
+  type: 'test'
+  ...
+# Subtest: TTS chunks preserve spaces and keep every word within the bound
+ok 3 - TTS chunks preserve spaces and keep every word within the bound
+  ---
+  duration_ms: 0.444787
+  type: 'test'
+  ...
+# Subtest: timestamp milliseconds carry to the next minute
+ok 4 - timestamp milliseconds carry to the next minute
+  ---
+  duration_ms: 0.150264
+  type: 'test'
+  ...
+# Subtest: VTT validator rejects empty, overlapping and out-of-range captions
+ok 5 - VTT validator rejects empty, overlapping and out-of-range captions
+  ---
+  duration_ms: 0.659981
+  type: 'test'
+  ...
+# Subtest: Sarvam request uses current v3 fields, decodes and normalizes real bytes offline
+ok 6 - Sarvam request uses current v3 fields, decodes and normalizes real bytes offline
+  ---
+  duration_ms: 403.299454
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 520.072668
+
+===== Caption unit tests =====
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK
+
+===== PostgreSQL fixture integration tests =====
+PASS migration applies and replays; social queue disabled; reels private
+PASS article claimed once only
+PASS atomic website publication and article flag
+PASS retry is idempotent
+PASS invalid claim rejected
+PASS review mode stays hidden
+PASS daily budget includes active claims; no TTS fallback bypass
+
+===== FFmpeg offline integration =====
+   ✅ rsvg-convert OK
+PASS offline FFmpeg 1080x1920 H.264/AAC render; ASS captions burned; metadata/checksum gate passed
+
+===== Frontend full tests =====
+
+> banglar-voice-frontend@1.0.0 test
+> vitest run
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.3 <repository>/frontend
+
+ ✓ __tests__/newsletter-subscribe.test.ts (4 tests) 114ms
+ ✓ __tests__/ingest-route.test.ts (3 tests) 115ms
+stderr | __tests__/social-dispatch.test.ts > POST /api/social/dispatch > fails closed when readiness is unreadable
+[social] readiness registry unavailable; fail-closed with no publishing
+
+stderr | __tests__/social-dispatch.test.ts > POST /api/social/dispatch > fails closed when the atomic claim RPC is unavailable
+[social] atomic queue claim failed { message: 'function not found' }
+
+ ✓ __tests__/social-dispatch.test.ts (5 tests) 83ms
+ ✓ __tests__/newsroom-revalidate.test.ts (5 tests) 74ms
+ ✓ __tests__/public-videos-route.test.ts (3 tests) 69ms
+ ✓ __tests__/feed-route.test.ts (3 tests) 68ms
+ ✓ __tests__/health-route.test.ts (2 tests) 65ms
+ ✓ __tests__/bn-date.test.ts (5 tests) 18ms
+ ✓ __tests__/service-credential.test.ts (4 tests) 25ms
+ ✓ __tests__/query-embeddings.test.ts (3 tests) 26ms
+ ✓ __tests__/ingest-auth.test.ts (3 tests) 21ms
+ ✓ __tests__/video-hub-i18n.test.tsx (4 tests) 11ms
+ ✓ __tests__/social-manager.test.ts (14 tests) 11ms
+ ✓ __tests__/learning-hub-rag.test.ts (1 test) 10ms
+ ✓ __tests__/set-locale.test.ts (2 tests) 9ms
+ ✓ __tests__/sanitize-html.test.ts (4 tests) 8ms
+ ✓ __tests__/youtube-contract.test.ts (6 tests) 7ms
+ ✓ ../packages/news-contract/v1.test.ts (2 tests) 5ms
+ ✓ __tests__/learning-hub.test.ts (6 tests) 5ms
+ ✓ __tests__/breaking-ticker.test.ts (4 tests) 6ms
+ ✓ __tests__/manager-shadow.test.ts (3 tests) 7ms
+ ✓ __tests__/article-comments.test.ts (5 tests) 5ms
+ ✓ __tests__/portable-deployment.test.ts (5 tests) 5ms
+ ✓ __tests__/newsroom-policy.test.ts (4 tests) 6ms
+ ✓ __tests__/social-platforms.test.ts (6 tests) 5ms
+ ✓ __tests__/tts-text.test.ts (5 tests) 5ms
+ ✓ __tests__/security-headers.test.ts (3 tests) 5ms
+ ✓ __tests__/video-thumbnail.test.ts (5 tests) 4ms
+ ✓ __tests__/safe-redirect.test.ts (4 tests) 4ms
+ ✓ __tests__/map-article.test.ts (1 test) 3ms
+ ✓ __tests__/category.test.ts (2 tests) 4ms
+ ✓ __tests__/source-chip.test.ts (2 tests) 4ms
+ ✓ __tests__/password-policy.test.ts (3 tests) 4ms
+ ✓ __tests__/robots-path.test.ts (1 test) 3ms
+ ✓ __tests__/youtube-live-route.test.ts (2 tests) 4ms
+ ✓ __tests__/download-page.test.ts (3 tests) 4ms
+ ✓ __tests__/newsroom-time-budget.test.ts (3 tests) 3ms
+ ✓ __tests__/site.test.ts (1 test) 3ms
+
+ Test Files  38 passed (38)
+      Tests  141 passed (141)
+   Start at  04:56:23
+   Duration  5.59s (tests 44%, import 29%, transform 19%, worker 8%)
+
+    Isolate  38 workers spawned · ~91ms startup each (spawn + environment, per file)
+             at least ~3.37s faster with isolate: false — reuses workers across files instead of one per file
+
+
+===== Frontend production build =====
+
+> banglar-voice-frontend@1.0.0 build
+> next build
+
+   ▲ Next.js 15.5.29
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 10.4s
+   Linting and checking validity of types ...
+
+./app/admin/pending/page.tsx
+51:38  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/epaper/EPaperViewer.tsx
+14:35  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+22:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/32) ...
+   Generating static pages (8/32) 
+   Generating static pages (16/32) 
+   Generating static pages (24/32) 
+SITEMAP_ARTICLE_LOAD_FAILED { message: 'fetch failed' }
+ ✓ Generating static pages (32/32)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                          Size  First Load JS  Revalidate  Expire
+┌ ƒ /                                              132 kB         250 kB
+├ ƒ /_not-found                                     319 B         103 kB
+├ ○ /about                                          319 B         103 kB
+├ ƒ /admin/analytics                              1.03 kB         104 kB
+├ ƒ /admin/api-keys                               3.28 kB         106 kB
+├ ƒ /admin/comments                                 175 B         107 kB
+├ ƒ /admin/control                                 3.7 kB         107 kB
+├ ƒ /admin/pending                                1.49 kB         104 kB
+├ ƒ /admin/verification                             175 B         107 kB
+├ ƒ /admin/verification/[id]                      1.59 kB         108 kB
+├ ○ /ai-policy                                      319 B         103 kB
+├ ƒ /api/admin/api-keys                             319 B         103 kB
+├ ƒ /api/admin/api-keys/[id]                        319 B         103 kB
+├ ƒ /api/admin/api-keys/[id]/test                   319 B         103 kB
+├ ƒ /api/admin/approve                              319 B         103 kB
+├ ƒ /api/admin/breaking                             319 B         103 kB
+├ ƒ /api/admin/control/audit                        319 B         103 kB
+├ ƒ /api/admin/control/cron                         319 B         103 kB
+├ ƒ /api/admin/control/pipeline                     319 B         103 kB
+├ ƒ /api/admin/control/secrets                      319 B         103 kB
+├ ƒ /api/admin/control/secrets/[id]                 319 B         103 kB
+├ ƒ /api/admin/control/secrets/[id]/test            319 B         103 kB
+├ ƒ /api/admin/control/stats                        319 B         103 kB
+├ ƒ /api/admin/control/users                        319 B         103 kB
+├ ƒ /api/admin/control/users/[id]                   319 B         103 kB
+├ ƒ /api/admin/control/users/[id]/reset-password    319 B         103 kB
+├ ƒ /api/admin/health                               319 B         103 kB
+├ ƒ /api/admin/pending                              319 B         103 kB
+├ ƒ /api/admin/reject                               319 B         103 kB
+├ ƒ /api/admin/reporters                            319 B         103 kB
+├ ƒ /api/admin/stats                                319 B         103 kB
+├ ƒ /api/admin/verification/[id]                    319 B         103 kB
+├ ƒ /api/admin/verification/[id]/approve            319 B         103 kB
+├ ƒ /api/admin/verification/[id]/reject             319 B         103 kB
+├ ƒ /api/admin/verification/[id]/run                319 B         103 kB
+├ ƒ /api/admin/verification/queue                   319 B         103 kB
+├ ƒ /api/bkash                                      319 B         103 kB
+├ ƒ /api/brand-card                                 319 B         103 kB
+├ ƒ /api/checkout                                   319 B         103 kB
+├ ƒ /api/cron/epaper                                319 B         103 kB
+├ ƒ /api/cron/youtube-sync                          319 B         103 kB
+├ ƒ /api/download/reader                            319 B         103 kB
+├ ƒ /api/health                                     319 B         103 kB
+├ ƒ /api/indexnow/key                               319 B         103 kB
+├ ƒ /api/learning-hub                               319 B         103 kB
+├ ƒ /api/newsletter/subscribe                       319 B         103 kB
+├ ƒ /api/newsroom/cron-trigger                      319 B         103 kB
+├ ƒ /api/newsroom/epaper                            319 B         103 kB
+├ ƒ /api/newsroom/ingest                            319 B         103 kB
+├ ƒ /api/newsroom/revalidate                        319 B         103 kB
+├ ƒ /api/public/channels.json                       319 B         103 kB
+├ ƒ /api/public/epaper/[date]                       319 B         103 kB
+├ ƒ /api/public/epaper/[date]/print                 319 B         103 kB
+├ ƒ /api/public/epaper/archive                      319 B         103 kB
+├ ƒ /api/public/epaper/latest                       319 B         103 kB
+├ ƒ /api/public/feed.json                           319 B         103 kB
+├ ƒ /api/public/live.json                           319 B         103 kB
+├ ○ /api/public/schedule.json                       319 B         103 kB          5m      1y
+├ ○ /api/public/stream.json                         319 B         103 kB         30s      1y
+├ ƒ /api/public/videos                              319 B         103 kB
+├ ƒ /api/public/videos.json                         319 B         103 kB
+├ ƒ /api/reporter/live/end                          319 B         103 kB
+├ ƒ /api/reporter/live/start                        319 B         103 kB
+├ ƒ /api/reporter/live/stats                        319 B         103 kB
+├ ƒ /api/set-locale                                 319 B         103 kB
+├ ƒ /api/social-card/[id]                           319 B         103 kB
+├ ƒ /api/social/connection-health                   319 B         103 kB
+├ ƒ /api/social/dispatch                            319 B         103 kB
+├ ƒ /api/social/manager                             319 B         103 kB
+├ ƒ /api/tts                                        319 B         103 kB
+├ ƒ /api/youtube/live                               319 B         103 kB
+├ ƒ /api/youtube/oauth-callback                     319 B         103 kB
+├ ƒ /api/youtube/oauth-start                        319 B         103 kB
+├ ƒ /article/[slug]                               14.9 kB         196 kB
+├ ƒ /category/[slug]                                178 B         114 kB
+├ ƒ /checkout                                     1.85 kB         105 kB
+├ ○ /contact                                        319 B         103 kB
+├ ○ /cookies                                        319 B         103 kB
+├ ○ /copyright                                      319 B         103 kB
+├ ○ /correction                                     319 B         103 kB
+├ ○ /disclaimer                                     319 B         103 kB
+├ ƒ /download                                       175 B         107 kB
+├ ƒ /epaper                                       1.38 kB         104 kB
+├ ○ /icon.svg                                         0 B            0 B
+├ ƒ /login                                        2.06 kB         174 kB
+├ ƒ /news-sitemap.xml                               319 B         103 kB
+├ ƒ /pricing                                      2.34 kB         105 kB
+├ ○ /privacy                                        319 B         103 kB
+├ ƒ /rajniti                                        319 B         103 kB
+├ ƒ /reset-password                               2.33 kB         175 kB
+├ ○ /robots.txt                                     319 B         103 kB
+├ ○ /rss.xml                                        319 B         103 kB          5m      1y
+├ ƒ /search                                         178 B         114 kB
+├ ○ /sitemap.xml                                    319 B         103 kB          1m      1y
+└ ○ /terms                                          319 B         103 kB
++ First Load JS shared by all                      103 kB
+  ├ chunks/1255-b84741b894bb9354.js               46.6 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js           54.2 kB
+  └ other shared chunks (total)                   2.11 kB
+
+
+ƒ Middleware                                      93.3 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

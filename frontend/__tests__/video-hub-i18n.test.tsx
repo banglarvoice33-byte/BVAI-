@@ -14,7 +14,7 @@ const video: VideoItem = {
 describe('VideoHub locale rendering', () => {
   it('renders English title and localized accessible controls in English', () => {
     const html = renderToStaticMarkup(<VideoHub locale="en" videos={[video]} />);
-    expect(html).toContain('Video &amp; Podcasts');
+    expect(html).toContain('Banglar Voice');
     expect(html).toContain('English headline');
     expect(html).toContain('aria-label="English headline — Play video"');
     expect(html).toContain('>Live<');

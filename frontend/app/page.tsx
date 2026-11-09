@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { LOCALE_COOKIE, getLocaleFromCookie, t, type Locale } from '../lib/i18n';
 import { api } from '../lib/api';
+import { readPublishedVideos } from '../lib/supabase/published-videos';
 import type { Metadata } from 'next';
 import { HeroBentoGrid } from '../components/hero-bento';
 import { LatestGrid } from '../components/latest-grid';
@@ -65,8 +66,7 @@ export default async function HomePage() {
     /* demo fallback below */
   }
   try {
-    const d = await api.videos();
-    videoItems = d.videos || [];
+    videoItems = await readPublishedVideos(null, 5);
   } catch {
     /* demo fallback below */
   }
@@ -223,7 +223,7 @@ export default async function HomePage() {
       <LiveBlog entries={live} locale={locale} />
 
       {/* Dark video & podcast hub */}
-      <VideoHub videos={videos} />
+      <VideoHub videos={videos} locale={locale} />
 
       {items.length > 0 ? (
         <AINewsAnchor

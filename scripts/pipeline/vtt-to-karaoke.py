@@ -1,59 +1,71 @@
-import re, sys
-# ব্যবহার: python3 vtt-to-karaoke.py in.vtt out.ass
-# edge-tts এর sentence-level VTT -> শব্দে শব্দে karaoke ASS
-# শব্দের টাইমিং বাক্যের সময়কে শব্দের দৈর্ঘ্য অনুযায়ী ভাগ করে আনুমানিক করা হয়
-def parse_ts(s):
-    m = re.match(r'(\d+):(\d+):(\d+)[,.](\d+)', s.strip())
-    h, mn, sec, ms = map(int, m.groups())
-    return h*3600 + mn*60 + sec + ms/1000.0
+"""Convert actual word VTT, or matched Edge cue VTT, to bounded ASS karaoke."""
+import html
+import re
+import sys
+from pathlib import Path
 
-text = open(sys.argv[1], encoding='utf-8').read()
-blocks = re.split(r'\n\s*\n', text.strip())
-words = []
-for block in blocks:
-    lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
-    ts_idx = next((i for i, l in enumerate(lines) if '-->' in l), None)
-    if ts_idx is None:
-        continue
-    start_s, end_s = [p.strip() for p in lines[ts_idx].split('-->')]
-    start, end = parse_ts(start_s), parse_ts(end_s)
-    cue_words = ' '.join(lines[ts_idx+1:]).split()
-    if not cue_words:
-        continue
-    total_chars = sum(len(w) for w in cue_words) or 1
-    dur = max(0.3, end - start)
-    t = start
-    for w in cue_words:
-        wdur = max(0.15, dur * len(w) / total_chars)
-        words.append((w, t, t + wdur))
-        t += wdur
 
-def fmt(t):
-    cs = int(round(t * 100))
-    return f"{cs//360000}:{(cs//6000)%60:02d}:{(cs//100)%60:02d}.{cs%100:02d}"
+def parse_ts(value):
+    match = re.match(r'^(\d+):(\d+):(\d+)[,.](\d+)', value.strip())
+    if not match:
+        raise ValueError('Unsupported VTT timestamp')
+    h, m, s, fraction = match.groups()
+    return int(h)*3600 + int(m)*60 + int(s) + int(fraction)/(10**len(fraction))
 
-header = """[Script Info]
+
+def fmt(value):
+    cs = round(value*100)
+    return f'{cs//360000}:{(cs//6000)%60:02d}:{(cs//100)%60:02d}.{cs%100:02d}'
+
+
+def convert(text):
+    words = []
+    for block in re.split(r'\n\s*\n', text.strip()):
+        lines = block.strip().splitlines()
+        index = next((i for i, line in enumerate(lines) if '-->' in line), None)
+        if index is None:
+            continue
+        a, b = lines[index].split('-->', 1)
+        start, end = parse_ts(a), parse_ts(b)
+        tokens = html.unescape(re.sub('<[^>]*>', '', ' '.join(lines[index+1:]))).split()
+        if not tokens or end <= start:
+            raise ValueError('Empty or invalid VTT cue')
+        total = sum(map(len, tokens))
+        cursor = start
+        for i, token in enumerate(tokens):
+            next_time = end if i == len(tokens)-1 else cursor+(end-start)*len(token)/total
+            words.append((token,cursor,next_time))
+            cursor = next_time
+    if not words:
+        raise ValueError('No subtitle words; refusing blank ASS')
+    result = ['''[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
 ScaledBorderAndShadow: yes
+WrapStyle: 0
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Alignment, MarginL, MarginR, MarginV, BorderStyle, Outline, Shadow
-Style: Karaoke,Noto Sans Bengali,56,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,1,0,2,80,80,300,1,3,1
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Karaoke,Noto Sans Bengali,64,&H0000FFFF,&H00FFFFFF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,300,1
 
 [Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-out_lines = [header]
-for i in range(0, len(words), 2):
-    chunk = words[i:i+2]
-    s, e = fmt(chunk[0][1]), fmt(chunk[-1][2])
-    parts = []
-    for (w, ws, we) in chunk:
-        k = max(1, int(round((we - ws) * 100)))
-        safe = w.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-        parts.append(f"{{\\k{k}}}{safe}")
-    out_lines.append(f"Dialogue: 0,{s},{e},Karaoke,,0,0,0,,{' '.join(parts)}")
-open(sys.argv[2], 'w', encoding='utf-8').write("\n".join(out_lines))
-print(f"karaoke ASS: {len(words)} words -> {sys.argv[2]}")
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text''']
+    # Two-word groups. Retain pauses explicitly; never extend short words to 150 ms.
+    for i in range(0,len(words),2):
+        group = words[i:i+2]
+        parts = []
+        cursor = group[0][1]
+        for word,start,end in group:
+            gap = round((start-cursor)*100)
+            if gap > 0:
+                parts.append(f'{{\\k{gap}}}\\h')
+            safe = word.replace('\\','').replace('{','').replace('}','')
+            parts.append(f'{{\\kf{max(1,round((end-start)*100))}}}{safe}')
+            cursor = end
+        result.append(f"Dialogue: 0,{fmt(group[0][1])},{fmt(group[-1][2])},Karaoke,,0,0,0,,{' '.join(parts)}")
+    return '\n'.join(result)+'\n'
+
+
+if __name__ == '__main__':
+    Path(sys.argv[2]).write_text(convert(Path(sys.argv[1]).read_text(encoding='utf8')),encoding='utf8')

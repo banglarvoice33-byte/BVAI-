@@ -103,7 +103,7 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   }
 
   return (
-    <div className="relative aspect-[9/16] max-w-[420px] mx-auto w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+    <div className={`relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black ${isVertical ? 'aspect-[9/16] max-w-[420px] mx-auto' : 'aspect-video'}`}>
       {hasDirectVideo ? (
         <video ref={videoRef} key={video.id || video.video_url} src={video.video_url} poster={poster || undefined}
           controls autoPlay playsInline preload="metadata" className="h-full w-full object-contain" />
@@ -124,11 +124,27 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
 export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; locale?: 'bn' | 'en' }) {
   const videoTitle = (v: VideoItem) => locale === 'en' ? v.title_en || v.title_bn : v.title_bn || v.title_en;
   const liveLabel = locale === 'en' ? 'Live' : 'লাইভ';
+  const [freshVideos, setFreshVideos] = useState<VideoItem[]>(videos);
   const ordered = useMemo(() => {
-    const list = [...videos];
+    const list = [...freshVideos];
     list.sort((a, b) => Number(b?.is_live ?? false) - Number(a?.is_live ?? false));
     return list.slice(0, 5);
-  }, [videos]);
+  }, [freshVideos]);
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/public/videos?limit=5', { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json() as { videos?: VideoItem[] };
+        if (mounted && Array.isArray(payload.videos)) setFreshVideos(payload.videos);
+      } catch { /* Retain existing videos during temporary network failure. */ }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, []);
 
   const [active, setActive] = useState<VideoItem | null>(null);
   const [liveVideo, setLiveVideo] = useState<VideoItem | null>(null);

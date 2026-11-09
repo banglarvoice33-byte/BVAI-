@@ -3,7 +3,6 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-const DAILY_CAP = 10;
 
 function getKeys(prefix, count) {
   const keys = [];
@@ -14,39 +13,13 @@ function getKeys(prefix, count) {
   return keys;
 }
 
-async function supabaseCountToday() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return 0;
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const res = await fetch(`${url}/rest/v1/videos?select=id&created_at=gte.${today}T00:00:00&limit=100`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` }
-    });
-    if (!res.ok) return 0;
-    return (await res.json()).length;
-  } catch { return 0; }
-}
-
-async function recordUsage(provider, keyIndex, chars) {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return;
-  try {
-    const month = new Date().toISOString().slice(0, 7);
-    await fetch(`${url}/rest/v1/tts_usage`, {
-      method: 'POST',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
-      body: JSON.stringify({ provider, key_index: keyIndex, month, chars_used: chars, videos: 1, updated_at: new Date().toISOString() })
-    });
-  } catch {}
-}
 
 async function trySarvamSingle(text, keyObj) {
   const res = await fetch('https://api.sarvam.ai/text-to-speech', {
     method: 'POST',
     headers: { 'api-subscription-key': keyObj.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs: [text], target_language_code: 'bn-IN', speaker: 'priya', pitch: 0, pace: 1.0, loudness: 1.0, speech_sample_rate: 22050, enable_preprocessing: true, model: 'bulbul:v3' })
+    body: JSON.stringify({ text, language_code: 'bn-IN', speaker: process.env.SARVAM_SPEAKER || 'priya', pace: 1.0, speech_sample_rate: 22050, model: 'bulbul:v3', output_audio_codec: 'mp3' }),
+    signal: AbortSignal.timeout(90000)
   });
   if (!res.ok) { const eb = await res.text().catch(()=> ''); throw new Error(`Sarvam ${res.status} ${eb.slice(0,300)}`); }
   const data = await res.json();
@@ -56,38 +29,37 @@ async function trySarvamSingle(text, keyObj) {
 }
 
 
+export function splitText(text, limit = 450) {
+  const chunks = []; let current = '';
+  for (const word of String(text).trim().split(/\s+/)) {
+    if (word.length > limit) throw new Error('Unbroken token exceeds TTS chunk limit');
+    if (current && (current.length + 1 + word.length > limit)) { chunks.push(current); current = ''; }
+    current += (current ? ' ' : '') + word;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
 async function trySarvam(text, keyObj) {
-  if (text.length <= 480) return trySarvamSingle(text, keyObj);
-  // Split by sentences into <=450 char chunks
-  const parts = text.split(/(?<=[।!?.\n])\s*/);
-  const chunks = [];
-  let cur = '';
-  for (const part of parts) {
-    if ((cur + part).length > 450 && cur) { chunks.push(cur); cur = part; }
-    else cur += part;
-  }
-  if (cur) chunks.push(cur);
+  const chunks = splitText(text);
   if (chunks.length === 1) return trySarvamSingle(chunks[0], keyObj);
-  console.log(`[tts-router] sarvam chunking ${chunks.length} parts`);
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sarvam-'));
-  const files = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const buf = await trySarvamSingle(chunks[i], keyObj);
-    const f = path.join(tmpDir, `c${i}.wav`);
-    fs.writeFileSync(f, buf);
-    files.push(f);
-  }
-  const listFile = path.join(tmpDir, 'list.txt');
-  fs.writeFileSync(listFile, files.map(f => `file '${f}'`).join('\n'));
-  const outFile = path.join(tmpDir, 'joined.mp3');
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:a', 'libmp3lame', '-q:a', '3', outFile]);
-  const joined = fs.readFileSync(outFile);
-  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-  return joined;
+  try {
+    const files = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const f = path.join(tmpDir, `c${i}.mp3`);
+      fs.writeFileSync(f, await trySarvamSingle(chunks[i], keyObj)); files.push(f);
+    }
+    const list = path.join(tmpDir, 'list.txt');
+    fs.writeFileSync(list, files.map(f => `file '${f.replace(/'/g, "'\\''")}'`).join('\n'));
+    const out = path.join(tmpDir, 'joined.mp3');
+    execFileSync('ffmpeg', ['-y','-v','error','-f','concat','-safe','0','-i',list,'-c:a','libmp3lame','-q:a','3',out], { timeout: 120000 });
+    return fs.readFileSync(out);
+  } finally { fs.rmSync(tmpDir, { recursive: true, force: true }); }
 }
 
 async function trySonexLabs(text, keyObj) {
   const res = await fetch('https://api.sonexlabs.com/v1/text-to-speech', {
+    signal: AbortSignal.timeout(90000),
     method: 'POST',
     headers: { Authorization: `Bearer ${keyObj.key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, language: 'bn', voice: 'default' })
@@ -102,6 +74,7 @@ async function tryCartesia(text, keyObj) {
   const voiceId = process.env.CARTESIA_VOICE_ID;
   if (!voiceId) throw new Error('CARTESIA_VOICE_ID missing');
   const res = await fetch('https://api.cartesia.ai/tts/bytes', {
+    signal: AbortSignal.timeout(90000),
     method: 'POST',
     headers: { 'X-API-Key': keyObj.key, 'Cartesia-Version': '2024-06-10', 'Content-Type': 'application/json' },
     body: JSON.stringify({ model_id: 'sonic-3', transcript: text, voice: { mode: 'id', id: voiceId }, output_format: { container: 'mp3', encoding: 'mp3', sample_rate: 44100 }, language: 'bn' })
@@ -116,6 +89,7 @@ async function tryElevenLabs(text, keyObj) {
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
   if (!voiceId) throw new Error('ELEVENLABS_VOICE_ID missing');
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    signal: AbortSignal.timeout(90000),
     method: 'POST',
     headers: { 'xi-api-key': keyObj.key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
     body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
@@ -127,12 +101,6 @@ async function tryElevenLabs(text, keyObj) {
 }
 
 export async function synthesizeVoiceRouted(text, opts = {}) {
-  const count = await supabaseCountToday();
-  if (count >= DAILY_CAP) {
-    const err = new Error('DAILY_CAP_REACHED');
-    err.code = 'DAILY_CAP_REACHED';
-    throw err;
-  }
   const attempts = [
     ...getKeys('TTS_SARVAM', 3).map(k => ({ provider: 'sarvam', ...k, fn: trySarvam })),
     ...getKeys('TTS_SONEXLABS', 3).map(k => ({ provider: 'sonexLabs', ...k, fn: trySonexLabs })),
@@ -143,9 +111,14 @@ export async function synthesizeVoiceRouted(text, opts = {}) {
   for (const a of attempts) {
     try {
       const buf = await a.fn(text, a);
-      await recordUsage(a.provider, a.index, text.length);
-      if (opts.outFile) fs.writeFileSync(opts.outFile, buf);
-      return { audio: buf, provider: a.provider, keyIndex: a.index, chars: text.length };
+      if (opts.outFile) {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tts-normalize-'));
+        try {
+          const raw = path.join(dir, 'raw'); fs.writeFileSync(raw, buf);
+          execFileSync('ffmpeg', ['-y','-v','error','-i',raw,'-vn','-c:a','libmp3lame','-ar','44100','-b:a','128k',opts.outFile], { timeout: 120000 });
+        } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+      }
+      return { audio: opts.outFile ? fs.readFileSync(opts.outFile) : buf, provider: a.provider, keyIndex: a.index, chars: text.length };
     } catch (e) {
       console.warn(`[tts-router] ${a.provider}#${a.index} failed: ${e.message}`);
       lastErr = e;
