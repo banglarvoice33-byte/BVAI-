@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'child_process';
-import { synthesizeVoiceRouted } from './tts-router.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,95 +36,26 @@ async function fetchArticle() {
   return null;
 }
 
-async function synthesizeVoice(text, audioPath, subPath) {
+function synthesizeVoice(text, audioPath, subPath) {
   const textPath = path.join(TMP, 'script.txt');
   fs.writeFileSync(textPath, text, 'utf8');
-  let routerDur = null;
-  let routerOk = false;
-  try {
-    const r = await synthesizeVoiceRouted(text, { outFile: audioPath });
-    console.log('   ✅ Voice via router: ' + r.provider);
-    routerOk = fs.existsSync(audioPath)
-    // Permanent: Groq Whisper caption - Sarvam audio + script spelling
-    if (routerOk) {
-      try {
-        const { execFileSync } = await import('node:child_process');
-        execFileSync('python3', ['scripts/pipeline/whisper-caption.py', audioPath, subPath, text], { timeout: 120000, stdio: 'pipe' });
-        if (fs.existsSync(subPath) && fs.statSync(subPath).size > 100) {
-          console.log('   ✅ VTT via Groq Whisper (permanent)');
-          return;
-        }
-      } catch(e) { console.log('   ⚠️  Groq Whisper failed, fallback to edge: ' + (e.message||'').slice(0,100)); }
-    }
- && fs.statSync(audioPath).size > 1024;
-    if (routerOk) {
-      try {
-        const d = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audioPath], { encoding: 'utf8' });
-        routerDur = parseFloat(d.trim());
-      } catch {}
-    }
-  } catch (e) {
-    console.log('   ⚠️  Router failed, edge-tts fallback: ' + e.message);
-  }
-  const tmpAudio = path.join(TMP, 'edge_tmp.mp3');
-  const tmpVtt = path.join(TMP, 'edge_tmp.vtt');
-  let edgeOk = false;
   for (const voice of ['bn-BD-PradeepNeural', 'bn-BD-NabanitaNeural']) {
     try {
-      execFileSync('python3', ['-m', 'edge_tts', '--voice', voice, '--rate', '-8%', '--pitch', '-2Hz', '--volume', '+5%', '--file', textPath, '--write-media', tmpAudio, '--write-subtitles', tmpVtt], { timeout: 180000, stdio: 'pipe' });
-      if (fs.existsSync(tmpVtt) && fs.statSync(tmpVtt).size > 100) { edgeOk = true; console.log('   ✅ VTT via edge: ' + voice); break; }
-    } catch (e) { console.log('   ⚠️  ' + voice + ' VTT failed: ' + (e.stderr?.toString() || e.message)); }
-  }
-  if (!routerOk) {
-    if (fs.existsSync(tmpAudio) && fs.statSync(tmpAudio).size > 1024 && edgeOk) {
-      fs.copyFileSync(tmpAudio, audioPath);
-      fs.copyFileSync(tmpVtt, subPath);
-      console.log('   ✅ Voice: edge-tts fallback');
-      return;
+      execFileSync('python3', ['-m', 'edge_tts',
+        '--voice', voice, '--rate', '-8%', '--pitch', '-2Hz', '--volume', '+5%',
+        '--file', textPath,
+        '--write-media', audioPath,
+        '--write-subtitles', subPath,
+      ], { timeout: 180000, stdio: 'pipe' });
+      if (fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1024) {
+        console.log('   ✅ Voice: ' + voice);
+        return;
+      }
+    } catch (e) {
+      console.log('   ⚠️  ' + voice + ' failed: ' + (e.stderr?.toString() || e.message));
     }
-    throw new Error('All TTS voices failed');
   }
-  if (edgeOk) {
-    let edgeDur = null;
-    try {
-      const d = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', tmpAudio], { encoding: 'utf8' });
-      edgeDur = parseFloat(d.trim());
-    } catch {}
-    if (edgeDur && routerDur) {
-      const scale = routerDur / edgeDur;
-      let vtt = fs.readFileSync(tmpVtt, 'utf8');
-      vtt = vtt.replace(/(\d+):(\d+):(\d+\.\d+)/g, (m, h, mi, s) => {
-        const total = parseInt(h) * 3600 + parseInt(mi) * 60 + parseFloat(s);
-        const sc = total * scale;
-        const hh = String(Math.floor(sc / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((sc % 3600) / 60)).padStart(2, '0');
-        const ss = (sc % 60).toFixed(3).padStart(6, '0');
-        return hh + ':' + mm + ':' + ss;
-      });
-      fs.writeFileSync(subPath, vtt, 'utf8');
-      console.log('   ✅ VTT scaled x' + scale.toFixed(2));
-    } else {
-      fs.copyFileSync(tmpVtt, subPath);
-    }
-  } else {
-    const sentences = text.match(/[^।!?\.\n]+[।!?\.]?/g) || [text];
-    const total = routerDur || 50;
-    const per = total / Math.max(1, sentences.length);
-    let out = 'WEBVTT\n\n';
-    sentences.forEach((s, i) => {
-      const st = i * per, en = (i + 1) * per;
-      const fmt = (x) => {
-        const hh = String(Math.floor(x / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((x % 3600) / 60)).padStart(2, '0');
-        const ss = (x % 60).toFixed(3).padStart(6, '0');
-        return hh + ':' + mm + ':' + ss;
-      };
-      out += fmt(st) + ' --> ' + fmt(en) + '\n' + s.trim() + '\n\n';
-    });
-    fs.writeFileSync(subPath, out, 'utf8');
-    console.log('   ✅ Estimated VTT: ' + sentences.length + ' sentences');
-  }
-  try { fs.unlinkSync(tmpAudio); fs.unlinkSync(tmpVtt); } catch {}
+  throw new Error('All TTS voices failed');
 }
 
 async function fetchMedia(article, count = 3) {
@@ -290,50 +220,6 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   return { audioDur, renderDur };
 }
 
-
-// Natural, complete voice-over script:
-// Headline (date = time + title = place + event) + complete sentences only
-// (never cut mid-sentence) + closing line. Source line / URLs are not spoken.
-function buildVoiceScript(article) {
-  const bnDigits = (s) => String(s).replace(/[0-9]/g, d => '০১২৩৪৫৬৭৮৯'[+d]);
-  const clean = (s) => (s||'').replace(/https?:\/\/\S+/g,'').replace(/[\(\)\[\]\{\}<>"'“”‘’]/g,'').replace(/\s+/g,' ').trim();
-  const title = clean(article.title_bn);
-  const body = clean(article.content_bn || article.excerpt_bn || '');
-  // Category -> tone
-  const cat = (article.category_key || article.category || '').toLowerCase();
-  const isWar = /war|যুদ্ধ|international|আন্তর্জাতিক|politics|রাজনীতি/.test(cat + title + body);
-  const isSport = /sport|খেলা|cricket|football/.test(cat + title + body);
-  const isDisaster = /দুর্যোগ|মৃত্যু|দুর্ঘটনা|ভূমিকম্প|বন্যা/.test(title + body);
-  // Sentences: split, keep 10-12 words max
-  const rawSent = body.split(/(?<=[।!?])\s*/).map(s=>s.trim()).filter(Boolean);
-  const short = [];
-  for (const s of rawSent) {
-    const words = s.split(/\s+/);
-    if (words.length <= 14) short.push(s);
-    else {
-      // split long sentence at comma
-      const parts = s.split(/,\s*/);
-      for (const pt of parts) if (pt.trim()) short.push(pt.trim() + '।');
-    }
-    if (short.length >= 6) break;
-  }
-  const hook = `আজ ${bnDigits(new Date().toLocaleDateString('bn-BD',{day:'numeric', month:'long'}))}, ${title.split('।')[0]}।`;
-  const lead = short[0] || title;
-  const body2 = short.slice(1,4).join(' ');
-  const impact = isDisaster ? 'এর ফলে সাধারণ মানুষের উপর বড় প্রভাব পড়েছে।' : isWar ? 'এর ফলে পরিস্থিতি আরও জটিল হয়েছে।' : isSport ? 'এই ফলাফল নিয়ে সমর্থকদের মধ্যে আনন্দ ছড়িয়ে পড়েছে।' : 'এই ঘটনা নিয়ে আলোচনা চলছে।';
-  const next = 'পরবর্তী আপডেটের জন্য চোখ রাখুন বাংলার ভয়েসে।';
-  let script = [hook, lead, body2, impact, next, 'বিস্তারিত দেখুন বাংলার ভয়েস ওয়েবসাইটে।'].join(' ');
-  script = bnDigits(script);
-  // Hard cap 780 chars, cut at sentence end
-  if (script.length > 780) {
-    script = script.slice(0,780);
-    const last = script.lastIndexOf('।');
-    if (last > 400) script = script.slice(0, last+1);
-  }
-  console.log('   🎙️ Script v2: ' + script.length + ' chars, tone=' + (isWar?'গম্ভীর':isSport?'উজ্জীবিত':isDisaster?'উদ্বেগ':'দৃঢ়'));
-  return script;
-}
-
 async function main() {
   console.log('🎬 BVAI Termux Render Pipeline\n');
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -352,11 +238,13 @@ async function main() {
   const overlayPath = path.join(TMP, 'overlay.png');
   const videoPath = path.join(TMP, 'final_output.mp4');
 
-  const cleanText = buildVoiceScript(article);
+  const text = (article.title_bn || '') + '। ' +
+    (article.excerpt_bn || (article.content_bn || '').substring(0, 600));
+  const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
   if (cleanText.length < 20) throw new Error('Script too short');
 
   console.log('\n🎙️  Voice...');
-  await synthesizeVoice(cleanText, audioPath, subPath);
+  synthesizeVoice(cleanText, audioPath, subPath);
 
   console.log('\n🎞️  Media...');
   const media = await fetchMedia(article, 3);
