@@ -1,13 +1,18 @@
--- Gateway fixes applied in Dashboard: allow gemini/'meta' + audit columns
-alter table public.ai_gateway_key_state
-drop constraint if exists ai_gateway_key_state_provider_check;
+-- Gateway fixes applied in Dashboard: allow gemini and meta + audit columns.
+-- Idempotent for columns; constraint is replaced with the verified provider set.
+BEGIN;
 
-alter table public.ai_gateway_key_state
-add constraint ai_gateway_key_state_provider_check
-check (provider in ('openrouter','groq','ollama','gemini',''meta''));
+ALTER TABLE public.ai_gateway_key_state
+  DROP CONSTRAINT IF EXISTS ai_gateway_key_state_provider_check;
 
-alter table public.ai_gateway_usage_events
-add column if not exists retry_count int not null default 0;
+ALTER TABLE public.ai_gateway_key_state
+  ADD CONSTRAINT ai_gateway_key_state_provider_check
+  CHECK (provider IN ('openrouter', 'groq', 'ollama', 'gemini', 'meta'));
 
-alter table public.ai_gateway_usage_events
-add column if not exists final_error_code text;
+ALTER TABLE public.ai_gateway_usage_events
+  ADD COLUMN IF NOT EXISTS retry_count integer NOT NULL DEFAULT 0;
+
+ALTER TABLE public.ai_gateway_usage_events
+  ADD COLUMN IF NOT EXISTS final_error_code text;
+
+COMMIT;
