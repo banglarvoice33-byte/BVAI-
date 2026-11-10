@@ -1,21 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { execFileSync } from 'child_process';
 import { synthesizeVoiceRouted } from './tts-router.js';
+import { loadVaultEnv } from './load-vault-env.mjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TMP = path.join(__dirname, '..', '..', 'temp_assets');
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-const PIXABAY_KEY = process.env.PIXABAY_API_KEY;
+let supabase;
+
+function db() {
+  if (!supabase) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabase;
+}
 
 async function fetchArticle() {
-  // published + বাংলা কন্টেন্ট আছে + এখনো videos টেবিলে নেই
-  const { data: candidates, error } = await supabase
+  const { data: candidates, error } = await db()
     .from('articles')
     .select('id, title_bn, content_bn, excerpt_bn, category, category_key, thumbnail_url, published_at, status')
     .eq('status', 'published')
@@ -27,7 +33,7 @@ async function fetchArticle() {
 
   for (const a of candidates) {
     if (!a.content_bn || a.content_bn.length < 80) continue;
-    const { data: existing } = await supabase
+    const { data: existing } = await db()
       .from('videos')
       .select('id')
       .eq('article_id', a.id)
@@ -46,7 +52,6 @@ async function synthesizeVoice(text, audioPath, subPath) {
     const r = await synthesizeVoiceRouted(text, { outFile: audioPath });
     console.log('   ✅ Voice via router: ' + r.provider);
     routerOk = fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1024;
-    // Permanent: Groq Whisper caption
     if (routerOk) {
       try {
         const { execFileSync } = await import('node:child_process');
@@ -125,6 +130,7 @@ async function synthesizeVoice(text, audioPath, subPath) {
 }
 
 async function fetchMedia(article, count = 3) {
+  const PIXABAY_KEY = process.env.PIXABAY_API_KEY;
   const key = article.category_key || article.category || '';
   const QUERIES = {
     sports: 'cricket stadium', খেলা: 'cricket stadium',
@@ -211,8 +217,8 @@ function wrapTitle(title, maxLen = 22, maxLines = 3) {
 }
 
 function renderOverlay(title, outPath) {
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const esc = s => String(s).replace(/&/g,'&').replace(/</g,'<')
+    .replace(/>/g,'>').replace(/"/g,'"').replace(/'/g,''');
   const lines = wrapTitle(title);
   const font = "'Noto Sans Bengali','Lohit Bengali','SolaimanLipi',sans-serif";
   const boxTop = 120;
@@ -286,28 +292,21 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   return { audioDur, renderDur };
 }
 
-
-// Natural, complete voice-over script:
-// Headline (date = time + title = place + event) + complete sentences only
-// (never cut mid-sentence) + closing line. Source line / URLs are not spoken.
 function buildVoiceScript(article) {
   const bnDigits = (s) => String(s).replace(/[0-9]/g, d => '০১২৩৪৫৬৭৮৯'[+d]);
   const clean = (s) => (s||'').replace(/https?:\/\/\S+/g,'').replace(/[\(\)\[\]\{\}<>"'“”‘’]/g,'').replace(/\s+/g,' ').trim();
   const title = clean(article.title_bn);
   const body = clean(article.content_bn || article.excerpt_bn || '');
-  // Category -> tone
   const cat = (article.category_key || article.category || '').toLowerCase();
   const isWar = /war|যুদ্ধ|international|আন্তর্জাতিক|politics|রাজনীতি/.test(cat + title + body);
   const isSport = /sport|খেলা|cricket|football/.test(cat + title + body);
   const isDisaster = /দুর্যোগ|মৃত্যু|দুর্ঘটনা|ভূমিকম্প|বন্যা/.test(title + body);
-  // Sentences: split, keep 10-12 words max
   const rawSent = body.split(/(?<=[।!?])\s*/).map(s=>s.trim()).filter(Boolean);
   const short = [];
   for (const s of rawSent) {
     const words = s.split(/\s+/);
     if (words.length <= 14) short.push(s);
     else {
-      // split long sentence at comma
       const parts = s.split(/,\s*/);
       for (const pt of parts) if (pt.trim()) short.push(pt.trim() + '।');
     }
@@ -320,7 +319,6 @@ function buildVoiceScript(article) {
   const next = 'পরবর্তী আপডেটের জন্য চোখ রাখুন বাংলার ভয়েসে।';
   let script = [hook, lead, body2, impact, next, 'বিস্তারিত দেখুন বাংলার ভয়েস ওয়েবসাইটে।'].join(' ');
   script = bnDigits(script);
-  // Hard cap 780 chars, cut at sentence end
   if (script.length > 780) {
     script = script.slice(0,780);
     const last = script.lastIndexOf('।');
@@ -334,8 +332,14 @@ async function main() {
   console.log('🎬 BVAI Termux Render Pipeline\n');
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
     throw new Error('SUPABASE_URL/SERVICE_ROLE_KEY missing');
+
+  // Supabase Vault is the primary secret store; GitHub env is optional override.
+  await loadVaultEnv();
+
   if (!process.env.PIXABAY_API_KEY)
     console.log('⚠️  PIXABAY_API_KEY missing → thumbnail fallback');
+  if (!process.env.GROQ_API_KEY)
+    console.log('⚠️  GROQ_API_KEY missing after vault hydrate → Whisper caption may fall back');
 
   fs.mkdirSync(TMP, { recursive: true });
 
