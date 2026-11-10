@@ -16,6 +16,11 @@ async function jsonRequest(url,options={}) {
   return data;
 }
 const auth=t=>({Authorization:`Bearer ${t}`});
+function graphVersion(version) {
+  const v = version || process.env.FACEBOOK_GRAPH_VERSION || 'v21.0';
+  if (!/^v\d+\.\d+$/.test(v)) throw new DeliveryError('Set a verified FACEBOOK_GRAPH_VERSION', { permanent: true });
+  return v;
+}
 export async function youtubeToken({clientId,clientSecret,refreshToken,accountId}) {
   const result=await jsonRequest('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,client_secret:clientSecret,refresh_token:refreshToken,grant_type:'refresh_token'})});
   if(!result.access_token)throw new DeliveryError('OAuth access token missing',{permanent:true});
@@ -64,7 +69,7 @@ export async function deliverYoutube({token,accountId,bytes,title,description,ch
 }
 export async function deliverFacebook({token,accountId,mediaUrl,title,description,duration,version,checkpoint={},save}) {
   if(duration>90)throw new DeliveryError('Verified Facebook Reels API contract is 3–90 seconds; 91–120s master needs a separate approved edit',{permanent:true});
-  if(!/^v\\d+\\.\\d+$/.test(version || ''))throw new DeliveryError('Set a verified FACEBOOK_GRAPH_VERSION',{permanent:true});
+  version = graphVersion(version);
   const graph=`https://graph.facebook.com/${version}`;
   const identity=await jsonRequest(`${graph}/${encodeURIComponent(accountId)}?fields=id`,{headers:auth(token)});
   if(identity.id!==accountId)throw new DeliveryError('Facebook Page identity mismatch',{permanent:true});
@@ -98,7 +103,7 @@ export async function deliverFacebook({token,accountId,mediaUrl,title,descriptio
   return {id:state.provider_id,url:`https://www.facebook.com/reel/${state.provider_id}`,verified_at:new Date().toISOString()};
 }
 export async function deliverInstagram({token,accountId,mediaUrl,description,version,checkpoint={},save}) {
-  if(!/^v\\d+\\.\\d+$/.test(version || ''))throw new DeliveryError('Set verified FACEBOOK_GRAPH_VERSION',{permanent:true});
+  version = graphVersion(version);
   const graph=`https://graph.facebook.com/${version}`;let state={...checkpoint};
   const persist=async patch=>{await save(patch);state={...state,...patch};};
   const post=(route,body)=>jsonRequest(`${graph}/${route}`,{method:'POST',headers:{...auth(token),'Content-Type':'application/json'},body:JSON.stringify(body)});
