@@ -217,8 +217,12 @@ function wrapTitle(title, maxLen = 22, maxLines = 3) {
 }
 
 function renderOverlay(title, outPath) {
-  const esc = s => String(s).replace(/&/g,'&').replace(/</g,'<')
-    .replace(/>/g,'>').replace(/"/g,'"').replace(/'/g,''');
+  const esc = (s) => String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
   const lines = wrapTitle(title);
   const font = "'Noto Sans Bengali','Lohit Bengali','SolaimanLipi',sans-serif";
   const boxTop = 120;
@@ -333,7 +337,6 @@ async function main() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
     throw new Error('SUPABASE_URL/SERVICE_ROLE_KEY missing');
 
-  // Supabase Vault is the primary secret store; GitHub env is optional override.
   await loadVaultEnv();
 
   if (!process.env.PIXABAY_API_KEY)
