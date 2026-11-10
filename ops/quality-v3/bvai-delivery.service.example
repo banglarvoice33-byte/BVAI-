@@ -1,0 +1,25 @@
+# Linux/systemd only; a single supervised instance, NOT multi-host HA.
+# Never enable before staging, account verification and operator approval.
+[Unit]
+Description=BVAI reviewed delivery loop
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=bvai
+Group=bvai
+WorkingDirectory=/srv/bvai
+EnvironmentFile=/etc/bvai/worker.env
+ExecStart=/usr/bin/node /srv/bvai/ops/quality-v3/supervise.mjs
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=180
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+# Do not use raw journal output as a metrics endpoint.
+[Install]
+WantedBy=multi-user.target

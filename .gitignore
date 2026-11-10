@@ -192,3 +192,5 @@ logs/
 recovery.bvai.enc
 recovery.tar.gz
 .bvaipatch-backups/
+supabase/.temp/
+BVAI-download/
