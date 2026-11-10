@@ -1,0 +1,14 @@
+# Termux: put this patch into the GitHub repository (replace YOUR_REPO_DIR; keep the migration file name unchanged)
+cd ~/YOUR_REPO_DIR
+git status --short                      # should be clean first
+git checkout -b feat/trusted-source-video-gate
+unzip -o ~/storage/downloads/BVAI_TRUSTED_SOURCE_GATE_PATCH.zip -x 'README_BN.txt' 'TERMUX_GIT_COMMANDS.txt'
+node --test scripts/pipeline/tests/trusted-source-gate.test.mjs     # expect: pass 5, fail 0
+git add supabase/migrations/20261110233227_trusted_source_video_gate.sql \
+        supabase/rollbacks/20261110233227_trusted_source_video_gate.rollback.sql \
+        supabase/operations/20261110233301_activate_bvai_newsroom_14m.sql \
+        scripts/pipeline/source-evidence.mjs \
+        scripts/pipeline/tests/trusted-source-gate.test.mjs
+git commit -m "feat(video): trusted-source video gate; reporter/field content keeps editorial approval"
+git push -u origin feat/trusted-source-video-gate
+# NOTE: the migration is ALREADY applied live as version 20261110233227. Do not re-apply it with the SQL Editor.

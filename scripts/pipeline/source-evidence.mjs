@@ -39,27 +39,50 @@ export function sourceUrls(article) {
   const items = Array.isArray(article.fact_sources) ? article.fact_sources : [];
   return [...new Set([article.source_url,...items.map(s=>typeof s==='string'?s:s?.url || s?.source_url)].filter(Boolean))];
 }
+export function isNewsUrl(raw) {
+  try {const h=new URL(raw).hostname;return !/(^|\.)(wikipedia\.org|wikimedia\.org|wikidata\.org)$/.test(h);}catch{return false;}
+}
+/**
+ * JS mirror of public.video_gate_basis(): which policy lets this article reach public video?
+ *   'editorial'      - an editor approved it (human_verified && verification_status='verified'), any origin.
+ *   'trusted_source' - curated aggregated news with a credited source, auto-verified, not a fallback.
+ *   null             - reporter/field/manual/original or incomplete content: human approval REQUIRED.
+ * This is only a fast pre-check. The database function is authoritative: it additionally requires the
+ * source row to be enabled and not kill-switched, and it is re-checked at claim and at finalize.
+ */
+export function videoGateBasis(article) {
+  if (!article || article.status !== 'published') return null;
+  if (article.human_verified === true && article.verification_status === 'verified') return 'editorial';
+  if (article.field_report_id || article.origin !== 'aggregated') return null;
+  const credited = String(article.source_name || '').trim() !== '';
+  const urlOk = /^https?:\/\/[^ ]+$/i.test(String(article.source_url || ''));
+  const verified = article.verification_status === 'auto_verified' || article.verification_status === 'verified';
+  if (article.source_id && credited && urlOk && verified && article.is_fallback !== true && article.source_published_at) return 'trusted_source';
+  return null;
+}
 export function assertEditorial(article, mode) {
   if (article.status !== 'published') throw new Error('Article not published');
   const bn=String(article.content_bn || '').match(/[\u0980-\u09ff]/g)?.length || 0;
   if (bn < 40) throw new Error('Bengali source content required, not an English article in content_bn');
   if (mode !== 'review') {
-    if (article.human_verified !== true || article.verification_status !== 'verified') throw new Error('Human verification and verified status required before public delivery');
-    const hosts=new Set(sourceUrls(article).map(s=>new URL(s).hostname.replace(/^www\./,'')));
-    if (hosts.size<2) throw new Error('At least two source domains required; editor must separately confirm independent ownership and claims');
+    const basis=videoGateBasis(article);
+    if (!basis) throw new Error('Human verification and verified status required before public delivery (reporter/field/original content), or a credited trusted aggregated source');
+    const hosts=new Set(sourceUrls(article).filter(isNewsUrl).map(s=>new URL(s).hostname.replace(/^www\./,'')));
+    const need=basis==='trusted_source'?1:2;
+    if (hosts.size<need) throw new Error(need===1?'At least one news source domain required':'At least two source domains required; editor must separately confirm independent ownership and claims');
     const published=Date.parse(article.source_published_at || '');
     if (!Number.isFinite(published) || published>Date.now()+300000 || Date.now()-published>24*3600000) throw new Error('Missing/stale primary source publication timestamp; review required');
   }
 }
 export async function refreshEvidence(article, mode) {
   const sources=[];
-  for (const url of sourceUrls(article).slice(0,6)) {
+  for (const url of sourceUrls(article).filter(isNewsUrl).slice(0,6)) {
     try {
       const result=await boundedFetch(url);
       sources.push({url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:'human_required'});
     } catch(e) { sources.push({url,error:e.message,role:'news_source'}); }
   }
-  if (mode !== 'review' && sources.filter(s=>s.sha256).length<2) throw new Error('Fewer than two news sources freshly fetched; fail closed');
+  if (mode !== 'review' && new Set(sources.filter(s=>s.sha256).map(s=>new URL(s.url).hostname.replace(/^www\./,''))).size<2) throw new Error('Fewer than two news sources freshly fetched; fail closed');
   // Wikipedia is context ONLY. Revision freshness is not independent breaking-news corroboration.
   for (const title of (article.context_blocks || []).filter(x=>x?.wikipedia_title).map(x=>x.wikipedia_title).slice(0,2)) {
     const url=new URL('https://bn.wikipedia.org/w/api.php');
