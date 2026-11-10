@@ -3,10 +3,15 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {assertEditorial,refreshEvidence} from './source-evidence.mjs';
-import {deliverYoutube,deliverFacebook,deliverInstagram,youtubeToken,DeliveryError} from './delivery-providers.mjs';
+import {deliverYoutube,deliverFacebook,deliverInstagram,deliverTiktok,youtubeToken,DeliveryError} from './delivery-providers.mjs';
 export function deliveryTargets(env=process.env) {
   const platforms=[...new Set((env.VIDEO_DELIVERY_PLATFORMS || '').split(',').map(x=>x.trim()).filter(Boolean))];
-  const keys={youtube:'YOUTUBE_CHANNEL_ID',facebook:'SOCIAL_FACEBOOK_PAGE_ID',instagram:'SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID'};
+  const keys={
+    youtube:'YOUTUBE_CHANNEL_ID',
+    facebook:'SOCIAL_FACEBOOK_PAGE_ID',
+    instagram:'SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID',
+    tiktok:'TIKTOK_OPEN_ID'
+  };
   return platforms.map(platform=>{
     if(!keys[platform])throw new Error('Unsupported video delivery platform: '+platform);
     const account_id=env[keys[platform]];
@@ -62,12 +67,11 @@ export async function runDelivery() {
         try{assertEditorial(article,'distribute');}catch{throw new DeliveryError('Article editorial/freshness gate changed; no new provider upload',{permanent:true});}
         await refreshEvidence(article,'distribute');
       }
-      // Always re-sign private storage. A stale database video_url is never reused.
       const {data:signed,error:signError}=await db.storage.from('reels').createSignedUrl(generation.render_path,21600);
       if(signError)throw new Error('Media signing failed');
       const evidence=asset.manifest.evidence || [],media=asset.manifest.media || [];
       const description=[video.title_bn,'সূত্র:',...evidence.filter(e=>e.role==='news_source'&&e.sha256).map(e=>e.url),'ভিজ্যুয়াল: প্রতীকী ছবি',...media.map(m=>`${m.author} | ${m.license} | ${m.source_url} | ${m.license_url || ''}`)].join('\n');
-      const descriptionLimit=target.platform==='instagram'?2200:5000;
+      const descriptionLimit=target.platform==='instagram'?2200:target.platform==='tiktok'?2200:5000;
       if([...description].length>descriptionLimit)throw new DeliveryError('Required source/license credits exceed caption limit; editor must shorten scene plan, never truncate attribution',{permanent:true});
       const common={accountId:target.account_id,mediaUrl:signed.signedUrl,title:video.title_bn,description,duration:video.duration_sec,checkpoint,save,version:process.env.FACEBOOK_GRAPH_VERSION};
       let result;
@@ -80,14 +84,27 @@ export async function runDelivery() {
         if(createHash('sha256').update(bytes).digest('hex')!==asset.sha256)throw new DeliveryError('Stored media integrity mismatch',{permanent:true});
         result=await deliverYoutube({...common,token,bytes,privacy:process.env.YOUTUBE_PRIVACY || 'unlisted',synthetic:asset.manifest.synthetic_realistic===true});
       } else if(target.platform==='facebook')result=await deliverFacebook({...common,token:await secret(db,'SOCIAL_FACEBOOK_PAGE_TOKEN',['FACEBOOK_PAGE_ACCESS_TOKEN'])});
-      else result=await deliverInstagram({...common,token:await secret(db,'SOCIAL_INSTAGRAM_ACCESS_TOKEN')});
+      else if(target.platform==='instagram')result=await deliverInstagram({...common,token:await secret(db,'SOCIAL_INSTAGRAM_ACCESS_TOKEN')});
+      else if(target.platform==='tiktok') {
+        const token=await secret(db,'TIKTOK_ACCESS_TOKEN',['TIKTOK_USER_ACCESS_TOKEN']);
+        result=await deliverTiktok({
+          token,
+          openId:target.account_id,
+          mediaUrl:signed.signedUrl,
+          title:video.title_bn,
+          description,
+          duration:video.duration_sec,
+          checkpoint,
+          save,
+          privacy:process.env.TIKTOK_PRIVACY || 'SELF_ONLY'
+        });
+      } else throw new DeliveryError('Unsupported platform after claim',{permanent:true});
       await save({provider_id:result.id,verified_result:result});
       const {error:finishError}=await db.rpc('finish_media_delivery',{p_id:job.id,p_token:job.claim_token,p_status:'succeeded',p_result:result,p_error:null});
       if(finishError)throw new DeliveryError('Provider succeeded but receipt commit failed',{ambiguous:true});
       console.log(`Verified delivery: ${target.platform} ${result.id}`);
     } catch(error) {
       problems++;
-      // Never log provider URLs, OAuth responses, signed URLs, or tokens.
       const status=failureStatus(error,checkpoint);
       const message=error instanceof DeliveryError?error.message:'Local database/storage operation failed; inspect securely';
       const {error:finishError}=await db.rpc('finish_media_delivery',{p_id:job.id,p_token:job.claim_token,p_status:status,p_result:null,p_error:message});
