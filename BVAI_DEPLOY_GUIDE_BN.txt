@@ -1,0 +1,133 @@
+বাংলার ভয়েস — Execution Continuity Patch / ১০ নভেম্বর ২০২৬
+============================================================
+সর্বপ্রথম: এটি পরীক্ষিত source-code patch, live deployment বা social publication receipt নয়।
+Supabase/GitHub/YouTube/Facebook/TikTok-এ এই সেশন থেকে লগইন বা পরিবর্তন করা হয়নি। কোনো paid TTS/video API চালানো হয়নি।
+পুরোনো FULL_REPORT/RELEASE_STATUS ও অন্যান্য audit ফাইল historical; এই patch-এর বর্তমান যাচাই এই ফাইল এবং verification/continuity-patch/।
+
+১. সত্যিকারের blocker ও সংশোধন
+--------------------------------
+• generate-video.js uploader-এর job_id/claim_token/content_key/script_hash/caption/evidence contract পূরণ করত না; DB claim/reservation-ভিত্তিক renderer দিয়ে প্রতিস্থাপন।
+• uploader-এর audio-qc.mjs ছিল না; final-file loudness measurement যোগ করা হয়েছে।
+• root package-lock.json অনুপস্থিত ছিল, অথচ workflow-এ npm ci চলত; reproducible lock যোগ করা হয়েছে।
+• সক্রিয় workflow-এ regression failure উপেক্ষা করা হচ্ছিল; continue-on-error এবং swallowed test failure বাদ।
+• ভিডিও schedule দিনে একবার ছিল; এখন UTC-তে দশটি render opportunity, ২ ঘণ্টা ২৪ মিনিট অন্তর।
+• in-flight render cancel করা বন্ধ; DB claim-token fencing, ২৫ মিনিট lease এবং fenced heartbeat।
+• failed pre-manifest local claim DB-তে failure নিশ্চিত হলে job folder-এ সংরক্ষিত হয়; ফোনের next cycle স্থায়ীভাবে আটকায় না।
+• প্রতি job-এর আলাদা temp_assets/JOB_UUID directory; recovery path এখন renderer-এর সঙ্গে মেলে।
+• Vault থেকে credential/target ID hydration render, upload, approval ও delivery-তে consistent; CI-তে hydrated secret mask।
+• ভুল ephemeral recovery key বাদ; durable Vault/GitHub key ছাড়া sensitive recovery artifact upload করা হয় না।
+• social outbox target-count তিন থেকে চার; YouTube/Facebook/Instagram/TikTok contract মেলে।
+• source rotation-এ অন্তত একটি non-priority source-এর slot; preferred list-এর পিছনে অন্য source স্থায়ীভাবে আটকে থাকে না।
+• frontend/worker cadence constant ১৪ মিনিট; frontend publication cap প্রতি execution-এ সর্বোচ্চ একটি।
+
+২. ১৪ মিনিটের article cadence — কী করে, কী করে না
+--------------------------------------------------
+নতুন migration: supabase/migrations/20261110020000_execution_continuity_patch.sql
+প্রতি মিনিটে pg_cron tick হয়, কিন্তু transactional elapsed-time gate আগের request থেকে অন্তত ১৪ মিনিট না গেলে request enqueue করে না। */14 cron ব্যবহার করা হয়নি: সেটি প্রতি ঘণ্টার boundary-তে সমান ১৪ মিনিটের ব্যবধান দেয় না।
+Target হলো বিদ্যমান /api/newsroom/cron-trigger। request_id হচ্ছে HTTP enqueue receipt, published article receipt নয়।
+Migration নতুন cron inactive রাখে এবং চালু automation বন্ধ করে না। explicit cutover SQL পরিচিত পুরোনো ingest/retry cron বন্ধ করে নতুন owner চালু করে; rollback পুরোনো active/schedule snapshot ফিরিয়ে দেয়।
+সকল external/manual/continuous writer-এর inventory live-এ করতে হবে; নতুন script অজানা অন্য writer নিজে শনাক্ত/বন্ধ করে না।
+AI gateway, source availability, editorial approval বা quality failure হলে ওই cycle-এ শূন্য article হওয়া সঠিক fail-closed আচরণ। ঠিক প্রতি ১৪ মিনিটে একটি published article হওয়ার নিশ্চয়তা নয়।
+পুরোনো verification policies/মানব যাচাই bypass করা হয়নি।
+
+৩. ভিডিও মান ও পুনর্ব্যবহার প্রতিরোধ
+------------------------------------
+• 1080×1920, 30 fps, H.264/yuv420p, AAC, 48 kHz, narration intact, ৪০–১২০ সেকেন্ড master।
+• কম CRF/উন্নত audio bitrate, final decode + SHA-256 re-download verification, -14 LUFS ±2 ও peak <= -1 dBTP gate।
+• আসল narration-এর Whisper word timing বা একই Edge narration/caption pair; অন্য voice-এর timing stretch নয়। Caption burn-in ব্যর্থ হলে publish নয়।
+• বাংলা font fallback/bundled fonts; karaoke pause-এর missing-glyph সমস্যা সংশোধন। Caption position ও illustrative label।
+• source sentence-ভিত্তিক script; বানানো প্রতিক্রিয়া, ক্ষতির দাবি বা আজকের তারিখ যোগ করা হয় না। খুব ছোট/দীর্ঘ narration padding বা cutting করে quality gate পাশ করানো হয় না।
+• exact story/script/visual reservations এবং final MP4 hash; সাম্প্রতিক ২০০টি story-তে lexical overlap ও ১০০টি asset-এ perceptual fingerprint candidate check।
+• fingerprint বা lexical heuristic সব semantic duplicate ধরার গ্যারান্টি নয়। অন্য encoding/crop/বড় script paraphrase-এর জন্য editorial review দরকার।
+• একটি master website এবং নির্বাচিত পৃথক platform-এ একবার করে পোস্ট করা উদ্দেশ্যমূলক cross-posting; একই platform/account-এ duplicate publication নয়।
+• unknown provider outcome নতুন upload তৈরি না করে needs_reconciliation-এ যায়। একই session/publish_id-এর নিরাপদ resume/poll সমর্থিত।
+• ১০টি daily generation attempt cap-এ failed attempt-ও ধরা হয়, কারণ failed provider call-ও bill হতে পারে। এটি ১০টি successful public video-এর নিশ্চয়তা নয়। GitHub scheduled jobs-এ delivery delay/skip সম্ভব।
+
+৪. Wikimedia / source freshness
+-------------------------------
+Wikipedia-কে breaking-news-এর দ্বিতীয় independent source গণনা করা বন্ধ। Wikipedia revision হলো context-only। Primary publication timestamp এবং দুই আলাদা news domain-এর fresh fetch/byte hash পরীক্ষা করা হয়। HTTP 200 পাওয়া মানেই সংবাদ সত্য প্রমাণ নয়; independent ownership/দাবি সম্পাদককেই যাচাই করতে হবে।
+Media pipeline অপ্রাসঙ্গিক category stock বা অজানা thumbnail silently নেয় না। প্রতিটি article-এর জন্য ৩–৮টি editor-reviewed Commons File title লাগবে।
+উপায় A: article.context_blocks-এ commons_title ও scene_relevance_reviewed=true।
+উপায় B: deploy/video-scene-plan.example.json অনুকরণে প্রকৃত plan JSON তৈরি করে VIDEO_SCENE_PLAN_FILE দিন। GitHub ব্যবহার করলে non-secret plan repo-তে রাখতে হবে এবং Actions variable-এ path দিন।
+Template-এর REPLACE মান বাস্তব asset নয়। প্রতি source থেকে সর্বদা নতুন খবর পাওয়া বা media license আইনগতভাবে শতভাগ নিশ্চিত করা সম্ভব নয়। Commons metadata নতুন করে fetch, supported license/artist/license URL/media host যাচাই, author/license/source attribution সংরক্ষণ করা হয়। Rights/relevance না মিললে render বন্ধ হয়।
+CC BY-SA গ্রহণ করলে derivative-এর license obligations মানব সম্পাদককে যাচাই/পালন করতে হবে।
+
+৫. Website/YouTube/Facebook/TikTok readiness
+-------------------------------------------
+Website: private reels bucket, checksum verification ও transaction-based videos publication; frontend fresh signed playback link তৈরি করে। Live playback এখনও operator canary-তে পরীক্ষা করতে হবে।
+YouTube: Vault-এ OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN এবং YOUTUBE_CHANNEL_ID লাগবে। Email account identity/OAuth scope-এর বিকল্প নয়। channels.mine identity check, resumable same-session upload ও processed/privacy receipt check আছে। Default unlisted; public চাইলে pilot-এর পরে YOUTUBE_PRIVACY=public দিন। OAuth grant-এ প্রয়োজনীয় upload/account-read scopes থাকতে হবে।
+Facebook: এখন credential নেই, তাই enabled target করবেন না। SOCIAL_FACEBOOK_PAGE_ID/PAGE_TOKEN এবং verified graph version/app permissions ছাড়া পোস্ট সম্ভব নয়। বর্তমান adapter ৯০ সেকেন্ডের বেশি Facebook master conservatively reject করে; ৯১–১২০ সেকেন্ডের master-এর আলাদা approved edit লাগবে।
+Instagram: business account ID, access token ও app/Page linkage/permissions আলাদা লাগে।
+TikTok: original verification ফাইল ইতিমধ্যে frontend/public/tiktokqG70EYtoSlqkGv0XPQc7b8G1GPgrZYYN.txt-এ ছিল; সেটি হুবহু রাখা হয়েছে। Next.js-এর public folder-ই এখানে সঠিক জায়গা। Deployment-এর পরে root URL-এ exact body ও 200 যাচাই করুন।
+Website root verification করলেই Supabase signed media URL-এর domain/prefix ownership যাচাই হয় না। PULL_FROM_URL-এর actual media prefix TikTok developer portal-এ আলাদাভাবে verify করতে হবে।
+
+TikTok-এ unattended public auto-post সম্পূর্ণ/অনুমোদিত দাবি করা হচ্ছে না। Official rules-এ current creator info, preview/editable caption, manual privacy selection/no default, interaction choices, explicit upload consent, music/commercial disclosures, app audit ও approved use case প্রয়োজন। Internal-only uploader use case-ও audit-এ বাধা হতে পারে। এই patch পূর্ণ audited UX implement করে না; consent ছাড়া posting fail-closed রাখে।
+Client key/secret যথেষ্ট নয়; user consent থেকে access token, refresh token ও open_id সংগ্রহ করতে হবে। বানানো token বা শুধু email ব্যবহার করা হয়নি।
+Local operator flow:
+  node --env-file=.env scripts/pipeline/tiktok-oauth.mjs authorize
+  [registered exact HTTPS callback-এ browser consent; private TIKTOK_CALLBACK_URL env দিন]
+  node --env-file=.env scripts/pipeline/tiktok-oauth.mjs exchange
+  node --env-file=.env scripts/pipeline/import-tiktok-vault.mjs
+.tiktok-oauth/tokens.private.json Git-ignored; Vault import verified হলে local file securely delete করুন। Token expiry/refresh lifecycle এখনও live-tested নয়; unattended refresh automation এই patch-এ নেই।
+প্রতি video-তে deploy/tiktok-approval.example.json অনুসারে genuine reviewed approval file এবং TIKTOK_APPROVAL_FILE দিতে হবে। Actual MP4 SHA-256/account/privacy/consent binding লাগে। পরিষ্কার non-promotional master-এর জন্য VIDEO_BRAND_FREE=true; TikTok target থাকলে renderer এটি স্বয়ংক্রিয়ভাবে বেছে নেয়। Branded master TikTok worker reject করে।
+Flags সত্য করে দিলেই TikTok audit বা compliance হয়ে যায় না। কোনো commercial disclosure থাকলে এই সীমিত CLI দিয়ে পাঠাবেন না; approved compliant UX সম্পন্ন করুন।
+
+৬. পাঁচটি Android app
+---------------------
+Uploaded ZIP-এ compiled .apk ছিল না; Reader, Reporter, Admin, Studio, TV—পাঁচটি Flutter source app ছিল।
+পাঁচটির versionCode/versionName এখন Flutter build arguments অনুসরণ করে; shared API_BASE/BV_API_BASE compatible config; shared Supabase concurrent-init/retry fix; Reporter একই singleton ব্যবহার করে; Studio bootstrap-এ shared init।
+নতুন .github/workflows/mobile-five-apps.yml পাঁচটি signed release artifact ও checksums তৈরির matrix দেয়। scripts/build-five-apps.sh local Android/Flutter CI alternative।
+mobile_monorepo/mobile-build.example.json থেকে private config বানান: SUPABASE_URL, কেবল publishable/anon key, API_BASE। APK-তে service-role/refresh/access/client-secret ঢোকাবেন না।
+GitHub secrets: MOBILE_BUILD_CONFIG_JSON, ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS। পুরোনো installed APK update করার জন্য একই signing certificate ও বাড়তি build number অপরিহার্য।
+এই sandbox-এ Flutter/Android SDK/signing key নেই; তাই পাঁচটি নতুন APK build বা device test করা হয়নি। CI workflow সফল হওয়ার আগে APK ready বলা যাবে না। Plugin/SDK/Gradle compatibility ও auth flows device-এ পরীক্ষা বাকি।
+
+৭. Deploy — existing Supabase-এ পুরোনো সব migration replay করবেন না
+-----------------------------------------------------------------
+১) GitHub repo/DB backup নিন, patch diff review করুন। full ZIP অথবা changes-only ZIP overlay করুন। Private .env বা signing keys commit করবেন না।
+২) Termux-এ Node >=22.12, Python, FFmpeg এবং Git দিন। .env.video.example থেকে প্রয়োজনীয় missing keys নিজের existing private .env-তে merge করুন, overwrite নয়।
+৩) Repo root থেকে:
+  bash deploy/termux-continuity.sh --check
+  BVAI_BACKUP_CONFIRMED=YES bash deploy/termux-continuity.sh --apply
+--check read-only DB/schema/credential-presence check; provider login/success যাচাই নয়। --apply চারটি scoped additive SQL stage করে; আলাদা patch-history hash ও advisory lock থাকে। New cadence এখনও OFF।
+Standalone SQL ফাইলটি একই চার migration-এর সংকলন। CLI deployer বা SQL Editor—একটিই বেছে নিন; পরে পুরোনো apply-media-migration baseline replay করে নতুন function downgrade করবেন না। Live schema drift হলে থামুন।
+৪) Frontend-এ existing environment বজায় রেখে npm ci --legacy-peer-deps, npm run typecheck, npm test, npm run build চালিয়ে usual Vercel deployment করুন। এই সেশনে live Vercel deploy হয়নি।
+৫) Scene plan ও approved article প্রস্তুত করে bash run-bvai.sh --setup, তারপর VIDEO_PUBLISH_MODE=review bash run-bvai.sh। needs_review receipt/editor inspection করুন। Missing accurate captions হলে GROQ_API_KEY/সঠিক TTS/voice setup ঠিক করুন; Grok/XAI আর Groq একই provider/key নয়।
+৬) Website pilot: job UUID নিয়ে publish-review.mjs JOB_UUID --approve-website; live /api/public/videos, signed playback ও actual video দেখুন। এরপর youtube-only unlisted pilot করুন, provider receipt মিলিয়ে নিন।
+৭) GitHub bridge (Termux gh auth login প্রয়োজন):
+  node --env-file=.env scripts/configure-actions.mjs --repo=OWNER/REPO
+  node --env-file=.env scripts/configure-actions.mjs --repo=OWNER/REPO --apply
+এটি Actions-এর জন্য দুই bootstrap secret (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) দেয়; অন্য runtime credentials Vault থেকে আসে। Default-এ automation enable করে না।
+Pilot-এর পর .env-তে VIDEO_PUBLISH_MODE=distribute, VIDEO_DELIVERY_PLATFORMS=youtube এবং উপযুক্ত YOUTUBE_PRIVACY নির্বাচন করুন। এরপর:
+  BVAI_LIVE_CANARY_CONFIRMED=YES node --env-file=.env scripts/configure-actions.mjs --repo=OWNER/REPO --apply --enable-video
+এতে GitHub দশটি render slot ও delivery schedule চালাতে পারবে; user-run action, এই সেশন থেকে remotely enable হয়নি। GitHub schedules সাধারণত default branch-এর workflow ব্যবহার করে।
+৮) Article scheduler cutover (web authenticated pilot ও duplicate scheduler inventory-এর পরে):
+  BVAI_LIVE_CANARY_CONFIRMED=YES bash deploy/termux-continuity.sh --activate-articles
+Rollback:
+  BVAI_LIVE_CANARY_CONFIRMED=YES bash deploy/termux-continuity.sh --rollback-articles
+এটি cadence rollback, code/data rollback নয়; media/outbox table কখনো drop করবেন না।
+
+৮. Recovery ও operational acceptance
+--------------------------------------
+Upload ব্যর্থ manifest থাকলে নতুন render দিয়ে overwrite নয়; recovery archive পরীক্ষা/decrypt করে original job directory restore, recover-upload.mjs --renew-upload-lease, তারপর bash run-bvai.sh --upload-only।
+needs_reconciliation মানে unknown outcome, failure প্রমাণ নয়; provider inventory/previous session দেখে resume_media_delivery operator RPC ব্যবহার করুন, নতুন পোস্ট শুরু করবেন না।
+Acceptance: প্রতি platform/account-এ unique outbox succeeded result ID, provider-side processed/visible/privacy state, playable website video, SQL schedule run details, network/TTS error alert, পাঁচটি signed APK artifact/device auth/realtime check।
+No external monitoring/alert notification service was activated here। Live backup restore, complete migration history, account permissions, API quota এবং perceptual/editorial video quality বাকি validation scope।
+
+৯. যাচাই করা official references
+---------------------------------
+https://supabase.com/docs/guides/cron
+https://developers.google.com/youtube/data/guides/using_resumable_upload_protocol
+https://developers.tiktok.com/doc/content-sharing-guidelines
+https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+https://www.mediawiki.org/wiki/API:Imageinfo
+
+১০. Test evidence
+-------------------
+Frontend TypeScript pass; frontend ১৪১ tests pass; optimized Next production build pass। Build-এ তিনটি existing next/image lint warning এবং live source unavailable sitemap warning ছিল; এগুলোকে clean live-data validation বলা হচ্ছে না।
+Worker TypeScript pass; worker ৫৯ tests pass।
+Pipeline/quality Node tests ও Python caption tests-এর actual latest counts verification/continuity-patch/log-এ।
+Real ৪০-সেকেন্ড FFmpeg offline synthetic tone/color render, burned Bengali caption, final decode, codec/dimension/audio/checksum gate pass। এটি real news voice quality বা user preference test নয়।
+PostgreSQL 16 isolated fixture: exact scoped baseline+patch SQL apply, claim/dedup/finalize/replay/fence/anonymous permissions pass; elapsed ১৪-minute cadence mock HTTP tests pass; real two-connection claim race-এ exactly one job pass।
+এই সফল local tests-কে live Supabase বা social posting-এর শতভাগ নিশ্চয়তা হিসেবে ব্যবহার করবেন না।
+
+Final measured counts: frontend 141; worker 59; pipeline/quality 58; Python captions 7; portable tools 8 — all passed.
