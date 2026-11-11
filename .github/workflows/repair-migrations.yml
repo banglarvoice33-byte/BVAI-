@@ -1,6 +1,6 @@
 name: Repair Supabase Migration History
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
   repair:
@@ -10,23 +10,22 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-
       - name: Link project and repair remote migration history
         run: |
           set -euo pipefail
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
-          # 远程有、本地无 → 标记为 reverted
-          supabase migration repair --status reverted 20261110015900 --remote
-          supabase migration repair --status reverted 20261110020000 --remote
-          supabase migration repair --status reverted 20261110213025 --remote
-          supabase migration repair --status reverted 20261111094838 --remote
-          supabase migration repair --status reverted 20261111094916 --remote
+          # Remote has, local doesn't → remove from remote history
+          supabase migration repair --status reverted --yes 20261110015900 --remote
+          supabase migration repair --status reverted --yes 20261110020000 --remote
+          supabase migration repair --status reverted --yes 20261110213025 --remote
+          supabase migration repair --status reverted --yes 20261111094838 --remote
+          supabase migration repair --status reverted --yes 20261111094916 --remote
 
-          # 本地有、远程无 → 标记为 applied
-          supabase migration repair --status applied 20261111030000 --remote
-          supabase migration repair --status applied 20261111040000 --remote
-          supabase migration repair --status applied 20261111041000 --remote
+          # Local has, remote doesn't → insert history record
+          supabase migration repair --status applied --yes 20261111030000 --remote
+          supabase migration repair --status applied --yes 20261111040000 --remote
+          supabase migration repair --status applied --yes 20261111041000 --remote
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
