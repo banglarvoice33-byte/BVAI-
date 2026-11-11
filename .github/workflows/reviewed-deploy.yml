@@ -57,7 +57,7 @@ jobs:
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
           supabase migration list --remote
-          supabase db push --dry-run --remote
+          supabase db push --dry-run --include-all --remote
       - name: Apply versioned migrations then deploy affected Edge consumers
         if: inputs.apply
         run: |

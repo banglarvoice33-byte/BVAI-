@@ -188,3 +188,16 @@ create policy "editors approve articles"
 -- Public SELECT remains the existing "public read published articles" policy
 -- (anon/authenticated may read status='published' only). Writes stay
 -- authenticated-role or service_role. audit_log insert is service/definer.
+
+-- Recovered from production: source_registry + feed_enabled existed on the
+-- remote DB outside the migration pipeline (history was repaired as reverted).
+CREATE TABLE IF NOT EXISTS public.source_registry (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name_en text,
+    name_bn text,
+    domain text,
+    is_active boolean NOT NULL DEFAULT true,
+    feed_enabled boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.source_registry ADD COLUMN IF NOT EXISTS feed_enabled boolean NOT NULL DEFAULT true;
