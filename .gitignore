@@ -197,3 +197,5 @@ BVAI-download/
 
 # Reproducible root installs are required by CI and Termux.
 !/package-lock.json
+__pycache__/
+*.pyc
