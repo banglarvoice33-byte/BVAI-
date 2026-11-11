@@ -56,13 +56,13 @@ jobs:
       - name: Link confirmed project and inspect pending history
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          supabase migration list
-          supabase db push --dry-run
+          supabase migration list --remote
+          supabase db push --dry-run --remote
       - name: Apply versioned migrations then deploy affected Edge consumers
         if: inputs.apply
         run: |
           set -euo pipefail
-          supabase db push --yes
+          supabase db push --yes --remote
           supabase functions deploy social-dispatch --project-ref "$SUPABASE_PROJECT_REF"
           supabase functions deploy social-manager --project-ref "$SUPABASE_PROJECT_REF"
           supabase functions deploy youtube-sync --project-ref "$SUPABASE_PROJECT_REF"
