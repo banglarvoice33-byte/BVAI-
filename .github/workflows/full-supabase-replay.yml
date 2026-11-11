@@ -1,0 +1,28 @@
+name: BVAI Full Supabase Replay
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bvai-full-supabase-replay
+  cancel-in-progress: false
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+      - name: Start disposable local Supabase; never link a hosted project
+        run: supabase start
+      - name: Replay every migration in order
+        run: supabase db reset --local --no-seed
+      - name: Local database lint
+        run: supabase db lint --local --level error
+      - name: Stop disposable stack
+        if: always()
+        run: supabase stop --no-backup

@@ -10,11 +10,11 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..')
 const tmp=path.join(root,'temp_assets');
 if(fs.existsSync(path.join(tmp,'manifest.json')) || fs.existsSync(path.join(tmp,'claim.json'))) throw new Error('Refusing smoke test over a live render');
 fs.mkdirSync(tmp,{recursive:true});
-const audio=path.join(tmp,'smoke.mp3');const clip=path.join(tmp,'smoke-clip.mp4');
+const audio=path.join(tmp,'smoke.mp3');const clip=path.join(tmp,'smoke-clip.webm');
 const sub=path.join(tmp,'voice.vtt');const overlay=path.join(tmp,'smoke-overlay.png');const out=path.join(tmp,'smoke-output.mp4');
 try {
   execFileSync('ffmpeg',['-y','-v','error','-f','lavfi','-i','sine=frequency=440:duration=40','-c:a','libmp3lame',audio]);
-  execFileSync('ffmpeg',['-y','-v','error','-f','lavfi','-i','color=c=0x162236:s=320x568:r=30:d=1','-c:v','libx264','-threads','1','-pix_fmt','yuv420p',clip]);
+  execFileSync('ffmpeg',['-y','-v','error','-f','lavfi','-i','color=c=0x162236:s=320x568:r=30:d=1','-c:v','libvpx-vp9','-threads','1','-pix_fmt','yuv420p',clip]);
   fs.writeFileSync(sub,'WEBVTT\n\n00:00:00.100 --> 00:00:00.800\nপরীক্ষার\n\n00:00:00.900 --> 00:00:01.800\nসংবাদ\n\n');
   renderOverlay('বাংলার ভয়েস — রেন্ডার পরীক্ষা',overlay);
   const result=composeVideo([clip,clip,clip],audio,sub,overlay,out);
@@ -24,5 +24,5 @@ try {
   if(png)execFileSync('ffmpeg',['-y','-v','error','-ss','1.0','-i',out,'-frames:v','1',png]);
   console.log('PASS offline FFmpeg 1080x1920 H.264/AAC render; ASS captions burned; full decode and checksum gate passed');
 } finally {
-  for(const filename of ['smoke.mp3','smoke-clip.mp4','voice.vtt','voice.ass','smoke-overlay.png','smoke-output.mp4','smoke-overlay.svg','credit.txt']) fs.rmSync(path.join(tmp,filename),{force:true});
+  for(const filename of ['smoke.mp3','smoke-clip.webm','voice.vtt','voice.ass','smoke-overlay.png','smoke-output.mp4','smoke-overlay.svg','credit.txt']) fs.rmSync(path.join(tmp,filename),{force:true});
 }

@@ -1,3 +1,5 @@
+> **সর্বশেষ সংশোধন (2026-11-11):** `IMPLEMENTATION_REPORT_20261111_BN.md` এবং `TERMUX_REPAIR_20261111_BN.txt` পড়ুন। Local verified; live deployment/distribution এখনো যাচাই বাকি।
+
 # Newsroom — fresh account-neutral distribution
 
 নতুন ডেপলয়মেন্ট শুরু: **[FRESH_DEPLOY_BN.md](FRESH_DEPLOY_BN.md)**  
@@ -27,3 +29,7 @@ node scripts/check-portability.mjs
 No old deployment account is configured. Fill new account settings before production.
 Do not apply this fresh-install migration history to an existing production database without a separate migration plan.
 Original proprietary LICENSE is preserved: free hosting and open-source dependencies do not relicense this application.
+
+## 2026-11-11 production audit addendum
+
+Read `PRODUCTION_READINESS_AUDIT_20261111_BN.md` before enabling automation. This package includes a fail-closed canonical-site-URL fix for social dispatch and a Bangladesh-local 14-minute daytime / 60-minute overnight cadence migration. Neither change is deployed/applied to the live project. Full social/video distribution remains blocked pending schema reconciliation, provider credentials/scopes, video worker evidence and GitHub repository access.

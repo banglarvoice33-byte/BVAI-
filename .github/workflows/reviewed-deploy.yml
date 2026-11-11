@@ -1,0 +1,70 @@
+name: BVAI Reviewed Supabase Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: 'Exact Supabase project ref; must match repository variable SUPABASE_PROJECT_REF'
+        required: true
+        type: string
+      apply:
+        description: 'Apply pending migrations and deploy Edge functions; false = history/dry-run only'
+        required: true
+        default: false
+        type: boolean
+      staging_replay_passed:
+        description: 'Owner confirms full Supabase replay/backup review completed before apply'
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: bvai-reviewed-supabase-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      REQUESTED_REF: ${{ inputs.project_ref }}
+      APPLY: ${{ inputs.apply }}
+      REPLAY_PASSED: ${{ inputs.staging_replay_passed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+      - name: Validate target and explicit release acknowledgement
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SUPABASE_PROJECT_REF" =~ ^[a-z]{20}$ ]] && [[ "$REQUESTED_REF" == "$SUPABASE_PROJECT_REF" ]] || { echo '::error::Project mismatch'; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$SUPABASE_DB_PASSWORD"
+          if [[ "$APPLY" == true && "$REPLAY_PASSED" != true ]]; then
+            echo '::error::Full staging replay/backup acknowledgement required before apply'; exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check:imports
+      - name: Link confirmed project and inspect pending history
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          supabase migration list
+          supabase db push --dry-run
+      - name: Apply versioned migrations then deploy affected Edge consumers
+        if: inputs.apply
+        run: |
+          set -euo pipefail
+          supabase db push --yes
+          supabase functions deploy social-dispatch --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy social-manager --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy youtube-sync --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Deployment boundary
+        run: echo 'No automation flags/OAuth scopes/platform switches were enabled. Validate contracts and a controlled provider receipt before enabling delivery.'

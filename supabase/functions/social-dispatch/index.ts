@@ -3,7 +3,6 @@ import { verifyServiceCredential } from '../_shared/service-auth.ts';
 import { dhakaDayStartIso, fetchReadiness, type PlatformLimit } from '../_shared/social-platforms.ts';
 
 
-const BASE_URL = 'https://example.invalid';
 const FACEBOOK_GRAPH_VERSION = 'v26.0';
 type Platform = 'facebook' | 'instagram' | 'x' | 'linkedin' | 'telegram' | 'tiktok';
 
@@ -82,8 +81,33 @@ async function graph(path: string, body: Record<string, string>) {
   return { response, data };
 }
 
-function articleUrl(article: Article): string {
-  return `${BASE_URL}/article/${encodeURIComponent(article.slug || article.id)}`;
+/** Resolve the canonical public site URL from server config or the protected
+ * deployment_settings table. Never emit links to example.invalid or a preview URL.
+ */
+async function getSiteBaseUrl(supabase: SupabaseClient): Promise<string> {
+  const configured = (Deno.env.get('SITE_URL') || Deno.env.get('NEXT_PUBLIC_SITE_URL') || '').trim();
+  let candidate = configured;
+  if (!candidate) {
+    const { data, error } = await supabase
+      .from('deployment_settings')
+      .select('value')
+      .eq('key', 'SITE_URL')
+      .maybeSingle();
+    if (error) throw new Error('site_url_lookup_failed');
+    candidate = typeof data?.value === 'string' ? data.value.trim() : '';
+  }
+  let parsed: URL;
+  try { parsed = new URL(candidate); } catch { throw new Error('site_url_not_configured'); }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password ||
+      !parsed.hostname.includes('.') || parsed.hostname.endsWith('.invalid') ||
+      parsed.hostname === 'localhost' || parsed.pathname !== '/' && parsed.pathname !== '') {
+    throw new Error('site_url_invalid');
+  }
+  return parsed.origin;
+}
+
+function articleUrl(article: Article, baseUrl: string): string {
+  return `${baseUrl}/article/${encodeURIComponent(article.slug || article.id)}`;
 }
 
 function videoSuffix(youtubeId?: string): string {
@@ -93,7 +117,7 @@ function videoSuffix(youtubeId?: string): string {
 function ineligibleReason(article: Article): string | null {
   if (article.status !== 'published') return 'stale_or_ineligible';
   const publishedAt = article.published_at || article.created_at;
-  if (!publishedAt || Date.now() - Date.parse(publishedAt) > 24 * 60 * 60 * 1000) return 'stale_or_ineligible';
+  if (!publishedAt || !Number.isFinite(Date.parse(publishedAt)) || Date.parse(publishedAt)>Date.now()+300000 || Date.now() - Date.parse(publishedAt) > 24 * 60 * 60 * 1000) return 'stale_or_ineligible';
   const imageUrl = article.featured_image || article.thumbnail_url;
   if (!article.image_rights_verified || !imageUrl || !/^https:\/\//i.test(imageUrl)) return 'stale_or_ineligible';
   return null;
@@ -114,9 +138,9 @@ function instagramCaption(article: Article): string {
   return `${article.title_bn.slice(0, Math.max(0, 2200 - suffix.length))}${suffix}`;
 }
 
-async function publish(platform: Platform, article: Article, youtubeId?: string): Promise<PublishResult> {
-  const url = articleUrl(article);
-  const cardUrl = `${BASE_URL}/api/social-card/${article.id}`;
+async function publish(platform: Platform, article: Article, baseUrl: string, youtubeId?: string): Promise<PublishResult> {
+  const url = articleUrl(article, baseUrl);
+  const cardUrl = `${baseUrl}/api/social-card/${article.id}`;
 
   if (platform === 'facebook') {
     const [pageId, token] = await Promise.all([vaultSecret('SOCIAL_FACEBOOK_PAGE_ID'), vaultSecret('SOCIAL_FACEBOOK_PAGE_TOKEN')]);
@@ -238,6 +262,12 @@ export async function POST(request: Request) {
   if (degraded) console.error('[social] readiness registry unavailable; fail-closed with no publishing');
   if (!ready.length) return Response.json({ ok: true, processed: 0, ready: 0, degraded, reason: 'no_ready_platforms' });
 
+  // Resolve configuration BEFORE taking leases.
+  let siteBaseUrl: string;
+  try { siteBaseUrl=await getSiteBaseUrl(supabase); } catch {
+    return Response.json({error:'canonical_site_url_unavailable'},{status:503});
+  }
+
   const claim = await supabase.rpc('claim_social_posts', {
     p_platforms: ready,
     p_limit: 40,
@@ -333,7 +363,14 @@ export async function POST(request: Request) {
     }
 
     try {
-      const result = await publish(row.platform, article, article.video_id ? videoMap.get(article.video_id) : undefined);
+      // Persist the side-effect barrier BEFORE calling any provider. If the request
+      // times out or a receipt cannot be committed, the row cannot auto-republish.
+      const {data:barrier,error:barrierError}=await supabase.from('social_posts')
+        .update({dispatch_started_at:new Date().toISOString()})
+        .eq('id',row.id).eq('claim_token',row.claim_token).is('dispatch_started_at',null)
+        .select('id').maybeSingle();
+      if(barrierError || !barrier)throw new Error('dispatch_barrier_not_acquired');
+      const result = await publish(row.platform, article, siteBaseUrl, article.video_id ? videoMap.get(article.video_id) : undefined);
       const now = new Date().toISOString();
       let reconciliation_class: 'retry' | 'skip' | 'needs-credential' | null = null;
       let reconciliation_reason: string | null = result.error || null;
@@ -344,7 +381,8 @@ export async function POST(request: Request) {
             ? 'needs-credential'
             : 'skip';
       } else if (result.status === 'failed') {
-        reconciliation_class = 'retry';
+        reconciliation_class = 'skip';
+        reconciliation_reason = 'provider_receipt_reconciliation_required';
       }
       const { error: updErr } = await updateClaim(supabase, row, {
         status: result.status,
@@ -376,8 +414,8 @@ export async function POST(request: Request) {
         error_message: message,
         attempt_count: row.attempt_count + 1,
         updated_at: now,
-        reconciliation_class: 'retry',
-        reconciliation_reason: message,
+        reconciliation_class: 'skip',
+        reconciliation_reason: 'provider_receipt_reconciliation_required',
         reconciled_at: now,
         reconciled_by: 'social-dispatch',
       }).eq('id', row.id).eq('claim_token', row.claim_token);

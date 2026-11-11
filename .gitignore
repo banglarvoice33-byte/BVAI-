@@ -194,3 +194,6 @@ recovery.tar.gz
 .bvaipatch-backups/
 supabase/.temp/
 BVAI-download/
+
+# Reproducible root installs are required by CI and Termux.
+!/package-lock.json

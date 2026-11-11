@@ -1,3 +1,5 @@
+> **সর্বশেষ সংশোধন (2026-11-11):** `IMPLEMENTATION_REPORT_20261111_BN.md` এবং `TERMUX_REPAIR_20261111_BN.txt` পড়ুন। Local verified; live deployment/distribution এখনো যাচাই বাকি।
+
 # Banglar Voice 24 — Packaged Release Status
 
 ## Included in this package
@@ -35,3 +37,7 @@ Never put the service-role key in any mobile build.
 This package has not been pushed to GitHub, merged into `main`, deployed to Vercel/Cloudflare, or applied to a live Supabase project. Scheduler jobs remain opt-in and must be enabled only after Edge Function deployment, secret configuration, disposable migration replay and first-run verification in `cron.job_run_details`.
 
 Deno and Supabase CLI were not installed in this sandbox, so Edge Function deployment and hosted migration replay remain deployment-time checks. The source was statically checked for Vercel references, forbidden Next.js imports and missing Edge Function target paths.
+
+## Live production audit — 2026-11-11
+
+See `PRODUCTION_READINESS_AUDIT_20261111_BN.md` for the latest Supabase/GitHub verification. Key evidence: the newsroom trigger is active and the five observed feeds return HTTP 200, but the latest 14-minute run fetched 30 entries, skipped 29, and published zero. The previous 24-hour window contained 4 published articles and 12 pending rows. No generated videos, video-generation jobs, or delivery-outbox rows were present. Social dispatch is disabled unless explicitly enabled and its live schema contract is currently incomplete. The social URL placeholder bug is corrected in this package but is not deployed. The Bangladesh-local 14m/60m cadence migration is included but not applied.

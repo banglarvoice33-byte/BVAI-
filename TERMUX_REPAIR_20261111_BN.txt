@@ -1,0 +1,156 @@
+বাংলার ভয়েস: Termux handoff (২০২৬-১১-১১)
+এগুলো user-run commands; এই report-এ remote success output কল্পনা করা হয়নি।
+
+১) ZIP download করে তারপর:
+
+pkg update
+pkg install -y git gh nodejs-lts python ffmpeg librsvg fontconfig fontconfig-utils util-linux unzip
+termux-setup-storage
+node --version
+# Tested Node 22.23.4; required >=22.12. Check worker's engine requirement too.
+export PATCH="$HOME/bvai-reviewed-20261111"
+mkdir -p "$PATCH"
+unzip -o /sdcard/Download/BVAI-REPAIRED-20261111.zip -d "$PATCH"
+
+# আপনার প্রকৃত existing Git clone-এর root path লিখুন। অনুমান করে remote set নয়।
+read -r -p 'Existing Git clone root: ' CLONE
+export CLONE
+cd "$CLONE"
+git remote -v
+git status --short
+git branch --show-current
+node "$PATCH/scripts/apply-reviewed-update.mjs" "$CLONE"
+# Conflict হলে STOP; নিজের সর্বশেষ source-এর সঙ্গে manual merge করুন।
+node "$PATCH/scripts/apply-reviewed-update.mjs" "$CLONE" --apply
+
+২) local verification:
+
+cd "$CLONE"
+npm ci --no-audit --no-fund
+npm run check:imports
+npm run check:publish-gate
+npm test
+npm run test:captions
+# Bengali fonts যদি fontconfig-এ না থাকে:
+mkdir -p "$PREFIX/share/fonts/bvai"
+cp frontend/public/fonts/*.ttf "$PREFIX/share/fonts/bvai/"
+fc-cache -f
+fc-match 'Hind Siliguri'
+VIDEO_ENCODER_PRESET=ultrafast npm run test:render
+(cd worker && npm ci --no-audit --no-fund && npm run typecheck && npm test)
+(cd frontend && npm ci --legacy-peer-deps --no-audit --no-fund && npm run typecheck && npm test)
+# Native Termux Next/SWC build compatibility এখানে certify করা হয়নি। CI-তে Ubuntu build চালান।
+git diff --check
+
+৩) review করে commit/push (শুধু reviewed changed files; .env নয়):
+
+cd "$CLONE"
+git diff --stat
+git diff -- .github/workflows supabase/migrations scripts/pipeline frontend/lib/social-platforms.ts
+node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(m.files.map(f=>f.path).join("\0")+"\0")' "$PATCH/UPDATE_FILE_MANIFEST.json" | xargs -0 git add --
+git diff --cached --check
+git diff --cached --name-only
+# Unrelated staged files থাকলে commit-এর আগে আলাদা করুন।
+git commit -m "fix: reconcile durable media pipeline and Dhaka publication cadence"
+git push -u origin HEAD
+
+৪) GitHub authorization ও default-branch CI:
+
+gh auth login
+gh repo view --json nameWithOwner --jq .nameWithOwner
+export REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+gh run list --repo "$REPO" --limit 8
+# আপনার branch CI pass/review করে default branch-এ merge করুন।
+# নতুন workflow default branch-এ থাকা ছাড়া workflow_dispatch পাওয়া নাও যেতে পারে।
+gh workflow run full-supabase-replay.yml --repo "$REPO"
+gh run list --repo "$REPO" --workflow full-supabase-replay.yml --limit 3
+# তারপর নির্দিষ্ট run ID দিয়ে:
+# gh run watch RUN_ID --repo "$REPO" --exit-status
+# FAIL হলে live apply নয়; report-এর full replay caveat পড়ুন।
+
+৫) Supabase dry-run — CLI Android workaround ছাড়া Ubuntu Actions-এ:
+
+read -r -p 'Confirmed Supabase project ref: ' SUPABASE_PROJECT_REF
+export SUPABASE_PROJECT_REF
+gh variable set SUPABASE_PROJECT_REF --repo "$REPO" --body "$SUPABASE_PROJECT_REF"
+# এই gh commands-এ secret values local prompt-এ দিন; chat/Git-এ নয়।
+gh secret set SUPABASE_ACCESS_TOKEN --repo "$REPO"
+gh secret set SUPABASE_DB_PASSWORD --repo "$REPO"
+gh workflow run reviewed-deploy.yml --repo "$REPO" -f project_ref="$SUPABASE_PROJECT_REF" -f apply=false -f staging_replay_passed=false
+gh run list --repo "$REPO" --workflow reviewed-deploy.yml --limit 3
+# migration history ও dry-run review করুন। Dry-run runtime SQL validation নয়।
+# Full replay + backup verified হলে তবেই নিচের command নিজ দায়িত্বে চালাবেন:
+# gh workflow run reviewed-deploy.yml --repo "$REPO" -f project_ref="$SUPABASE_PROJECT_REF" -f apply=true -f staging_replay_passed=true
+
+৬) read-only live readiness; .env আগে থেকেই থাকলে overwrite নয়:
+
+cd "$CLONE"
+# শুধু template দেখুন; বিদ্যমান .env-এ প্রয়োজনীয় missing options local editor-এ merge করুন।
+sed -n '1,100p' .env.video.example
+# .env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SITE_URL প্রয়োজন।
+# API keys কোথাও print করবেন না।
+node --env-file=.env scripts/pipeline/readiness.mjs
+# Credentials না থাকলে expected exit 2 ও missing flags; এটি success নয়।
+
+৭) GitHub video pilot (আগের deployment/readiness pass হওয়ার পর):
+
+gh secret set SUPABASE_URL --repo "$REPO"
+gh secret set SUPABASE_SERVICE_ROLE_KEY --repo "$REPO"
+# Persistent recovery key ONCE তৈরি করে owner copy নিরাপদে রাখুন।
+# mktemp output share করবেন না; key GitHub Secrets-এ দিন।
+umask 077
+KEYFILE="$(mktemp)"
+node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))' > "$KEYFILE"
+gh secret set VIDEO_RECOVERY_KEY --repo "$REPO" < "$KEYFILE"
+# KEYFILE-এর owner copy password manager/encrypted storage-এ সংরক্ষণ করে তারপর:
+# rm -f "$KEYFILE"
+# আগে configured key থাকলে rotate করবেন না; old recovery তার পুরোনো key চায়।
+# Optional TTS/Whisper keys (বা Vault hydration) ও Wikimedia contact UA configure করুন।
+# Provider keys থাকলে actual-audio Whisper captions-এর জন্য GROQ_API_KEY configure করুন।
+# Read .github/workflows/video-render.yml for exact secrets and account variables.
+read -r -p 'Eligible published article UUID: ' ARTICLE_ID
+gh workflow run video-render.yml --repo "$REPO" -f article_id="$ARTICLE_ID" -f publish_mode=review
+# Trusted-source policy দিয়ে website pilot চাইলে verified deployment-এর পরে:
+# gh workflow run video-render.yml --repo "$REPO" -f article_id="$ARTICLE_ID" -f publish_mode=website
+# একই article-এ existing review video থাকলে নতুন render নয়:
+# node --env-file=.env scripts/pipeline/publish-review.mjs JOB_UUID --approve-website
+# Reporter content হলে Admin/Studio approval আগে লাগবে।
+
+৮) Automation activation কেবল one-site + provider-receipt pilot pass হওয়ার পরে:
+
+# Exactly one rendering scheduler: GitHub OR always-awake Termux.
+# GitHub route-এর deliberate operator commands (এখনই না):
+# gh variable set BVAI_VIDEO_SCHEDULER_OWNER --repo "$REPO" --body github
+# gh variable set VIDEO_PUBLISH_MODE --repo "$REPO" --body distribute
+# gh variable set VIDEO_DELIVERY_PLATFORMS --repo "$REPO" --body youtube,facebook,instagram
+# gh variable set VIDEO_DELIVERY_ENABLED --repo "$REPO" --body true
+# gh variable set ENABLE_VIDEO_AUTOMATION --repo "$REPO" --body true
+# প্রত্যেক account ID, OAuth scopes এবং secret আগে configure করুন।
+# YouTube pilot default unlisted; অনুমোদিত public posting চাইলে YOUTUBE_PRIVACY=public explicit করুন।
+# Facebook adapter 90s limit; 40–90s validated master দিয়ে pilot করুন।
+
+# Local Termux route চাইলে GitHub video automation disable করে .env-এ
+# BVAI_VIDEO_SCHEDULER_OWNER=termux, ENABLE_VIDEO_AUTOMATION=true set করুন।
+# pkg install cronie termux-services
+# sv-enable crond
+# termux-wake-lock
+# bash scripts/pipeline/setup-cron.sh             # preview, installs nothing
+# bash scripts/pipeline/setup-cron.sh --install   # deliberate opt-in only
+# Android battery optimisation, uptime, storage ও crond বাস্তবে verify করুন।
+# Long-running local dispatch/recovery backups-এর retention নিজে পরিচালনা করুন।
+
+৯) failed upload recovery (কখনো fresh duplicate render নয়):
+
+# manifest থাকলে output inspect করে same upload retry:
+# node --env-file=.env scripts/pipeline/recover-upload.mjs --renew-upload-lease
+# bash run-bvai.sh --upload-only
+# Local claim failed/cancelled/completed এবং manifest নেই হলে পরের run terminal
+# evidence .local-backups-এ archive করে; live/ambiguous lease auto-delete করে না।
+# Provider timeout হলে video_delivery_outbox needs_reconciliation, অথবা article
+# social_posts.dispatch_started_at barrier inspect করুন; provider receipt না দেখে
+# checkpoint/barrier clear করবেন না।
+
+Vercel: এই package আপনার linked account-এ deploy করেনি। Existing Git integration
+থাকলে verified merge-এর পরে dashboard deployment/build log দেখুন। Integration না
+থাকলে ওই verified repository import এবং frontend environment config করতে হবে।
+পুরোনো audit URL-কে বর্তমান successful deployment বলে ধরে নেওয়া যাবে না।
