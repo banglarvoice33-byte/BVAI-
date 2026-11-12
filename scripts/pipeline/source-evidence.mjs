@@ -74,15 +74,16 @@ export function assertEditorial(article, mode) {
     if (!Number.isFinite(published) || published>Date.now()+300000 || Date.now()-published>24*3600000) throw new Error('Missing/stale primary source publication timestamp; review required');
   }
 }
-export async function refreshEvidence(article, mode) {
+export async function refreshEvidence(article, mode, { fetcher=boundedFetch }={}) {
   const sources=[];
   for (const url of sourceUrls(article).filter(isNewsUrl).slice(0,6)) {
     try {
-      const result=await boundedFetch(url);
-      sources.push({url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:'human_required'});
+      const result=await fetcher(url);
+      sources.push({url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:videoGateBasis(article)==='trusted_source'?'automated_article_gate':'editorial_article_gate'});
     } catch(e) { sources.push({url,error:e.message,role:'news_source'}); }
   }
-  if (mode !== 'review' && new Set(sources.filter(s=>s.sha256).map(s=>new URL(s.url).hostname.replace(/^www\./,''))).size<2) throw new Error('Fewer than two news sources freshly fetched; fail closed');
+  const needed=videoGateBasis(article)==='trusted_source'?1:2;
+  if (mode !== 'review' && new Set(sources.filter(s=>s.sha256).map(s=>new URL(s.url).hostname.replace(/^www\./,''))).size<needed) throw new Error(`Fewer than ${needed} news sources freshly fetched; fail closed`);
   // Wikipedia is context ONLY. Revision freshness is not independent breaking-news corroboration.
   for (const title of (article.context_blocks || []).filter(x=>x?.wikipedia_title).map(x=>x.wikipedia_title).slice(0,2)) {
     const url=new URL('https://bn.wikipedia.org/w/api.php');
