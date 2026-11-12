@@ -7,6 +7,8 @@ on:
       - ".github/workflows/video-pipeline-ci.yml"
       - ".github/workflows/video-render.yml"
       - "scripts/pipeline/**"
+      - "package*.json"
+      - "supabase/migrations/20261111*.sql"
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
       - "supabase/migrations/*media_delivery*"
@@ -14,6 +16,8 @@ on:
     paths:
       - ".github/workflows/video-render.yml"
       - "scripts/pipeline/**"
+      - "package*.json"
+      - "supabase/migrations/20261111*.sql"
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
       - "supabase/migrations/*media_delivery*"
@@ -45,11 +49,12 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core
       - name: Regression tests
         run: |
-          node --test scripts/pipeline/tests/*.test.mjs
+          npm run check:imports
+          npm test
           python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
       - name: Offline forty-second render smoke
         env:
-          VIDEO_PRESET: ultrafast
+          VIDEO_ENCODER_PRESET: ultrafast
         run: node scripts/pipeline/tests/render-smoke.mjs
       - name: Validate transactional media contract
         run: |
@@ -95,6 +100,12 @@ jobs:
             -f supabase/migrations/20261110000000_media_delivery_reliability.sql \
             -f supabase/migrations/20261110000000_media_delivery_reliability.sql \
             -f scripts/pipeline/tests/media-contract.test.sql \
-            -f scripts/pipeline/deployment-preflight.sql
+            -f scripts/pipeline/deployment-preflight.sql \
+            -f scripts/pipeline/tests/repair-bootstrap.sql \
+            -f supabase/migrations/20261110233227_trusted_source_video_gate.sql \
+            -f supabase/migrations/20261111030000_dhaka_business_hours_cadence.sql \
+            -f supabase/migrations/20261111040000_restore_social_dispatch_contract.sql \
+            -f supabase/migrations/20261111041000_media_capacity_and_cadence_boundaries.sql \
+            -f scripts/pipeline/tests/repair-contract.test.sql
       - name: Test two-session claim race
         run: node scripts/pipeline/tests/database-concurrency.mjs

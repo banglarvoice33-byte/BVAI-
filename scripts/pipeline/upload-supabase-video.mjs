@@ -1,3 +1,4 @@
+import { cleanupDownloadedMedia } from './media-cleanup.mjs';
 import { measureAudio } from './audio-qc.mjs';
 import { deliveryTargets } from './delivery-worker.mjs';
 import { uploadResumable } from './storage-upload.mjs';
@@ -83,6 +84,9 @@ export async function upload() {
   console.log('✅ Website result: ' + JSON.stringify(result));
   const receipt = { article_id:manifest.article_id,job_id:manifest.job_id,result,sha256:render.hash,storage_path:storagePath,completed_at:new Date().toISOString() };
   fs.writeFileSync(path.join(TMP,'receipt.json'),JSON.stringify(receipt,null,2),{ mode:0o600 });
+  const cleanup=cleanupDownloadedMedia(manifest,{root:TMP});
+  receipt.cleanup=cleanup;
+  fs.writeFileSync(path.join(TMP,'receipt.json'),JSON.stringify(receipt,null,2),{mode:0o600});
   fs.rmSync(manifestPath,{ force:true });
   fs.rmSync(path.join(TMP,'claim.json'),{ force:true });
   console.log(targets.length?'Durable delivery targets queued. Run delivery worker to verify each platform.':'No social targets requested.');

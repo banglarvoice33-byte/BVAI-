@@ -74,9 +74,7 @@ frontend/.env.local
 
 # Vercel local config
 .vercel/
-package-lock.json
 /node_modules/
-/package-lock.json
 
 # ── Dev utility scripts (one-time helpers) ──
 frontend/*.js

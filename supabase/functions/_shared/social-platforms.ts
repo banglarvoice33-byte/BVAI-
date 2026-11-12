@@ -53,7 +53,7 @@ export function isDispatchable(platform: string): platform is SocialPlatform {
  */
 export async function fetchReadiness(supabase: SupabaseClient): Promise<ReadinessSnapshot> {
   const { data, error } = await supabase
-    .from('social_platform_readiness')
+    .from('social_dispatch_readiness_v2')
     .select('platform,is_ready,daily_post_limit,min_gap_minutes');
 
   if (error || !Array.isArray(data)) {

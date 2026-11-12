@@ -1,0 +1,277 @@
+{
+  "release": "BVAI-REPAIRED-20261111",
+  "input_zip_sha256": "ddf3419d3259adf92ca6e089a3d1283df498a7a67c2f1d513e77531feaaafafc",
+  "scope": "local verified; no live deployment",
+  "files": [
+    {
+      "path": ".env.video.example",
+      "sha256": "89b132dd739a04ba3f108a41cafdb33534d08a5856cc1dd19d443ad1741b70cf",
+      "previous_sha256": "058245ba5401089c43228fa92b424f9a07ed3ea12d7821cc73467c7c9532cced"
+    },
+    {
+      "path": ".github/workflows/full-supabase-replay.yml",
+      "sha256": "8c41212421707a378d26bfbcc5956b24bb078d6f34101a41a9e22ff529f47ea1",
+      "previous_sha256": null
+    },
+    {
+      "path": ".github/workflows/reviewed-deploy.yml",
+      "sha256": "76c16ee0cb9806d9938960763fad162a688fa0cd363cb0bc2afffb1120033bae",
+      "previous_sha256": null
+    },
+    {
+      "path": ".github/workflows/video-pipeline-ci.yml",
+      "sha256": "2c1bb0fc4de3e0a93ba70b5194e13bab303dd184725519107331ed3ef2504b27",
+      "previous_sha256": "c088dd92c76d6d127ded1ba2c7873c6738a1ef0221e8d2880ef09a17ad88ed44"
+    },
+    {
+      "path": ".github/workflows/video-render.yml",
+      "sha256": "0df93438d322a31f17eaa7307c5581107abf138be6611d414133cc190dc6dee7",
+      "previous_sha256": "902f94508de465910f9caaa80bfcfb154583b034fb351ce97f82d068dda74b6c"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "105823a31dd5e0f6ea85cc8ac1a94196042f7af9dd9fafa15493ebc645dc1cd3",
+      "previous_sha256": "48f81c8f537a27685a43dc9f4b45b87a8364e7895220b74a59672a66722edc2b"
+    },
+    {
+      "path": "IMPLEMENTATION_REPORT_20261111_BN.md",
+      "sha256": "3248279c9ec7d78ab473012d754b4d2a02d5715560456d4be69bf48eaebd0d30",
+      "previous_sha256": null
+    },
+    {
+      "path": "README.md",
+      "sha256": "2e17ab5231450c7150d50322e19115d8e9d8ab8b25805ed1d9ea8112a1fee7c9",
+      "previous_sha256": "1f7995edfd9b6b721f45f0fcb40d2081523891af645ec2f49930e4fa86496e81"
+    },
+    {
+      "path": "RELEASE_STATUS_BN.md",
+      "sha256": "7715d4033ff3b4282f055f573b6025b6946226119c833e4f93b13f9524630222",
+      "previous_sha256": "a463eda74ca364470ab19ca705c165478254ad8328a0b984602994a9e03ee7b9"
+    },
+    {
+      "path": "TERMUX_REPAIR_20261111_BN.txt",
+      "sha256": "2d0cd6a13ce4b27c40558cfc8586989e6a535bcc85b17a75b19e9ba0527d060d",
+      "previous_sha256": null
+    },
+    {
+      "path": "frontend/lib/social-platforms.ts",
+      "sha256": "a010a6cae378b709bf9bc23da80188855fd3636f04b2b573d17e8cdfa0876911",
+      "previous_sha256": "5b08b697700ab4306b5da36db21edec18030d81602cc37acf99370d9f690ff93"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "fc5a70912ebba436f2197cbca09eec022953149a89d48c78409a9ae45a5528d9",
+      "previous_sha256": null
+    },
+    {
+      "path": "package.json",
+      "sha256": "fdee1c7359eaad49ae6cdd1c33eebf0ff0d053e1231ff9b014c214aa29675e39",
+      "previous_sha256": "98a37736ab23aecda8cd8c6c0796b86e9b3567a9f2c1a36be0acc41dda8d789f"
+    },
+    {
+      "path": "scripts/apply-reviewed-update.mjs",
+      "sha256": "8f73286a725e28a592cb0fa1fb2dffc11fde5c182da0a829aa7dffb9f02e47c4",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/audio-qc.mjs",
+      "sha256": "89e4740e2a4a7b388f390c781df311bf46c2ff8d7c030a0c0b690f308f916101",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/check-imports.mjs",
+      "sha256": "8fc343f98da80f85b24df2206c246d32704b133016aa27ef4660ee810d63a75e",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/commons-media.mjs",
+      "sha256": "5ef143063f344f66ef74a2fdb132ee7031dde3071f51bd003ae7d28cc2f89a38",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/delivery-worker.mjs",
+      "sha256": "af0366d85e008e3bae64f02ef9a2c965c3348a63a9a5c93a1f4f34e9e5683d46",
+      "previous_sha256": "e7ccae74e167382875a1e2a8688ac91b788bacf3f5550ea9b7e295155cedb070"
+    },
+    {
+      "path": "scripts/pipeline/generate-video.js",
+      "sha256": "117a1cef3630d4e584e5674791e28ee76d782a50292884c4771be2374de6e051",
+      "previous_sha256": "6aca7f5d5a545e7acde0e24b6e9bded5b8b2091dbc3c47809d2009c82dbb5942"
+    },
+    {
+      "path": "scripts/pipeline/local-recovery.mjs",
+      "sha256": "3af14f9db765e292218bc2db4f54913e467b45694e8d2adb87d54981ad346c18",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/local-slot.mjs",
+      "sha256": "ede880f3c316d52288efd8386fad5af2a3c3b6e228d14939ac4ef110ae576be4",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/media-cleanup.mjs",
+      "sha256": "05856df1eaf1798a0b2e21c68f25ad28dd2db81f0ab22f91c92dadcf255fd120",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/readiness.mjs",
+      "sha256": "f65db2945211bcd05035bfc1efba1967ee2298dbd1023cc0f8ee792217361d9e",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/run-daily.sh",
+      "sha256": "577b96a1c1b25ce5cb727c8a27a24ab56453412b4755cf4958ce04cf4cc6d6d1",
+      "previous_sha256": "cff25dc2b80c8fa69facd05f85fcce56b2d9295dd93eeb49c156c3d09b6e6659"
+    },
+    {
+      "path": "scripts/pipeline/setup-cron.sh",
+      "sha256": "d60021396255948ad100e0da1ff3f99210fd11c0a3aab6908b6377cdd4becb89",
+      "previous_sha256": "0e59398bacbc6936ea00c662dc2cd57735cbc20e1e4341d752316ae800ef0960"
+    },
+    {
+      "path": "scripts/pipeline/source-evidence.mjs",
+      "sha256": "79f1090dc2d58ec5c7d5bca0ebb2853e4c0ebd5f44fbc23e4b10616a2adaca3a",
+      "previous_sha256": "921b422ba7e0d692de8df4973388ba201e53a33da89a6428bbe09b3c64e75501"
+    },
+    {
+      "path": "scripts/pipeline/tests/pipeline.test.mjs",
+      "sha256": "e2d8e14e29a0b682aab59e668f2bfeac2b29912d82e84bfa4245bddd4c0883ad",
+      "previous_sha256": "fb45f807c98fa0f827760ddf3af1ab6ce1d53d23e2d1741b460e2589a3afba76"
+    },
+    {
+      "path": "scripts/pipeline/tests/render-smoke.mjs",
+      "sha256": "ac3d9510993229f074c60d4f0e3fb51e97f48471444fa8b13bfaea0b59b26ec2",
+      "previous_sha256": "ba0445990893e8be994acf1564d3b8cd38b260b09c9d6eb799dc27b7ff921b4f"
+    },
+    {
+      "path": "scripts/pipeline/tests/repair-bootstrap.sql",
+      "sha256": "d4dbcf66ad62065f8cb731cc855a22ed8fd413e6f3393b661a959ee006b5e2c0",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/tests/repair-contract.test.mjs",
+      "sha256": "214db2ee6652f026c817e229b1cc1b811b920de044681201b5bfa011a6958772",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/tests/repair-contract.test.sql",
+      "sha256": "f342c2bd402dca1d0508a23e72780d8ef2976d1c3d9368e4e9687044f0adf685",
+      "previous_sha256": null
+    },
+    {
+      "path": "scripts/pipeline/upload-supabase-video.mjs",
+      "sha256": "f60eb8bab8344a4d58b8cced33e298326e526459943c04816d1f481626af4515",
+      "previous_sha256": "c8b06581d8953843941324523138bcdf05044f2713610478d2d58e067074b77d"
+    },
+    {
+      "path": "supabase/.temp/cli-latest",
+      "sha256": "761493b7c06be53ab28dbbcbbefba9bf890e3bb68434a7ce9bc7368c1b711661",
+      "previous_sha256": null
+    },
+    {
+      "path": "supabase/functions/_shared/social-platforms.ts",
+      "sha256": "c202d4931a6bc5010b47f835029ab952273a5e00b2ab9b991875f5b3044643cc",
+      "previous_sha256": "4e7a245f7aea02a92f398081f7a8a61d68e72e40a286d573f4a895b95664022d"
+    },
+    {
+      "path": "supabase/functions/social-dispatch/index.ts",
+      "sha256": "b6a541e02c5017b0851eb2bac8f754d3c5fb7d31683ff237c628afcaf2a2ef16",
+      "previous_sha256": "b846e91eb42d2c8719931852ff020d20acb163b5fdd4e54614ebb7bcae6a5aec"
+    },
+    {
+      "path": "supabase/migrations/20261111040000_restore_social_dispatch_contract.sql",
+      "sha256": "99c1acc4740d56afd7c312caf40ff711232da7012a4287dadf35df33ff68cbfc",
+      "previous_sha256": null
+    },
+    {
+      "path": "supabase/migrations/20261111041000_media_capacity_and_cadence_boundaries.sql",
+      "sha256": "95d4bcb05696c84c374c216d13044241cbdb7cde659e5d8414fabe61e35b27ac",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/db-concurrency.log",
+      "sha256": "53cf1ad53740c94f3f60f215138cf981e63448efec489b2ce2ad1253ffb0421e",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/db-forward-final.log",
+      "sha256": "2e152806451c5e9915b825fa49371cee378e510ce31f6e0afc3de158d87892d8",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/db-idempotency.log",
+      "sha256": "11b52127c75ada6dec6de222f8cadbbb2c99ef38bc698d584fcf642c54ed7c2e",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/deno-final.log",
+      "sha256": "f343f7f3257a0b0b3baf03002d09909bf835344df783cade35fdd4c2749fba1d",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/frontend-audit.json",
+      "sha256": "31b4c1f1c74aea48df75c3946446a6c6b1aa58a1d187f7f5c0112fe9e22b185d",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/frontend-build.log",
+      "sha256": "79bb8e00908f5e639bafcc38d41da23fb5debf7538a8eacc34acb59b98a1ada9",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/frontend-lint.log",
+      "sha256": "a39b43b8fe393e730573a2e6dba3ce5861a6e08e135696cc0d89a007d4e3814e",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/frontend-tests.log",
+      "sha256": "8b9d528cbf9791004dd83ff0cad566009d5a74b388bd4dc81359fee36d61f26f",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/frontend-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/imports-final.log",
+      "sha256": "85d5f64e3857d2810ab8fc5bd39d1bff970f602fbf7f92c7afb3e7f0cdfa6dcc",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/readiness-local.json",
+      "sha256": "300c411f3f179b4af2a257445e728531801ab975564ccc474e3344505bb47464",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/render-final.log",
+      "sha256": "b6ba13952eec8e9717f87ae0efd5c4b0c7f58ba2811b1e349cfe2cc1f545160b",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/root-audit.json",
+      "sha256": "68b211d66c8c171f55f62423f74ef505636e039528eb9b67d63e87c74b82b993",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/root-final.log",
+      "sha256": "943b7e5a24710ff598414c46a9f37a27ae9e3878412c88aec2d30b59842cb7db",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/worker-audit.json",
+      "sha256": "835835df558ce5540863b4a2493da06c8e3923811c0fe9b1da0c70622eebae5a",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/worker-tests.log",
+      "sha256": "c6510d46079e0af613c8731e875617c6417c4591e445a55037b80101b2e299e4",
+      "previous_sha256": null
+    },
+    {
+      "path": "verification/repair-20261111/worker-typecheck.log",
+      "sha256": "4ab7135dbc96a0968cf8f572eb7d6311cfa37cc96948ee4d9c85bd6276b7dba6",
+      "previous_sha256": null
+    }
+  ]
+}

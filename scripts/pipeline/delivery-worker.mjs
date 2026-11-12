@@ -70,7 +70,7 @@ export async function runDelivery() {
       const {data:signed,error:signError}=await db.storage.from('reels').createSignedUrl(generation.render_path,21600);
       if(signError)throw new Error('Media signing failed');
       const evidence=asset.manifest.evidence || [],media=asset.manifest.media || [];
-      const description=[video.title_bn,'সূত্র:',...evidence.filter(e=>e.role==='news_source'&&e.sha256).map(e=>e.url),'ভিজ্যুয়াল: প্রতীকী ছবি',...media.map(m=>`${m.author} | ${m.license} | ${m.source_url} | ${m.license_url || ''}`)].join('\n');
+      const description=[video.title_bn,'সূত্র:',...evidence.filter(e=>e.role==='news_source'&&e.sha256).map(e=>e.url),'ভিজ্যুয়াল: প্রতীকী ভিডিও; crop/loop/captions/narration added',...media.map(m=>`${m.author} | ${m.license} | ${m.source_url} | ${m.license_url || ''}`)].join('\n');
       const descriptionLimit=target.platform==='instagram'?2200:target.platform==='tiktok'?2200:5000;
       if([...description].length>descriptionLimit)throw new DeliveryError('Required source/license credits exceed caption limit; editor must shorten scene plan, never truncate attribution',{permanent:true});
       const common={accountId:target.account_id,mediaUrl:signed.signedUrl,title:video.title_bn,description,duration:video.duration_sec,checkpoint,save,version:process.env.FACEBOOK_GRAPH_VERSION};

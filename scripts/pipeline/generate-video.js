@@ -1,195 +1,36 @@
 import { createClient } from '@supabase/supabase-js';
-import { execFileSync } from 'child_process';
-import { synthesizeVoiceRouted } from './tts-router.js';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { synthesizeVoice, audioDuration } from './voice-captions.js';
+import { normalizeAudio } from './audio-qc.mjs';
+import { assertEditorial, refreshEvidence } from './source-evidence.mjs';
+import { collectCommonsVideo } from './commons-media.mjs';
+import { archiveTerminalClaim } from './local-recovery.mjs';
 import { loadVaultEnv } from './load-vault-env.mjs';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TMP = path.join(__dirname, '..', '..', 'temp_assets');
-let supabase;
-
-function db() {
-  if (!supabase) {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
+const TMP=path.resolve(__dirname,'../../temp_assets');
+const hash=text=>createHash('sha256').update(text).digest('hex');
+export const CLOSING_CTA='বিস্তারিত দেখতে বাংলার ভয়েস ওয়েবসাইট ভিজিট করুন।';
+/** Extract complete source sentences. No render-date hook or invented impacts. */
+export function buildVoiceScript(article) {
+  const clean=value=>String(value || '').replace(/<[^>]*>/g,' ').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim().replace(/[0-9]/g,d=>'০১২৩৪৫৬৭৮৯'[Number(d)]);
+  const title=clean(article.title_bn).replace(/[।!?]+$/,'');
+  if(!title)throw new Error('Source headline required');
+  const body=clean(article.content_bn || article.excerpt_bn);
+  const sentences=body.match(/[^।!?]+[।!?]/g) || [];
+  const parts=[title+'।'];
+  for(const raw of sentences) {
+    const sentence=raw.trim();
+    if(parts.includes(sentence))continue;
+    if([...parts,sentence,CLOSING_CTA].join(' ').length>1200)break;
+    parts.push(sentence);
   }
-  return supabase;
+  if(parts.length<2)throw new Error('Need complete source sentences within narration bound');
+  return [...parts,CLOSING_CTA].join(' ');
 }
-
-async function fetchArticle() {
-  const { data: candidates, error } = await db()
-    .from('articles')
-    .select('id, title_bn, content_bn, excerpt_bn, category, category_key, thumbnail_url, published_at, status')
-    .eq('status', 'published')
-    .not('content_bn', 'is', null)
-    .order('published_at', { ascending: false })
-    .limit(20);
-  if (error) throw new Error('Article fetch: ' + error.message);
-  if (!candidates?.length) return null;
-
-  for (const a of candidates) {
-    if (!a.content_bn || a.content_bn.length < 80) continue;
-    const { data: existing } = await db()
-      .from('videos')
-      .select('id')
-      .eq('article_id', a.id)
-      .limit(1);
-    if (!existing?.length) return a;
-  }
-  return null;
-}
-
-async function synthesizeVoice(text, audioPath, subPath) {
-  const textPath = path.join(TMP, 'script.txt');
-  fs.writeFileSync(textPath, text, 'utf8');
-  let routerDur = null;
-  let routerOk = false;
-  try {
-    const r = await synthesizeVoiceRouted(text, { outFile: audioPath });
-    console.log('   ✅ Voice via router: ' + r.provider);
-    routerOk = fs.existsSync(audioPath) && fs.statSync(audioPath).size > 1024;
-    if (routerOk) {
-      try {
-        const { execFileSync } = await import('node:child_process');
-        execFileSync('python3', ['scripts/pipeline/whisper-caption.py', audioPath, subPath, text], { timeout: 120000, stdio: 'pipe' });
-        if (fs.existsSync(subPath) && fs.statSync(subPath).size > 100) { console.log('   ✅ VTT via Groq Whisper (permanent)'); return; }
-      } catch(e) { console.log('   ⚠️  Groq Whisper failed, fallback to edge'); }
-    }
-    if (routerOk) {
-      try {
-        const d = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audioPath], { encoding: 'utf8' });
-        routerDur = parseFloat(d.trim());
-      } catch {}
-    }
-  } catch (e) {
-    console.log('   ⚠️  Router failed, edge-tts fallback: ' + e.message);
-  }
-  const tmpAudio = path.join(TMP, 'edge_tmp.mp3');
-  const tmpVtt = path.join(TMP, 'edge_tmp.vtt');
-  let edgeOk = false;
-  for (const voice of ['bn-BD-PradeepNeural', 'bn-BD-NabanitaNeural']) {
-    try {
-      execFileSync('python3', ['-m', 'edge_tts', '--voice', voice, '--rate', '-8%', '--pitch', '-2Hz', '--volume', '+5%', '--file', textPath, '--write-media', tmpAudio, '--write-subtitles', tmpVtt], { timeout: 180000, stdio: 'pipe' });
-      if (fs.existsSync(tmpVtt) && fs.statSync(tmpVtt).size > 100) { edgeOk = true; console.log('   ✅ VTT via edge: ' + voice); break; }
-    } catch (e) { console.log('   ⚠️  ' + voice + ' VTT failed: ' + (e.stderr?.toString() || e.message)); }
-  }
-  if (!routerOk) {
-    if (fs.existsSync(tmpAudio) && fs.statSync(tmpAudio).size > 1024 && edgeOk) {
-      fs.copyFileSync(tmpAudio, audioPath);
-      fs.copyFileSync(tmpVtt, subPath);
-      console.log('   ✅ Voice: edge-tts fallback');
-      return;
-    }
-    throw new Error('All TTS voices failed');
-  }
-  if (edgeOk) {
-    let edgeDur = null;
-    try {
-      const d = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', tmpAudio], { encoding: 'utf8' });
-      edgeDur = parseFloat(d.trim());
-    } catch {}
-    if (edgeDur && routerDur) {
-      const scale = routerDur / edgeDur;
-      let vtt = fs.readFileSync(tmpVtt, 'utf8');
-      vtt = vtt.replace(/(\d+):(\d+):(\d+\.\d+)/g, (m, h, mi, s) => {
-        const total = parseInt(h) * 3600 + parseInt(mi) * 60 + parseFloat(s);
-        const sc = total * scale;
-        const hh = String(Math.floor(sc / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((sc % 3600) / 60)).padStart(2, '0');
-        const ss = (sc % 60).toFixed(3).padStart(6, '0');
-        return hh + ':' + mm + ':' + ss;
-      });
-      fs.writeFileSync(subPath, vtt, 'utf8');
-      console.log('   ✅ VTT scaled x' + scale.toFixed(2));
-    } else {
-      fs.copyFileSync(tmpVtt, subPath);
-    }
-  } else {
-    const sentences = text.match(/[^।!?\.\n]+[।!?\.]?/g) || [text];
-    const total = routerDur || 50;
-    const per = total / Math.max(1, sentences.length);
-    let out = 'WEBVTT\n\n';
-    sentences.forEach((s, i) => {
-      const st = i * per, en = (i + 1) * per;
-      const fmt = (x) => {
-        const hh = String(Math.floor(x / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((x % 3600) / 60)).padStart(2, '0');
-        const ss = (x % 60).toFixed(3).padStart(6, '0');
-        return hh + ':' + mm + ':' + ss;
-      };
-      out += fmt(st) + ' --> ' + fmt(en) + '\n' + s.trim() + '\n\n';
-    });
-    fs.writeFileSync(subPath, out, 'utf8');
-    console.log('   ✅ Estimated VTT: ' + sentences.length + ' sentences');
-  }
-  try { fs.unlinkSync(tmpAudio); fs.unlinkSync(tmpVtt); } catch {}
-}
-
-async function fetchMedia(article, count = 3) {
-  const PIXABAY_KEY = process.env.PIXABAY_API_KEY;
-  const key = article.category_key || article.category || '';
-  const QUERIES = {
-    sports: 'cricket stadium', খেলা: 'cricket stadium',
-    politics: 'parliament building', রাজনীতি: 'parliament building',
-    economy: 'stock market', অর্থনীতি: 'stock market',
-    international: 'world city skyline', আন্তর্জাতিক: 'world city skyline',
-    entertainment: 'cinema theater', বিনোদন: 'cinema theater',
-    technology: 'technology computer', প্রযুক্তি: 'technology computer',
-    national: 'dhaka bangladesh', জাতীয়: 'dhaka bangladesh', জাতীয়: 'dhaka bangladesh',
-  };
-  const q = QUERIES[key] || 'bangladesh news';
-
-  const fallback = async (reason) => {
-    if (!article.thumbnail_url) throw new Error(reason + '; no thumbnail');
-    console.log('   ⚠️  Fallback: ' + reason);
-    const r = await fetch(article.thumbnail_url, { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': 'BVAI/1.0 (https://bvai-chi.vercel.app; contact@bvai.local)', 'Accept': 'image/*,*/*' }, redirect: 'follow' });
-    if (!r.ok) throw new Error('Thumbnail HTTP ' + r.status);
-    const buf = Buffer.from(await r.arrayBuffer());
-    const p = path.join(TMP, 'thumb.jpg');
-    fs.writeFileSync(p, buf);
-    return Array(count).fill(p);
-  };
-
-  if (!PIXABAY_KEY) return fallback('PIXABAY_API_KEY missing');
-
-  try {
-    const url = 'https://pixabay.com/api/videos/?key=' + encodeURIComponent(PIXABAY_KEY) +
-      '&q=' + encodeURIComponent(q) + '&per_page=' + (count + 2) +
-      '&video_type=film&safesearch=true&order=popular';
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const hits = data.hits || [];
-    if (!hits.length) throw new Error('No results');
-
-    const paths = [];
-    for (let i = 0; i < hits.length && paths.length < count; i++) {
-      const v = hits[i].videos || {};
-      const dl = ['large', 'medium', 'small', 'tiny'].map(k => v[k]?.url).find(Boolean);
-      if (!dl) continue;
-      try {
-        const vr = await fetch(dl, { signal: AbortSignal.timeout(60000) });
-        if (!vr.ok) continue;
-        const buf = Buffer.from(await vr.arrayBuffer());
-        if (buf.length < 50000) continue;
-        const p = path.join(TMP, 'bg-' + paths.length + '.mp4');
-        fs.writeFileSync(p, buf);
-        paths.push(p);
-        console.log('   ✅ Clip ' + paths.length + ': ' + (buf.length / 1e6).toFixed(2) + ' MB');
-      } catch (_) {}
-    }
-    if (!paths.length) throw new Error('No downloads');
-    while (paths.length < count) paths.push(paths[paths.length - 1]);
-    return paths;
-  } catch (e) {
-    return fallback('Pixabay: ' + e.message);
-  }
-}
-
 function visualLen(s) {
   if (typeof Intl !== 'undefined' && Intl.Segmenter) {
     try {
@@ -216,7 +57,8 @@ function wrapTitle(title, maxLen = 22, maxLines = 3) {
   return lines.length ? lines : [String(title || '')];
 }
 
-function renderOverlay(title, outPath) {
+export const isMotionMedia=filename=>/\.(mp4|webm|ogv)$/i.test(filename);
+export function renderOverlay(title, outPath, {sourceName='',media=[]}={}) {
   const esc = (s) => String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -230,13 +72,18 @@ function renderOverlay(title, outPath) {
   const tspans = lines.map((l, i) =>
     '<tspan x="90" dy="' + (i === 0 ? 0 : 62) + '">' + esc(l) + '</tspan>'
   ).join('');
+  const credits=[sourceName ? `সংবাদসূত্র: ${sourceName}` : '',...media.map(m=>`${m.author} | ${m.license}`)].filter(Boolean).flatMap(line=>wrapTitle(line,45,30));
+  if(credits.length>18)throw new Error('On-screen attribution exceeds safe area; select a smaller media plan');
+  const creditSvg=credits.length?'<rect x="50" y="680" width="980" height="'+(40+credits.length*34)+'" rx="12" fill="#111827" fill-opacity="0.88"/>'+credits.map((line,i)=>'<text x="70" y="'+(720+i*34)+'" font-family="'+font+'" font-size="28" fill="#FFFFFF">'+esc(line)+'</text>').join(''):'';
   const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<svg width="1080" height="1920" xmlns="http://www.w3.org/2000/svg">' +
     '<rect x="50" y="' + boxTop + '" width="980" height="' + boxH + '" rx="20" fill="#000" fill-opacity="0.85"/>' +
-    '<text x="90" y="' + (boxTop + 50) + '" font-family="' + font + '" font-size="34" font-weight="bold" fill="#FF1744">বাংলার ভয়েস | BREAKING NEWS</text>' +
+    '<text x="90" y="' + (boxTop + 50) + '" font-family="' + font + '" font-size="34" font-weight="bold" fill="#FF1744">বাংলার ভয়েস | সংবাদ</text>' +
     '<text x="90" y="' + (boxTop + 110) + '" font-family="' + font + '" font-size="44" font-weight="bold" fill="#FFFFFF">' + tspans + '</text>' +
-    '</svg>';
-  const svgPath = path.join(TMP, 'overlay.svg');
+    '<rect x="48" y="570" width="360" height="74" rx="12" fill="#111827"/>' +
+    '<text x="70" y="621" font-family="' + font + '" font-size="40" fill="#FFFFFF">প্রতীকী ভিডিও</text>' +
+    creditSvg + '</svg>';
+  const svgPath = outPath.replace(/\.png$/i,'.svg');
   fs.writeFileSync(svgPath, svg, 'utf8');
   try {
     execFileSync('rsvg-convert', ['-f', 'png', '-o', outPath, svgPath], { timeout: 60000 });
@@ -247,7 +94,7 @@ function renderOverlay(title, outPath) {
   }
 }
 
-function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
+export function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   const audioDur = Number(execFileSync('ffprobe', [
     '-v','error','-show_entries','format=duration',
     '-of','default=noprint_wrappers=1:nokey=1', audioPath
@@ -255,13 +102,17 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   if (!Number.isFinite(audioDur) || audioDur < 1) throw new Error('Bad audio duration');
 
   const totalDur = Math.ceil((audioDur + 1.25) * 100) / 100;
+  if (totalDur < 40 || totalDur > 120) throw new Error('Narration/render must be 40–120 seconds; do not pad invented claims');
+  if (!images.length) throw new Error('Licensed media required');
+  const normalized=path.join(path.dirname(audioPath),'normalized.wav');
+  normalizeAudio(audioPath,normalized);
   const per = totalDur / images.length;
-  const args = [];
+  const args = ['-y','-hide_banner','-loglevel','error','-filter_complex_threads','1'];
   for (const img of images) {
-    if (/\.mp4$/i.test(img)) args.push('-stream_loop','-1','-t',per.toFixed(3),'-i',img);
+    if (isMotionMedia(img)) args.push('-stream_loop','-1','-t',per.toFixed(3),'-i',img);
     else args.push('-loop','1','-framerate','25','-t',per.toFixed(3),'-i',img);
   }
-  args.push('-i', audioPath);
+  args.push('-i', normalized);
   args.push('-loop','1','-framerate','25','-t',totalDur.toFixed(3),'-i',overlayPath);
 
   const parts = images.map((_, i) =>
@@ -272,19 +123,20 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   const assPath = subPath.replace(/\.vtt$/i, '.ass');
   try { if (fs.existsSync(subPath) && fs.statSync(subPath).size > 50) execFileSync('python3', [path.join(__dirname, 'vtt-to-karaoke.py'), subPath, assPath], { timeout: 60000, stdio: 'pipe' }); } catch (e) { console.log('   ⚠️  karaoke convert failed: ' + e.message); }
   const hasSubs = fs.existsSync(assPath) && fs.statSync(assPath).size > 50;
+  if (!hasSubs) throw new Error('Burned-in Bengali captions required');
   const subStep = hasSubs
     ? ';[withov]subtitles=filename=' + assPath.replace(/([:\\'])/g, '\\$1') +
       "[outv]"
     : ';[withov]null[outv]';
 
   const filter = parts + ';' + concat + 'concat=n=' + images.length + ':v=1:a=0[base];' +
-    '[base][' + ovIdx + ':v]overlay=0:0:enable=\'between(t,0,2.5)\'[withov]' + subStep;
+    '[base][' + ovIdx + ':v]overlay=0:0[withov]' + subStep;
   args.push('-filter_complex', filter);
   args.push('-map', '[outv]', '-map', images.length + ':a');
-  args.push('-af', 'loudnorm=I=-16:TP=-1.5:LRA=11,apad=pad_dur=1.25');
+  args.push('-af', 'apad=pad_dur=1.25');
   args.push('-t', totalDur.toFixed(2));
-  args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '26');
-  args.push('-pix_fmt', 'yuv420p', '-movflags', '+faststart');
+  args.push('-c:v', 'libx264', '-preset', process.env.VIDEO_ENCODER_PRESET || process.env.VIDEO_PRESET || 'veryfast', '-crf', '26');
+  args.push('-threads','2','-filter_complex_threads','1','-r','30','-pix_fmt', 'yuv420p', '-movflags', '+faststart');
   args.push('-c:a', 'aac', '-b:a', '96k', '-ar', '48000', '-ac', '2', outPath);
 
   execFileSync('ffmpeg', args, { timeout: 900000, stdio: 'pipe' });
@@ -296,96 +148,54 @@ function composeVideo(images, audioPath, subPath, overlayPath, outPath) {
   return { audioDur, renderDur };
 }
 
-function buildVoiceScript(article) {
-  const bnDigits = (s) => String(s).replace(/[0-9]/g, d => '০১২৩৪৫৬৭৮৯'[+d]);
-  const clean = (s) => (s||'').replace(/https?:\/\/\S+/g,'').replace(/[\(\)\[\]\{\}<>"'“”‘’]/g,'').replace(/\s+/g,' ').trim();
-  const title = clean(article.title_bn);
-  const body = clean(article.content_bn || article.excerpt_bn || '');
-  const cat = (article.category_key || article.category || '').toLowerCase();
-  const isWar = /war|যুদ্ধ|international|আন্তর্জাতিক|politics|রাজনীতি/.test(cat + title + body);
-  const isSport = /sport|খেলা|cricket|football/.test(cat + title + body);
-  const isDisaster = /দুর্যোগ|মৃত্যু|দুর্ঘটনা|ভূমিকম্প|বন্যা/.test(title + body);
-  const rawSent = body.split(/(?<=[।!?])\s*/).map(s=>s.trim()).filter(Boolean);
-  const short = [];
-  for (const s of rawSent) {
-    const words = s.split(/\s+/);
-    if (words.length <= 14) short.push(s);
-    else {
-      const parts = s.split(/,\s*/);
-      for (const pt of parts) if (pt.trim()) short.push(pt.trim() + '।');
-    }
-    if (short.length >= 6) break;
-  }
-  const hook = `আজ ${bnDigits(new Date().toLocaleDateString('bn-BD',{day:'numeric', month:'long'}))}, ${title.split('।')[0]}।`;
-  const lead = short[0] || title;
-  const body2 = short.slice(1,4).join(' ');
-  const impact = isDisaster ? 'এর ফলে সাধারণ মানুষের উপর বড় প্রভাব পড়েছে।' : isWar ? 'এর ফলে পরিস্থিতি আরও জটিল হয়েছে।' : isSport ? 'এই ফলাফল নিয়ে সমর্থকদের মধ্যে আনন্দ ছড়িয়ে পড়েছে।' : 'এই ঘটনা নিয়ে আলোচনা চলছে।';
-  const next = 'পরবর্তী আপডেটের জন্য চোখ রাখুন বাংলার ভয়েসে।';
-  let script = [hook, lead, body2, impact, next, 'বিস্তারিত দেখুন বাংলার ভয়েস ওয়েবসাইটে।'].join(' ');
-  script = bnDigits(script);
-  if (script.length > 780) {
-    script = script.slice(0,780);
-    const last = script.lastIndexOf('।');
-    if (last > 400) script = script.slice(0, last+1);
-  }
-  console.log('   🎙️ Script v2: ' + script.length + ' chars, tone=' + (isWar?'গম্ভীর':isSport?'উজ্জীবিত':isDisaster?'উদ্বেগ':'দৃঢ়'));
-  return script;
-}
 
-async function main() {
-  console.log('🎬 BVAI Termux Render Pipeline\n');
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
-    throw new Error('SUPABASE_URL/SERVICE_ROLE_KEY missing');
-
+export async function main() {
+  if(!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)throw new Error('Server credentials missing');
+  fs.mkdirSync(TMP,{recursive:true});
+  if(fs.existsSync(path.join(TMP,'manifest.json')))throw new Error('Unfinished render manifest: recover/upload it before creating a new job');
   await loadVaultEnv();
-
-  if (!process.env.PIXABAY_API_KEY)
-    console.log('⚠️  PIXABAY_API_KEY missing → thumbnail fallback');
-  if (!process.env.GROQ_API_KEY)
-    console.log('⚠️  GROQ_API_KEY missing after vault hydrate → Whisper caption may fall back');
-
-  fs.mkdirSync(TMP, { recursive: true });
-
-  const article = await fetchArticle();
-  if (!article) { console.log('ℹ️  No pending published articles without video.'); return; }
-  console.log('📰 ' + (article.title_bn || '').slice(0, 60));
-
-  const audioPath = path.join(TMP, 'voice.mp3');
-  const subPath = path.join(TMP, 'voice.vtt');
-  const overlayPath = path.join(TMP, 'overlay.png');
-  const videoPath = path.join(TMP, 'final_output.mp4');
-
-  const cleanText = buildVoiceScript(article);
-  if (cleanText.length < 20) throw new Error('Script too short');
-
-  console.log('\n🎙️  Voice...');
-  await synthesizeVoice(cleanText, audioPath, subPath);
-
-  console.log('\n🎞️  Media...');
-  const media = await fetchMedia(article, 3);
-
-  console.log('\n🎨 Overlay...');
-  renderOverlay(article.title_bn || '', overlayPath);
-
-  console.log('\n🎬 Compose...');
-  const { audioDur, renderDur } = composeVideo(media, audioPath, subPath, overlayPath, videoPath);
-
-  const size = fs.statSync(videoPath).size;
-  console.log('\n✅ Video: ' + (size / 1e6).toFixed(2) + ' MB, ' + renderDur + 's');
-
-  const manifest = {
-    article_id: article.id,
-    video_path: videoPath,
-    audio_duration: audioDur,
-    render_duration: renderDur,
-    size_bytes: size,
-    generated_at: new Date().toISOString(),
-  };
-  fs.writeFileSync(path.join(TMP, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  console.log('📄 Manifest written');
+  const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+  await archiveTerminalClaim(db,{root:TMP,backupRoot:path.resolve(TMP,'../.local-backups')});
+  const mode=process.env.VIDEO_PUBLISH_MODE || 'review';
+  if(!['review','website','distribute'].includes(mode))throw new Error('Invalid publish mode');
+  const requested=process.env.ARTICLE_ID || null;
+  if(requested && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requested))throw new Error('Invalid article UUID');
+  const {data:rows,error}=await db.rpc('claim_reviewed_video_job',{p_article_id:requested});
+  if(error)throw new Error('Video claim failed: '+error.message);
+  const claim=rows?.[0];
+  if(!claim){console.log('No eligible unprocessed article or daily attempt budget exhausted; no publication claimed.');return;}
+  if(process.env.GITHUB_ACTIONS)console.log('::add-mask::'+claim.claim_token);
+  fs.writeFileSync(path.join(TMP,'claim.json'),JSON.stringify(claim),{mode:0o600});
+  const folder=path.join(TMP,claim.job_id);
+  fs.mkdirSync(folder,{recursive:true});
+  try {
+    const {data:article,error:articleError}=await db.from('articles').select('*').eq('id',claim.article_id).single();
+    if(articleError)throw new Error('Claimed article missing');
+    assertEditorial(article,mode);
+    const script=buildVoiceScript(article);
+    const contentKey=hash(article.content_bn.normalize('NFC').replace(/\s+/g,' ').trim());
+    const story=await db.rpc('reserve_video_story',{p_job_id:claim.job_id,p_claim_token:claim.claim_token,p_content_key:contentKey,p_script_hash:hash(script),p_content_text:article.content_bn});
+    if(story.error)throw new Error('Story reservation failed: '+story.error.message);
+    const evidence=await refreshEvidence(article,mode);
+    fs.writeFileSync(path.join(folder,'script.txt'),script,{mode:0o600});
+    const audioPath=path.join(folder,'voice.mp3'),subPath=path.join(folder,'voice.vtt');
+    const caption=await synthesizeVoice(script,audioPath,subPath);
+    const duration=audioDuration(audioPath);
+    if(duration+1.25<40 || duration+1.25>120)throw new Error('Factual narration outside 40–120s; do not invent filler');
+    const media=await collectCommonsVideo(article,{folder,db,jobId:claim.job_id,claimToken:claim.claim_token});
+    const overlay=path.join(folder,'overlay.png'),videoPath=path.join(folder,'final_output.mp4');
+    renderOverlay(article.title_bn,overlay,{sourceName:article.source_name,media});
+    const result=composeVideo(media.map(m=>m.path),audioPath,subPath,overlay,videoPath);
+    const manifest={...claim,video_path:videoPath,audio_duration:result.audioDur,render_duration:result.renderDur,size_bytes:fs.statSync(videoPath).size,caption_method:caption.method,publish_mode:mode,evidence,media,content_key:contentKey,script_hash:hash(script),script_sha256:hash(script),closing_cta:CLOSING_CTA,synthetic_realistic:false,generated_at:new Date().toISOString()};
+    const pending=path.join(TMP,'manifest.json.pending');
+    fs.writeFileSync(pending,JSON.stringify(manifest,null,2),{mode:0o600});
+    fs.renameSync(pending,path.join(TMP,'manifest.json'));
+    console.log('Verified claim manifest ready for uploader; not yet published.');
+  } catch(error) {
+    // Keep claim + files for inspection/recovery; fence the failed attempt in DB.
+    const failure=await db.rpc('fail_video_generation_job',{p_job_id:claim.job_id,p_claim_token:claim.claim_token,p_reason:String(error.message).slice(0,1000)});
+    if(failure.error)console.error('Failed claim release; inspect lease in DB');
+    throw error;
+  }
 }
-
-main().catch(e => {
-  console.error('❌', e.message);
-  process.exit(1);
-});
+if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(error.message);process.exitCode=1;});

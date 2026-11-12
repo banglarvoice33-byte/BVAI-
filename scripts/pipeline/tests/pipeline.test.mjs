@@ -11,7 +11,7 @@ import { buildVoiceScript } from '../generate-video.js';
 const article = { title_bn:'নতুন সেতু চালু হয়েছে',content_bn:'নদীর উপর নতুন সেতু আজ চালু হয়েছে। কর্তৃপক্ষ জানিয়েছে সেতুটি যান চলাচলের জন্য উন্মুক্ত। এই পথে 20টি বাস চলাচল করবে।' };
 test('narration uses source facts and complete sentences, not invented impacts or render date',()=>{
   const text = buildVoiceScript(article);
-  assert.ok(text.endsWith('ওয়েবসাইটে।')); assert.ok(text.includes('২০টি'));
+  assert.ok(text.endsWith('বিস্তারিত দেখতে বাংলার ভয়েস ওয়েবসাইট ভিজিট করুন।')); assert.ok(text.includes('২০টি'));
   assert.ok(!text.includes('আনন্দ ছড়িয়ে'));assert.ok(!text.includes('পরিস্থিতি আরও জটিল'));
   assert.ok(text.length <= 1200);
 });

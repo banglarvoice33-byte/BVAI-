@@ -13,17 +13,19 @@ on:
         default: review
         options: [review, website, distribute]
   schedule:
-    - cron: '0 3 * * *'
+    # Ten editorially chosen coverage slots, NOT measured audience analytics.
+    # UTC -> Dhaka: 07:17,09:17,11:17,12:17,13:17,15:17,17:17,19:17,21:17,23:17.
+    - cron: '17 1,3,5,6,7,9,11,13,15,17 * * *'
 
 concurrency:
   group: bvai-video-render
-  cancel-in-progress: true
+  cancel-in-progress: false
 permissions:
   contents: read
 
 jobs:
   render-and-upload:
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_VIDEO_AUTOMATION == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.ENABLE_VIDEO_AUTOMATION == 'true' && vars.BVAI_VIDEO_SCHEDULER_OWNER != 'termux')
     runs-on: ubuntu-latest
     timeout-minutes: 24
     env:
@@ -50,6 +52,7 @@ jobs:
       ARTICLE_ID: ${{ inputs.article_id }}
       VIDEO_PUBLISH_MODE: ${{ inputs.publish_mode || vars.VIDEO_PUBLISH_MODE || 'review' }}
       VIDEO_REQUIRE_CAPTIONS: 'true'
+      EDGE_CAPTION_FALLBACK: 'true'
       VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'false' }}
       VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
       YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
@@ -78,20 +81,16 @@ jobs:
           test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" || {
             echo '::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'; exit 1;
           }
-          test -n "$TTS_SARVAM_1$TTS_CARTESIA_1$TTS_ELEVENLABS_1$TTS_SONEXLABS_1" || {
-            echo '::error::Configure at least one primary TTS provider secret'; exit 1;
-          }
+          # Optional paid TTS keys may be hydrated from Vault; matched Edge fallback is also supported.
           if [ -z "$GROQ_API_KEY" ]; then
             echo '::warning::GROQ_API_KEY empty in GitHub Secrets (Vault may still hydrate at runtime)'
           fi
-      - name: Ensure recovery key for CI encrypt step
+      - name: Require a persistent encrypted-recovery key
         run: |
-          if [ -z "$VIDEO_RECOVERY_KEY" ]; then
-            echo 'VIDEO_RECOVERY_KEY missing; generating ephemeral CI key'
-            echo "VIDEO_RECOVERY_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" >> "$GITHUB_ENV"
-          else
-            node scripts/pipeline/protect-recovery.mjs --check-key
-          fi
+          test -n "$VIDEO_RECOVERY_KEY" || {
+            echo '::error::Set VIDEO_RECOVERY_KEY once in GitHub Secrets and keep an owner copy; ephemeral keys make recovery impossible'; exit 1;
+          }
+          node scripts/pipeline/protect-recovery.mjs --check-key
       - name: Install render tools and Bengali fonts
         run: |
           set -euo pipefail
@@ -99,15 +98,15 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core util-linux
           fc-match 'Noto Sans Bengali' || true
           python3 -m pip install --quiet edge-tts
-          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          npm ci --no-audit --no-fund
       - name: Offline pipeline regression tests
-        continue-on-error: true
         run: |
           set -euo pipefail
           node --check scripts/pipeline/generate-video.js
           node --check scripts/pipeline/delivery-providers.mjs
-          node --test scripts/pipeline/tests/*.test.mjs || true
-          python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py' || true
+          npm run check:imports
+          npm test
+          npm run test:captions
       - name: Render, upload and optionally dispatch reviewed media
         run: bash run-bvai.sh
       - name: Keep non-secret diagnostic logs
