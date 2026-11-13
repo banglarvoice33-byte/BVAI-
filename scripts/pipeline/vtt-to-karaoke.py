@@ -18,7 +18,7 @@ def fmt(value):
     return f'{cs//360000}:{(cs//6000)%60:02d}:{(cs//100)%60:02d}.{cs%100:02d}'
 
 
-def convert(text):
+def convert(text, font='Noto Sans Bengali'):
     words = []
     for block in re.split(r'\n\s*\n', text.strip()):
         lines = block.strip().splitlines()
@@ -47,7 +47,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Karaoke,Noto Sans Bengali,64,&H0000FFFF,&H00FFFFFF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,720,1
+Style: Karaoke,{font},64,&H0000FFFF,&H00FFFFFF,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,720,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text''']
@@ -59,13 +59,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
         for word,start,end in group:
             gap = round((start-cursor)*100)
             if gap > 0:
-                parts.append(f'{{\\k{gap}}}\\h')
+                parts.append(f'{{\\k{gap}}} ')
             safe = word.replace('\\','').replace('{','').replace('}','')
             parts.append(f'{{\\kf{max(1,round((end-start)*100))}}}{safe}')
             cursor = end
         result.append(f"Dialogue: 0,{fmt(group[0][1])},{fmt(group[-1][2])},Karaoke,,0,0,0,,{' '.join(parts)}")
+    result[0] = result[0].replace('{font}', font)
     return '\n'.join(result)+'\n'
 
 
 if __name__ == '__main__':
-    Path(sys.argv[2]).write_text(convert(Path(sys.argv[1]).read_text(encoding='utf8')),encoding='utf8')
+    Path(sys.argv[2]).write_text(convert(Path(sys.argv[1]).read_text(encoding='utf8'), sys.argv[3] if len(sys.argv) > 3 else 'Noto Sans Bengali'),encoding='utf8')

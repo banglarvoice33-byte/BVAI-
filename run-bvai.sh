@@ -21,7 +21,12 @@ if [[ -f .env && "${BVAI_ENV_LOADED:-}" != 1 ]]; then
 fi
 : "${SUPABASE_URL:?SUPABASE_URL missing}"
 : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY missing}"
-export VIDEO_PUBLISH_MODE="${VIDEO_PUBLISH_MODE:-review}"
+# Trusted-source news needs no human gate; reporter/field content is held by the database (video_gate_basis).
+# Default: distribute when platforms are configured, otherwise website. Set VIDEO_PUBLISH_MODE=review to hold every video for an editor.
+if [[ -z "${VIDEO_PUBLISH_MODE:-}" ]]; then
+  if [[ -n "${VIDEO_DELIVERY_PLATFORMS:-}" ]]; then VIDEO_PUBLISH_MODE=distribute; else VIDEO_PUBLISH_MODE=website; fi
+fi
+export VIDEO_PUBLISH_MODE
 export VIDEO_REQUIRE_CAPTIONS=true
 if [[ "${VIDEO_DISTRIBUTION_WORKER_ENABLED:-false}" == true ]]; then
   echo 'Disable legacy video distribution worker first; never run two independent video publishers.'; exit 1
@@ -39,9 +44,9 @@ flock -n 9 || { echo 'Another local render/upload is active.'; exit 0; }
 mkdir -p logs
 LOG="logs/video-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee -a "$LOG") 2>&1
-node --check scripts/pipeline/generate-video.js
-node --check scripts/pipeline/tts-router.js
-node --check scripts/pipeline/voice-captions.js
+for f in generate-video.js tts-router.js voice-captions.js video-compose.mjs video-script.mjs media-sources.mjs audio-qc.mjs upload-supabase-video.mjs; do
+  node --check "scripts/pipeline/$f"
+done
 node -e "import('@supabase/supabase-js')" >/dev/null || { echo 'Run npm ci first'; exit 1; }
 if [[ "${1:-}" != '--upload-only' ]]; then
   if [[ -f temp_assets/manifest.json ]]; then
@@ -49,10 +54,14 @@ if [[ "${1:-}" != '--upload-only' ]]; then
     exit 1
   fi
   node scripts/pipeline/generate-video.js
+  if [[ ! -f temp_assets/manifest.json ]]; then
+    echo 'No video was rendered this run (no slot/eligible article, or the article was skipped). Nothing to upload.'
+    exit 0
+  fi
 fi
 node scripts/pipeline/upload-supabase-video.mjs
 # Keep receipt, captions and rendered file for inspection/retry; never erase on failure.
-if [[ "$VIDEO_PUBLISH_MODE" == distribute && "${VIDEO_DELIVERY_ENABLED:-false}" == true ]]; then
+if [[ "$VIDEO_PUBLISH_MODE" == distribute && "${VIDEO_DELIVERY_ENABLED:-true}" != false ]]; then
   node scripts/pipeline/delivery-worker.mjs
 fi
 echo "Render/upload stage finished. Confirm receipt and per-platform outbox status. Log: $LOG"

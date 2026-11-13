@@ -64,7 +64,12 @@ export async function deliverYoutube({token,accountId,bytes,title,description,ch
   if(!item || item.snippet?.channelId!==accountId)throw new DeliveryError('YouTube uploaded video identity not verified',{ambiguous:true});
   if(['failed','rejected','deleted'].includes(item.status?.uploadStatus))throw new DeliveryError('YouTube video rejected or failed',{permanent:true});
   if(item.status?.uploadStatus!=='processed')throw new DeliveryError('YouTube processing pending',{ambiguous:true,safeResume:true});
-  if(item.status?.privacyStatus!==privacy)throw new DeliveryError('YouTube privacy differs from requested value',{ambiguous:true});
+  const actual=item.status?.privacyStatus;
+  if(actual!==privacy) {
+    // Unaudited API projects are forced to private by YouTube. The upload itself succeeded; record the truth instead of retrying/duplicating.
+    if(actual==='private')return {id:state.provider_id,url:`https://youtu.be/${state.provider_id}`,privacy:'private',requested_privacy:privacy,restricted_by_youtube:'API project not audited: videos stay private until the audit is approved',verified_at:new Date().toISOString()};
+    throw new DeliveryError('YouTube privacy differs from requested value',{ambiguous:true});
+  }
   return {id:state.provider_id,url:`https://youtu.be/${state.provider_id}`,privacy,verified_at:new Date().toISOString()};
 }
 export async function deliverFacebook({token,accountId,mediaUrl,title,description,duration,version,checkpoint={},save}) {

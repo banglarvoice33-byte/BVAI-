@@ -1,28 +1,66 @@
-// Offline integration check: synthetic tone/color only; no TTS, news or provider API calls.
+// Offline integration check: synthetic image/clip/tone only; no TTS, news, stock or provider API calls.
+// Exercises overlays (Bengali shaping), image/video/brand segments, karaoke ASS, two-pass loudness and the
+// uploader's own inspectRender() contract (1080x1920 H.264/AAC 48k, 30 fps, 40-120 s, -14 LUFS, caption sidecar).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { composeVideo, renderOverlay } from '../generate-video.js';
+import { prepareFonts, renderBrandOverlay, renderHeadlineBig, renderHeadlineSmall, renderEndCard, renderCreditStrip, renderSegment, composeFinal, FONT_FAMILY } from '../video-compose.mjs';
 import { inspectRender } from '../upload-supabase-video.mjs';
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
-const tmp=path.join(root,'temp_assets');
-if(fs.existsSync(path.join(tmp,'manifest.json')) || fs.existsSync(path.join(tmp,'claim.json'))) throw new Error('Refusing smoke test over a live render');
-fs.mkdirSync(tmp,{recursive:true});
-const audio=path.join(tmp,'smoke.mp3');const clip=path.join(tmp,'smoke-clip.mp4');
-const sub=path.join(tmp,'voice.vtt');const overlay=path.join(tmp,'smoke-overlay.png');const out=path.join(tmp,'smoke-output.mp4');
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, '../../..');
+const tmp = path.join(root, 'temp_assets');
+if (fs.existsSync(path.join(tmp, 'manifest.json')) || fs.existsSync(path.join(tmp, 'claim.json'))) throw new Error('Refusing smoke test over a live render');
+const jobId = '00000000-0000-4000-8000-000000000002';
+const jobDir = path.join(tmp, jobId);
+fs.rmSync(jobDir, { recursive: true, force: true });
+fs.mkdirSync(jobDir, { recursive: true });
+const ff = (...args) => execFileSync('ffmpeg', ['-y', '-v', 'error', ...args], { stdio: 'pipe' });
 try {
-  execFileSync('ffmpeg',['-y','-v','error','-f','lavfi','-i','sine=frequency=440:duration=40','-c:a','libmp3lame',audio]);
-  execFileSync('ffmpeg',['-y','-v','error','-f','lavfi','-i','color=c=0x162236:s=320x568:r=30:d=1','-c:v','libx264','-threads','1','-pix_fmt','yuv420p',clip]);
-  fs.writeFileSync(sub,'WEBVTT\n\n00:00:00.100 --> 00:00:00.800\nপরীক্ষার\n\n00:00:00.900 --> 00:00:01.800\nসংবাদ\n\n');
-  renderOverlay('বাংলার ভয়েস — রেন্ডার পরীক্ষা',overlay);
-  const result=composeVideo([clip,clip,clip],audio,sub,overlay,out);
-  const metadata=inspectRender({article_id:'00000000-0000-0000-0000-000000000001',job_id:'00000000-0000-0000-0000-000000000002',claim_token:'00000000-0000-0000-0000-000000000003',video_path:out,audio_duration:result.audioDur,caption_method:'groq-whisper'});
-  assert.ok(metadata.duration>=40 && metadata.duration<=120);
-  const png=process.env.SMOKE_PREVIEW_PATH;
-  if(png)execFileSync('ffmpeg',['-y','-v','error','-ss','1.0','-i',out,'-frames:v','1',png]);
-  console.log('PASS offline FFmpeg 1080x1920 H.264/AAC render; ASS captions burned; full decode and checksum gate passed');
+  const { fontsDir, env } = prepareFonts(jobDir);
+  const total = 42.0;
+  ff('-f', 'lavfi', '-i', 'sine=frequency=220:duration=40.5', '-af', 'volume=0.5', '-c:a', 'libmp3lame', path.join(jobDir, 'voice.mp3'));
+  ff('-f', 'lavfi', '-i', 'testsrc2=s=1600x1067:d=1', '-frames:v', '1', path.join(jobDir, 'still.jpg'));
+  ff('-f', 'lavfi', '-i', 'mandelbrot=s=640x360:r=30', '-t', '3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(jobDir, 'clip.mp4'));
+  const words = ['দেশের', 'সর্বশেষ', 'সংবাদ', 'বিস্তারিত', 'জানতে', 'বাংলার', 'ভয়েস', 'দেখুন'];
+  let vtt = 'WEBVTT\n\n'; const f = (x) => `00:00:${x.toFixed(3).padStart(6, '0')}`;
+  words.forEach((w, i) => { vtt += `${f(0.2 + i * 0.7)} --> ${f(0.2 + i * 0.7 + 0.6)}\n${w}\n\n`; });
+  fs.writeFileSync(path.join(jobDir, 'voice.vtt'), vtt);
+  execFileSync('python3', [path.join(here, '../vtt-to-karaoke.py'), path.join(jobDir, 'voice.vtt'), path.join(jobDir, 'voice.ass'), FONT_FAMILY]);
+
+  const title = 'ঢাকায় আজ বিকেলে ভারী বৃষ্টিতে জলাবদ্ধতা, যান চলাচলে চরম দুর্ভোগ';
+  renderBrandOverlay(path.join(jobDir, 'brand.png'), { sourceName: 'Prothom Alo' }, env);
+  renderHeadlineBig(path.join(jobDir, 'head_big.png'), title, env);
+  renderHeadlineSmall(path.join(jobDir, 'head_small.png'), title, env);
+  renderEndCard(path.join(jobDir, 'end.png'), { host: 'bvai-chi.vercel.app' }, env);
+  renderCreditStrip(path.join(jobDir, 'credit1.png'), 'ছবি: Example Author · CC BY 4.0 · Wikimedia Commons', env);
+  renderCreditStrip(path.join(jobDir, 'credit2.png'), 'ভিডিও: Example Creator · Pixabay Content License', env);
+  const slots = [
+    { kind: 'image', file: path.join(jobDir, 'still.jpg'), credit: 'credit1.png', d: 14 },
+    { kind: 'video', file: path.join(jobDir, 'clip.mp4'), credit: 'credit2.png', d: 14 },
+    { kind: 'brand', file: null, credit: 'credit1.png', d: 14 },
+  ];
+  const segments = [];
+  slots.forEach((s, i) => {
+    const out = path.join(jobDir, `seg-${i}.mp4`);
+    renderSegment({ kind: s.kind, file: s.file, duration: s.d, creditPng: path.join(jobDir, s.credit), outFile: out, env });
+    segments.push(out);
+  });
+  const out = path.join(jobDir, 'final_output.mp4');
+  composeFinal({
+    jobDir, segments, audioPath: path.join(jobDir, 'voice.mp3'), assFile: path.join(jobDir, 'voice.ass'), fontsDir,
+    overlays: { brand: path.join(jobDir, 'brand.png'), headBig: path.join(jobDir, 'head_big.png'), headSmall: path.join(jobDir, 'head_small.png'), endCard: path.join(jobDir, 'end.png') },
+    total, outFile: out, env,
+  });
+  const meta = inspectRender({
+    article_id: '00000000-0000-4000-8000-000000000001', job_id: jobId, claim_token: '00000000-0000-4000-8000-000000000003',
+    video_path: out, audio_duration: 40.5, caption_method: 'groq-whisper',
+  });
+  assert.ok(meta.duration >= 40 && meta.duration <= 120);
+  for (const [name, t] of [['early', 1.0], ['mid', 20], ['end', 38]]) if (process.env.SMOKE_PREVIEW_DIR) ff('-ss', String(t), '-i', out, '-frames:v', '1', path.join(process.env.SMOKE_PREVIEW_DIR, `smoke-${name}.png`));
+  console.log('PASS offline render: 1080x1920 H.264/AAC, burned Bengali captions, symbolic label, loudness gate, full decode');
 } finally {
-  for(const filename of ['smoke.mp3','smoke-clip.mp4','voice.vtt','voice.ass','smoke-overlay.png','smoke-output.mp4','smoke-overlay.svg','credit.txt']) fs.rmSync(path.join(tmp,filename),{force:true});
+  if (!process.env.SMOKE_KEEP) fs.rmSync(jobDir, { recursive: true, force: true });
 }

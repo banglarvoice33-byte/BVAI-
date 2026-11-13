@@ -6,17 +6,21 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { splitText, synthesizeVoiceRouted } from '../tts-router.js';
 import { timestamp, validateVtt } from '../voice-captions.js';
-import { buildVoiceScript } from '../generate-video.js';
+import { buildNarration, CTA } from '../video-script.mjs';
 
-const article = { title_bn:'নতুন সেতু চালু হয়েছে',content_bn:'নদীর উপর নতুন সেতু আজ চালু হয়েছে। কর্তৃপক্ষ জানিয়েছে সেতুটি যান চলাচলের জন্য উন্মুক্ত। এই পথে 20টি বাস চলাচল করবে।' };
-test('narration uses source facts and complete sentences, not invented impacts or render date',()=>{
-  const text = buildVoiceScript(article);
-  assert.ok(text.endsWith('বিস্তারিত দেখতে বাংলার ভয়েস ওয়েবসাইট ভিজিট করুন।')); assert.ok(text.includes('২০টি'));
-  assert.ok(!text.includes('আনন্দ ছড়িয়ে'));assert.ok(!text.includes('পরিস্থিতি আরও জটিল'));
-  assert.ok(text.length <= 1200);
+const article = { title_bn:'নতুন সেতু চালু হয়েছে',source_name:'Prothom Alo',content_bn:'নদীর উপর নতুন সেতু চালু হয়েছে বলে কর্তৃপক্ষ জানিয়েছে। কর্তৃপক্ষ জানিয়েছে সেতুটি যান চলাচলের জন্য উন্মুক্ত। এই পথে 20টি বাস চলাচল করবে বলে জানানো হয়েছে।\n\nসূত্র: Prothom Alo https://example.org/x' };
+test('narration uses only source sentences, credits the source and always ends with the mandatory closing line',()=>{
+  const { script } = buildNarration(article);
+  assert.ok(script.endsWith(CTA)); assert.ok(script.includes('সূত্র: প্রথম আলো')); assert.ok(script.includes('২০টি'));
+  assert.ok(!script.includes('আনন্দ ছড়িয়ে')); assert.ok(!script.includes('পরিস্থিতি আরও জটিল')); assert.ok(!script.includes('আজ'));
+  assert.ok(!script.includes('https://'));
 });
-test('too-long body is rejected rather than cut mid-sentence',()=>{
-  assert.throws(()=>buildVoiceScript({...article,content_bn:'বাক্য '.repeat(900)+'।'}),/complete source/);
+test('narration budget cuts at sentence boundaries and reports whether the whole article fit',()=>{
+  const long = { ...article, content_bn: Array.from({ length: 40 }, (_, i) => `ঘটনার ${i + 1} নম্বর অংশে কর্তৃপক্ষ নতুন তথ্য জানিয়েছে এবং বিষয়টি খতিয়ে দেখা হচ্ছে।`).join(' ') };
+  const short = buildNarration(long, { targetChars: 500 });
+  assert.equal(short.usedAll, false);
+  assert.ok(short.sentences.slice(1).every((s) => /[।!?]$/.test(s)));
+  assert.equal(buildNarration(article, { targetChars: 5000 }).usedAll, true);
 });
 test('TTS chunks preserve spaces and keep every word within the bound',()=>{
   const original = 'বাংলা সংবাদ বিশ্বের খবর '.repeat(70).trim();

@@ -45,7 +45,7 @@ export function isNewsUrl(raw) {
 /**
  * JS mirror of public.video_gate_basis(): which policy lets this article reach public video?
  *   'editorial'      - an editor approved it (human_verified && verification_status='verified'), any origin.
- *   'trusted_source' - curated aggregated news with a credited source, auto-verified, not a fallback.
+ *   'trusted_source' - curated aggregated news with a credited source and a source timestamp, auto-verified.
  *   null             - reporter/field/manual/original or incomplete content: human approval REQUIRED.
  * This is only a fast pre-check. The database function is authoritative: it additionally requires the
  * source row to be enabled and not kill-switched, and it is re-checked at claim and at finalize.
@@ -57,7 +57,7 @@ export function videoGateBasis(article) {
   const credited = String(article.source_name || '').trim() !== '';
   const urlOk = /^https?:\/\/[^ ]+$/i.test(String(article.source_url || ''));
   const verified = article.verification_status === 'auto_verified' || article.verification_status === 'verified';
-  if (article.source_id && credited && urlOk && verified && article.is_fallback !== true && article.source_published_at) return 'trusted_source';
+  if (article.source_id && credited && urlOk && verified && article.source_published_at) return 'trusted_source';
   return null;
 }
 export function assertEditorial(article, mode) {
@@ -74,7 +74,7 @@ export function assertEditorial(article, mode) {
     if (!Number.isFinite(published) || published>Date.now()+300000 || Date.now()-published>24*3600000) throw new Error('Missing/stale primary source publication timestamp; review required');
   }
 }
-export async function refreshEvidence(article, mode, { fetcher=boundedFetch }={}) {
+export async function refreshEvidence(article, mode, { feedUrl = null, fetcher = boundedFetch } = {}) {
   const sources=[];
   for (const url of sourceUrls(article).filter(isNewsUrl).slice(0,6)) {
     try {
@@ -82,8 +82,19 @@ export async function refreshEvidence(article, mode, { fetcher=boundedFetch }={}
       sources.push({url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:videoGateBasis(article)==='trusted_source'?'automated_article_gate':'editorial_article_gate'});
     } catch(e) { sources.push({url,error:e.message,role:'news_source'}); }
   }
-  const needed=videoGateBasis(article)==='trusted_source'?1:2;
-  if (mode !== 'review' && new Set(sources.filter(s=>s.sha256).map(s=>new URL(s.url).hostname.replace(/^www\./,''))).size<needed) throw new Error(`Fewer than ${needed} news sources freshly fetched; fail closed`);
+  // Many publishers block bots on article pages. For credited trusted-source news only, a live fetch of the publisher's OWN
+  // feed that still lists this exact item (link or title) is accepted as fresh evidence. It is recorded as such, never as a page fetch.
+  const need=videoGateBasis(article)==='trusted_source'?1:2;
+  const fetchedHosts=()=>new Set(sources.filter(x=>x.sha256).map(x=>new URL(x.url).hostname.replace(/^www\./,'')));
+  if (mode !== 'review' && need===1 && !fetchedHosts().size && feedUrl && /^https:\/\//.test(feedUrl)) {
+    try {
+      const feed=await fetcher(feedUrl,{maxBytes:6000000});
+      const body=feed.bytes.toString('utf8');
+      const listed=(article.source_url && body.includes(article.source_url));
+      if (listed) sources.push({url:article.source_url,feed_url:feed.url,fetched_at:new Date().toISOString(),http_status:200,etag:feed.headers.get('etag'),last_modified:feed.headers.get('last-modified'),sha256:createHash('sha256').update(feed.bytes).digest('hex'),role:'news_source',evidence_kind:'publisher_feed_listing',claim_verification:'human_required'});
+    } catch(e) { sources.push({url:feedUrl,error:e.message,role:'news_source',evidence_kind:'publisher_feed_listing'}); }
+  }
+  if (mode !== 'review' && fetchedHosts().size<need) throw new Error(`Fewer than ${need} news sources freshly fetched (article page or the publisher's own feed listing); fail closed`);
   // Wikipedia is context ONLY. Revision freshness is not independent breaking-news corroboration.
   for (const title of (article.context_blocks || []).filter(x=>x?.wikipedia_title).map(x=>x.wikipedia_title).slice(0,2)) {
     const url=new URL('https://bn.wikipedia.org/w/api.php');

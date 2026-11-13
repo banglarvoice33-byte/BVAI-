@@ -43,6 +43,7 @@ jobs:
           node --check scripts/pipeline/fail-video-job.cjs
           node --check scripts/pipeline/generate-video.js
           node --check scripts/pipeline/upload-supabase-video.mjs
+          for f in video-compose video-script media-sources audio-qc source-evidence delivery-worker delivery-providers; do node --check "scripts/pipeline/$f.mjs"; done
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Install offline test tools
@@ -56,6 +57,10 @@ jobs:
         env:
           VIDEO_ENCODER_PRESET: ultrafast
         run: node scripts/pipeline/tests/render-smoke.mjs
+      - name: Offline end-to-end renderer (fake DB/TTS/media; asserts contract + asset deletion)
+        env:
+          VIDEO_PRESET: ultrafast
+        run: node scripts/pipeline/tests/pipeline-e2e.mjs
       - name: Validate transactional media contract
         run: |
           grep -q "claim_reviewed_video_job" scripts/pipeline/generate-video.js

@@ -1,34 +1,62 @@
 name: BVAI Durable Video Delivery
+
+# Each render run already dispatches its own new video. This workflow only drains retries
+# (processing-pending YouTube uploads, transient provider errors). The gate keeps idle runs to ~10 s.
 on:
   workflow_dispatch:
   schedule:
-    - cron: '7,17,27,37,47,57 * * * *'
+    - cron: '17 */3 * * *'
 permissions:
   contents: read
 concurrency:
   group: bvai-media-delivery
   cancel-in-progress: false
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      due: ${{ steps.probe.outputs.due }}
+    steps:
+      - id: probe
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED != 'false' && vars.VIDEO_DELIVERY_PLATFORMS != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$ENABLED" != "true" ]; then echo "due=false" >> "$GITHUB_OUTPUT"; echo "Delivery disabled or VIDEO_DELIVERY_PLATFORMS empty."; exit 0; fi
+          now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          rows=$(curl -fsS --max-time 20 -G "$SUPABASE_URL/rest/v1/video_delivery_outbox" \
+            --data-urlencode "select=id" --data-urlencode "status=in.(queued,retrying,processing)" \
+            --data-urlencode "limit=1" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+          echo "outbox_probe=$rows"
+          if [ "$rows" = "[]" ]; then echo "due=false" >> "$GITHUB_OUTPUT"; else echo "due=true" >> "$GITHUB_OUTPUT"; fi
   deliver:
-    if: vars.VIDEO_DELIVERY_ENABLED == 'true'
+    needs: gate
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.gate.outputs.due == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VIDEO_DELIVERY_ENABLED: 'true'
+      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'true' }}
       VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
       VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
       YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
       SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
       SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
-      FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION }}
-      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'unlisted' }}
+      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID }}
+      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || 'SELF_ONLY' }}
+      FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION || 'v21.0' }}
+      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       SOCIAL_FACEBOOK_PAGE_TOKEN: ${{ secrets.SOCIAL_FACEBOOK_PAGE_TOKEN }}
       SOCIAL_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.SOCIAL_INSTAGRAM_ACCESS_TOKEN }}
+      TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:

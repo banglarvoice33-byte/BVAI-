@@ -36,12 +36,16 @@ test('approved reporter content passes only with BOTH human_verified and verifie
 test('fails closed on incomplete or unsafe trusted-source articles', () => {
   const bad = [
     { source_name: '   ' }, { source_name: null }, { source_url: 'ftp://x' }, { source_url: 'https://a b' },
-    { source_id: null }, { is_fallback: true }, { verification_status: 'pending' }, { verification_status: 'rejected' },
+    { source_id: null }, { verification_status: 'pending' }, { verification_status: 'rejected' },
     { source_published_at: null }, { status: 'pending' },
   ];
   for (const patch of bad) assert.equal(videoGateBasis({ ...trusted, ...patch }), null, JSON.stringify(patch));
   assert.equal(videoGateBasis(null), null);
   assert.equal(videoGateBasis(undefined), null);
+});
+
+test('a symbolic/fallback-image article is still eligible (image rights are labelled, not a news-trust problem)', () => {
+  assert.equal(videoGateBasis({ ...trusted, is_fallback: true }), 'trusted_source');
 });
 
 test('freshness and Bengali content requirements are unchanged', () => {

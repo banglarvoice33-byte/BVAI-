@@ -37,7 +37,8 @@ export function failureStatus(error,checkpoint) {
   return 'retrying';
 }
 export async function runDelivery() {
-  if(process.env.VIDEO_DELIVERY_ENABLED!=='true'){console.log('Video delivery disabled; no provider calls.');return;}
+  if(process.env.VIDEO_DELIVERY_ENABLED==='false'){console.log('Video delivery paused (VIDEO_DELIVERY_ENABLED=false); no provider calls.');return;}
+  if(!(process.env.VIDEO_DELIVERY_PLATFORMS||'').trim()){console.log('VIDEO_DELIVERY_PLATFORMS is empty; nothing to deliver.');return;}
   if(process.env.VIDEO_DISTRIBUTION_WORKER_ENABLED==='true')throw new Error('Disable legacy video distribution worker before enabling new outbox');
   const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   let problems=0;
@@ -82,7 +83,7 @@ export async function runDelivery() {
         if(downloadError)throw new Error('Private media download failed');
         const bytes=Buffer.from(await blob.arrayBuffer());
         if(createHash('sha256').update(bytes).digest('hex')!==asset.sha256)throw new DeliveryError('Stored media integrity mismatch',{permanent:true});
-        result=await deliverYoutube({...common,token,bytes,privacy:process.env.YOUTUBE_PRIVACY || 'unlisted',synthetic:asset.manifest.synthetic_realistic===true});
+        result=await deliverYoutube({...common,token,bytes,privacy:process.env.YOUTUBE_PRIVACY || 'public',synthetic:asset.manifest.synthetic_realistic===true});
       } else if(target.platform==='facebook')result=await deliverFacebook({...common,token:await secret(db,'SOCIAL_FACEBOOK_PAGE_TOKEN',['FACEBOOK_PAGE_ACCESS_TOKEN'])});
       else if(target.platform==='instagram')result=await deliverInstagram({...common,token:await secret(db,'SOCIAL_INSTAGRAM_ACCESS_TOKEN')});
       else if(target.platform==='tiktok') {

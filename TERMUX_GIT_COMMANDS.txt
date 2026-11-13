@@ -1,14 +1,20 @@
-# Termux: put this patch into the GitHub repository (replace YOUR_REPO_DIR; keep the migration file name unchanged)
-cd ~/YOUR_REPO_DIR
-git status --short                      # should be clean first
-git checkout -b feat/trusted-source-video-gate
-unzip -o ~/storage/downloads/BVAI_TRUSTED_SOURCE_GATE_PATCH.zip -x 'README_BN.txt' 'TERMUX_GIT_COMMANDS.txt'
-node --test scripts/pipeline/tests/trusted-source-gate.test.mjs     # expect: pass 5, fail 0
-git add supabase/migrations/20261110233227_trusted_source_video_gate.sql \
-        supabase/rollbacks/20261110233227_trusted_source_video_gate.rollback.sql \
-        supabase/operations/20261110233301_activate_bvai_newsroom_14m.sql \
-        scripts/pipeline/source-evidence.mjs \
-        scripts/pipeline/tests/trusted-source-gate.test.mjs
-git commit -m "feat(video): trusted-source video gate; reporter/field content keeps editorial approval"
-git push -u origin feat/trusted-source-video-gate
-# NOTE: the migration is ALREADY applied live as version 20261110233227. Do not re-apply it with the SQL Editor.
+# BVAI ধাপ ২ — ভিডিও পাইপলাইন (origin/main-এর ওপর overlay)
+# ফোল্ডার: ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-   (pwd দিয়ে মিলিয়ে নিন)
+# Supabase মাইগ্রেশনগুলো ইতিমধ্যে লাইভ — SQL Editor-এ আবার চালাবেন না। --force ব্যবহার করবেন না।
+
+cd ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-
+git status --short | head                 # পরিষ্কার থাকা উচিত
+git fetch origin
+git log --oneline -3 origin/main          # সর্বশেষ কমিট দেখুন (894065b বা নতুন)
+git log --oneline 894065b..origin/main  # খালি থাকা উচিত; কমিট দেখালে থামুন ও আমাকে জানান
+git checkout -B stage2-20261113 origin/main
+unzip -o ~/storage/downloads/BVAI-STAGE2-video-20261113.zip -d .
+git status --short                        # শুধু ZIP-এর ফাইলগুলো দেখাবে
+git add -A
+git commit -m "feat: reviewed video pipeline merge, peak cadence migrations, scheduler controls"
+git push origin HEAD:main
+
+# push-এর পর:
+#  1) GitHub > Settings > Secrets and variables > Actions: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#  2) Actions > "BVAI Reviewed Media Pipeline" > Run workflow (publish_mode=auto) — একটি ভিডিও পরীক্ষা
+#  3) Supabase SQL: select count(*) from public.videos; select status,count(*) from public.video_generation_jobs group by 1;

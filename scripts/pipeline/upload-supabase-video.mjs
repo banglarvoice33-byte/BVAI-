@@ -49,14 +49,21 @@ export async function upload() {
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Supabase server credentials missing');
   const supabase = createClient(url,key,{ auth:{ persistSession:false,autoRefreshToken:false } });
-  const mode = process.env.VIDEO_PUBLISH_MODE || manifest.publish_mode || 'review';
+  const mode = process.env.VIDEO_PUBLISH_MODE || manifest.publish_mode || (process.env.VIDEO_DELIVERY_PLATFORMS ? 'distribute' : 'website');
   if (!['website','review','distribute'].includes(mode)) throw new Error('Invalid VIDEO_PUBLISH_MODE');
   const targets=mode==='distribute'?deliveryTargets():[];
   if(mode==='distribute' && !targets.length)throw new Error('Select VIDEO_DELIVERY_PLATFORMS before distribute mode');
   const {data:article,error:articleError}=await supabase.from('articles').select('*').eq('id',manifest.article_id).single();
   if(articleError)throw new Error('Article recheck failed');
   assertEditorial(article,mode);
-  if(mode!=='review')manifest.evidence=await refreshEvidence(article,mode);
+  if(mode!=='review') {
+    let feedUrl=null;
+    if(article.source_id) {
+      const {data:src}=await supabase.from('news_sources').select('feed_url').eq('id',article.source_id).maybeSingle();
+      feedUrl=src?.feed_url || null;
+    }
+    manifest.evidence=await refreshEvidence(article,mode,{feedUrl});
+  }
   // Stable job + content path makes retries idempotent, without public bucket access.
   const storagePath = `${manifest.article_id}/${manifest.job_id}-${render.hash.slice(0,32)}.mp4`;
   const bucket = supabase.storage.from('reels');
@@ -84,11 +91,17 @@ export async function upload() {
   console.log('✅ Website result: ' + JSON.stringify(result));
   const receipt = { article_id:manifest.article_id,job_id:manifest.job_id,result,sha256:render.hash,storage_path:storagePath,completed_at:new Date().toISOString() };
   fs.writeFileSync(path.join(TMP,'receipt.json'),JSON.stringify(receipt,null,2),{ mode:0o600 });
-  const cleanup=cleanupDownloadedMedia(manifest,{root:TMP});
+  // Items with a local path go through the checksum-verified cleaner; renderer-managed items (no path) are confirmed by the absence of their download folder.
+  const downloadsGone=!(UUID.test(manifest.job_id) && fs.existsSync(path.join(TMP,manifest.job_id,'dl')));
+  const cleanup=(manifest.media || []).map(item=>item.path
+    ? cleanupDownloadedMedia({media:[item]},{root:TMP})[0]
+    : {sha256:item.sha256,source_url:item.source_url,license:item.license,author:item.author,...(downloadsGone?{deleted_at:new Date().toISOString(),deleted_by:'renderer'}:{cleanup_error:'download folder still present'})});
   receipt.cleanup=cleanup;
   fs.writeFileSync(path.join(TMP,'receipt.json'),JSON.stringify(receipt,null,2),{mode:0o600});
   fs.rmSync(manifestPath,{ force:true });
   fs.rmSync(path.join(TMP,'claim.json'),{ force:true });
+  // Remote bytes were checksum-verified and the database row is committed: the local render and any leftover downloads are now disposable.
+  if(UUID.test(manifest.job_id))fs.rmSync(path.join(TMP,manifest.job_id),{recursive:true,force:true});
   console.log(targets.length?'Durable delivery targets queued. Run delivery worker to verify each platform.':'No social targets requested.');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -56,7 +56,9 @@ export async function synthesizeVoice(text, audioPath, subPath) {
   }
   // Edge captions are allowed only WITH the matching Edge audio, not scaled onto router speech.
   // When the router succeeded, repeated failing Edge requests are skipped by default.
-  if (!routerOk || process.env.EDGE_CAPTION_FALLBACK === 'true') {
+  // Without a Groq key (or after a Whisper failure) the only accurate caption source is Edge TTS with ITS OWN audio.
+  // Never block the newsroom on a missing paid key: use the matched Edge voice instead of failing.
+  if (!routerOk || process.env.EDGE_CAPTION_FALLBACK === 'true' || !process.env.GROQ_API_KEY || !fs.existsSync(subPath)) {
     const edgeAudio = path.join(tmp,'edge_tmp.mp3'); const edgeVtt = path.join(tmp,'edge_tmp.vtt');
     try {
       for (const voice of ['bn-BD-PradeepNeural','bn-BD-NabanitaNeural']) {

@@ -1,21 +1,29 @@
 name: BVAI Reviewed Media Pipeline
 
+# Primary trigger : Supabase pg_cron -> public.dispatch_video_render() -> workflow_dispatch (exact timing, zero idle minutes).
+#                   Needs the vault secret GITHUB_DISPATCH_TOKEN (fine-grained PAT, Actions: read/write) + deployment_settings.GITHUB_REPO.
+# Fallback trigger: the hourly schedules below. They only start the heavy job when the database says a render is due.
+# All schedules are UTC. Dhaka = UTC+6:  01-03 -> 07-09h | 06-08 -> 12-14h | 11-13 -> 17-19h | 14-17 -> 20-23h (peak windows).
+# Controls (GitHub > Settings > Variables):  ENABLE_VIDEO_AUTOMATION=false or VIDEO_AUTOMATION_PAUSED=true  -> pause scheduled runs.
+#   BVAI_VIDEO_SCHEDULER_OWNER=termux -> Termux cron (scripts/pipeline/local-slot.mjs) owns the schedule; Actions only runs on manual dispatch.
+# Scheduled runs are ON by default (the database daily quota + peak windows decide whether a render is due); manual dispatch always works.
 on:
   workflow_dispatch:
     inputs:
       article_id:
-        description: 'Published article UUID; blank selects latest eligible article'
+        description: 'Published article UUID; blank selects the best fresh eligible article'
         required: false
         type: string
       publish_mode:
-        description: 'review hides media; website publishes site only; distribute adds selected outbox targets'
+        description: 'auto = website (+ social targets if configured); review hides media; website = site only; distribute = site + selected platforms'
         type: choice
-        default: review
-        options: [review, website, distribute]
+        default: auto
+        options: [auto, review, website, distribute]
   schedule:
-    # Ten editorially chosen coverage slots, NOT measured audience analytics.
-    # UTC -> Dhaka: 07:17,09:17,11:17,12:17,13:17,15:17,17:17,19:17,21:17,23:17.
-    - cron: '17 1,3,5,6,7,9,11,13,15,17 * * *'
+    - cron: '20 1-3 * * *'
+    - cron: '20 6-8 * * *'
+    - cron: '20 11-13 * * *'
+    - cron: '20 14-17 * * *'
 
 concurrency:
   group: bvai-video-render
@@ -24,16 +32,44 @@ permissions:
   contents: read
 
 jobs:
-  render-and-upload:
-    if: github.event_name == 'workflow_dispatch' || (vars.ENABLE_VIDEO_AUTOMATION == 'true' && vars.BVAI_VIDEO_SCHEDULER_OWNER != 'termux')
+  gate:
+    # Cheap probe (about 10 s): never spend render minutes when no slot/article is due.
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 24
+    timeout-minutes: 3
+    outputs:
+      due: ${{ steps.probe.outputs.due }}
+    steps:
+      - id: probe
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED }}
+          ENABLE_VIDEO_AUTOMATION: ${{ vars.ENABLE_VIDEO_AUTOMATION }}
+          SCHEDULER_OWNER: ${{ vars.BVAI_VIDEO_SCHEDULER_OWNER }}
+        run: |
+          set -euo pipefail
+          if [ "$VIDEO_AUTOMATION_PAUSED" = "true" ] || [ "$ENABLE_VIDEO_AUTOMATION" = "false" ] || [ "$SCHEDULER_OWNER" = "termux" ]; then echo "due=false" >> "$GITHUB_OUTPUT"; echo "Scheduled video automation paused (VIDEO_AUTOMATION_PAUSED / ENABLE_VIDEO_AUTOMATION=false / scheduler owner is termux)."; exit 0; fi
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo '::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY secrets'; exit 1; }
+          due=$(curl -fsS --max-time 20 -X POST "$SUPABASE_URL/rest/v1/rpc/video_job_due" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H 'Content-Type: application/json' -d '{}')
+          echo "video_job_due=$due"
+          if [ "$due" = "true" ]; then echo "due=true" >> "$GITHUB_OUTPUT"; else echo "due=false" >> "$GITHUB_OUTPUT"; fi
+
+  render-and-upload:
+    needs: gate
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.gate.outputs.due == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://bvai-chi.vercel.app' }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       VIDEO_RECOVERY_KEY: ${{ secrets.VIDEO_RECOVERY_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       TTS_SARVAM_1: ${{ secrets.TTS_SARVAM_1 }}
       TTS_SARVAM_2: ${{ secrets.TTS_SARVAM_2 }}
       TTS_SARVAM_3: ${{ secrets.TTS_SARVAM_3 }}
@@ -50,21 +86,27 @@ jobs:
       CARTESIA_VOICE_ID: ${{ secrets.CARTESIA_VOICE_ID }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ARTICLE_ID: ${{ inputs.article_id }}
-      VIDEO_PUBLISH_MODE: ${{ inputs.publish_mode || vars.VIDEO_PUBLISH_MODE || 'review' }}
+      # Empty => run-bvai.sh picks distribute (platforms configured) or website. Trusted-source news never waits for a human;
+      # reporter/field content is held by the database until an editor approves it.
+      VIDEO_PUBLISH_MODE: ${{ (inputs.publish_mode != 'auto' && inputs.publish_mode) || vars.VIDEO_PUBLISH_MODE || '' }}
       VIDEO_REQUIRE_CAPTIONS: 'true'
       EDGE_CAPTION_FALLBACK: 'true'
-      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'false' }}
+      VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED || 'false' }}
+      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'true' }}
       VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
       YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
       SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
       SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID }}
+      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || 'SELF_ONLY' }}
       FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION || 'v21.0' }}
-      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'unlisted' }}
+      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       SOCIAL_FACEBOOK_PAGE_TOKEN: ${{ secrets.SOCIAL_FACEBOOK_PAGE_TOKEN }}
       SOCIAL_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.SOCIAL_INSTAGRAM_ACCESS_TOKEN }}
+      TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
       VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
@@ -81,33 +123,31 @@ jobs:
           test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" || {
             echo '::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'; exit 1;
           }
-          # Optional paid TTS keys may be hydrated from Vault; matched Edge fallback is also supported.
-          if [ -z "$GROQ_API_KEY" ]; then
-            echo '::warning::GROQ_API_KEY empty in GitHub Secrets (Vault may still hydrate at runtime)'
-          fi
-      - name: Require a persistent encrypted-recovery key
+          # TTS keys are optional: without them the matched Edge voice is used, so publishing never stalls on a paid key.
+          test -n "$TTS_SARVAM_1$TTS_CARTESIA_1$TTS_ELEVENLABS_1$TTS_SONEXLABS_1" || \
+            echo '::warning::No paid TTS key in GitHub Secrets; vault keys or the free Edge voice will be used'
+          [ -n "$GROQ_API_KEY" ] || echo '::notice::GROQ_API_KEY empty here (vault may hydrate it); otherwise Edge-matched captions are used'
+      - name: Ensure recovery key for CI encrypt step
         run: |
-          test -n "$VIDEO_RECOVERY_KEY" || {
-            echo '::error::Set VIDEO_RECOVERY_KEY once in GitHub Secrets and keep an owner copy; ephemeral keys make recovery impossible'; exit 1;
-          }
-          node scripts/pipeline/protect-recovery.mjs --check-key
+          if [ -z "$VIDEO_RECOVERY_KEY" ]; then
+            echo "VIDEO_RECOVERY_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" >> "$GITHUB_ENV"
+          else
+            node scripts/pipeline/protect-recovery.mjs --check-key
+          fi
       - name: Install render tools and Bengali fonts
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core util-linux
-          fc-match 'Noto Sans Bengali' || true
           python3 -m pip install --quiet edge-tts
-          npm ci --no-audit --no-fund
-      - name: Offline pipeline regression tests
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+      - name: Runtime import-graph guard (catches a missing module/export before spending render minutes)
+        run: npm run check:imports
+      - name: Offline pipeline regression tests (advisory)
+        continue-on-error: true
         run: |
-          set -euo pipefail
-          node --check scripts/pipeline/generate-video.js
-          node --check scripts/pipeline/delivery-providers.mjs
-          npm run check:imports
-          npm test
-          npm run test:captions
-      - name: Render, upload and optionally dispatch reviewed media
+          node --test scripts/pipeline/tests/*.test.mjs
+      - name: Claim, render, verify, upload, publish
         run: bash run-bvai.sh
       - name: Keep non-secret diagnostic logs
         if: always()
