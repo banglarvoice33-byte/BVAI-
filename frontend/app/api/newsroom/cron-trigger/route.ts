@@ -19,6 +19,7 @@ import {
   licenceNoteAllowsReuse,
   minAiScore,
   parseSensitivityJson,
+  repairBodyForGate,
   shouldDisableAfter403,
   type SourceFetchOutcome,
 } from '@/lib/publish-gate'
@@ -34,7 +35,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const MAX_ITEMS_PER_SOURCE = 6
+// More fresh candidates per feed so the 14-minute cadence always has a publishable item.
+const MAX_ITEMS_PER_SOURCE = 10
 const MAX_CANDIDATES = MAX_CANDIDATES_PER_RUN
 const MAX_FEED_BYTES = 2 * 1024 * 1024
 const MAX_ARTICLE_BYTES = 512 * 1024
@@ -1746,6 +1748,13 @@ async function runCronTrigger(request: Request) {
         }
 
         rewrite.content_bn = ensureSourceLine(rewrite.content_bn, source.name, link)
+        // Fidelity repair: drop only sentences with numbers absent from the source or
+        // copied verbatim, instead of holding the entire article (see publish-gate.ts).
+        const bodyRepair = repairBodyForGate(rewrite.content_bn, item.sourceText || item.description)
+        if (bodyRepair.changed) {
+          rewrite.content_bn = bodyRepair.body
+          console.info('[newsroom] body repaired', { source: source.name, dropped: bodyRepair.droppedSentences, notes: bodyRepair.notes })
+        }
         const licenceOk = licenceNoteAllowsReuse(source.licence_note)
         const image = await resolveArticleImage(item, rewrite.title_bn, deadline, {
           licenceAllowsReuse: licenceOk,
@@ -1781,6 +1790,10 @@ async function runCronTrigger(request: Request) {
           sourceText: item.sourceText || item.description,
         })
         const publishNow = gate.action === 'publish'
+        // Policy: unrelated/unlicensed image never blocks a story; it is published as a
+        // clearly labelled symbolic image ("প্রতীকী ছবি") using a rights-safe visual.
+        const symbolicImage = image.representational || gate.representationalImage === true
+        const imageAltBn = symbolicImage && !image.alt.startsWith('প্রতীকী') ? `প্রতীকী ছবি — ${image.alt}` : image.alt
 
         const { data: inserted, error: insertError } = await supabase
           .from('articles')
@@ -1813,10 +1826,10 @@ async function runCronTrigger(request: Request) {
             category_key: detectCategory(item.title, item.description, source.name),
             thumbnail_url: image.url,
             featured_image: image.url,
-            image_alt_bn: image.alt.slice(0, 250),
+            image_alt_bn: imageAltBn.slice(0, 250),
             image_credit: image.credit.slice(0, 250),
             image_license: image.license,
-            image_is_representational: image.representational,
+            image_is_representational: symbolicImage,
             image_source_url: image.sourceUrl || null,
             image_relevance_score: image.relevanceScore,
             image_rights_checked_at: new Date().toISOString(),
@@ -1914,13 +1927,21 @@ async function runCronTrigger(request: Request) {
       'ai_rewrite_invalid_json',
       'ai_rewrite_truncated',
       'ai_rewrite_model_not_found',
+      // Gate holds the 2026-11 policy resolves (symbolic image / sentence-level repair):
+      'image_not_related',
+      'image_fallback',
+      'image_licence',
+      'missing_image',
+      'number_not_in_source',
+      'identical_run',
     ]
     const { data: queuedRetry } = await supabase
       .from('news_ingest_queue')
       .select('id, article_id, source_name, source_url, source_published_at, title, description, last_error')
       .in('status', ['pending_review', 'failed'])
       .in('last_error', retryableErrors)
-      .order('created_at', { ascending: true })
+      // Rotate by last attempt so one hopeless item can never starve the retry queue.
+      .order('updated_at', { ascending: true })
       .limit(1)
       .maybeSingle()
 
@@ -1952,7 +1973,10 @@ async function runCronTrigger(request: Request) {
         try {
           const outcome = await rewriteArticleWithFallback(aiConfigs, item, deadline)
           const rewrite = outcome.result
-          const body = ensureSourceLine(rewrite.content_bn, source.name, item.link)
+          const body = repairBodyForGate(
+            ensureSourceLine(rewrite.content_bn, source.name, item.link),
+            item.sourceText || item.description,
+          ).body
           const imageUrl = pendingArticle.featured_image || ''
           const gate = decidePublish({
             autoPublish,

@@ -1,0 +1,7 @@
+d9dfed083051aa446704e6f81a31ce2c2cbc824de5c7fad091d0eb482d74a1fc  frontend/__tests__/newsroom-policy.test.ts
+09891caac5821d21c16d002ac836bc5aa662f360ba37401803eb55ec9a24f929  frontend/app/api/admin/approve/route.ts
+bdab2dcd17f95dbfa90da290c978dcbb13e61dbdbcb6c10e4986e0c4778ab03f  frontend/app/api/newsroom/cron-trigger/route.ts
+064b1bbeb911609b28279776a2261ec5a7616845c670aaccdc839c8af6be404e  frontend/lib/newsroom-policy.ts
+5025202a507b20f36ddeace6ea4fac565e4af26d35f148e14fc51e4af5350c84  frontend/lib/publish-gate.ts
+63ba542357579e5d0df25c035801864056ccf1f020e577f4b89d9353894374c9  worker/src/lib/publish-gate.test.ts
+5025202a507b20f36ddeace6ea4fac565e4af26d35f148e14fc51e4af5350c84  worker/src/lib/publish-gate.ts

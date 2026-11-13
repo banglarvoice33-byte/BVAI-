@@ -21,15 +21,24 @@ export async function POST(req: Request) {
       .from('articles')
       .update({
         status: 'published',
+        // A human editor (Admin/Studio, enforced by middleware.ts role check) approved this
+        // item. These flags are what the DB guard on reporter/field-report articles and the
+        // video gate (video_gate_basis = 'editorial') rely on.
+        editorial_status: 'approved',
+        verification_status: 'verified',
+        human_verified: true,
+        workflow_status: 'published',
+        review_reason: null,
         published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
+      .eq('status', 'pending')
       .select('id, status, published_at')
       .maybeSingle();
 
     if (error) throw error;
-    if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (!data) return NextResponse.json({ error: 'not found or not pending' }, { status: 404 });
 
     // Field-report articles: publish the reporter's photo. The upload sits in the
     // private `field-media` bucket; copy it to the public `thumbnails` bucket.

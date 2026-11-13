@@ -1,7 +1,7 @@
 export const MAX_PUBLISH_PER_RUN = 3
 export const MIN_PUBLISH_PER_RUN = 1
 export const MAX_CANDIDATES_PER_RUN = 6
-export const MAX_SOURCES_PER_RUN = 8
+export const MAX_SOURCES_PER_RUN = 10
 export const PRIORITY_CANDIDATE_TARGET_PERCENT = 70
 
 export const WORLD_CLASS_FEED_HOSTS = [
@@ -54,5 +54,15 @@ export function rankSourcesForRun<T extends { feed_url: string; name?: string; l
   const others = sources.filter((source) => !isWorldClassFeed(source.feed_url, source.name || ''))
   const byOldestProbe = (left: T, right: T) =>
     Date.parse(left.last_probe_at || '1970-01-01') - Date.parse(right.last_probe_at || '1970-01-01')
-  return [...worldClass.sort(byOldestProbe), ...others.sort(byOldestProbe)].slice(0, Math.max(1, limit))
+  // Balanced rotation: half of every run goes to world-class feeds and half to the
+  // remaining (mostly Bangladeshi) feeds, each side oldest-probe first. A strict
+  // "world-class first" order starves local feeds once there are >= limit
+  // world-class sources. Unused slots on one side are filled from the other.
+  const size = Math.max(1, limit)
+  const worldSorted = [...worldClass].sort(byOldestProbe)
+  const otherSorted = [...others].sort(byOldestProbe)
+  const worldQuota = Math.min(worldSorted.length, Math.ceil(size / 2))
+  const otherQuota = Math.min(otherSorted.length, size - worldQuota)
+  const worldTake = Math.min(worldSorted.length, size - otherQuota)
+  return [...worldSorted.slice(0, worldTake), ...otherSorted.slice(0, otherQuota)]
 }

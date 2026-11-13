@@ -51,6 +51,15 @@ export type PublishGateResult = {
   reason: string
   riskLevel: RiskLevel
   score: number
+  /**
+   * True when the article image is not a licensed, topic-matched photo. Policy
+   * (editorial decision, 2026-11): such articles are still published, but the
+   * image MUST be shown as a labelled symbolic image ("প্রতীকী ছবি") and the
+   * caller must use a rights-safe image (own headline card / Pexels / Wikimedia).
+   */
+  representationalImage?: boolean
+  /** Why the image was treated as representational (informational, never blocking). */
+  imageReason?: string
 }
 
 const HIGH_TERMS = [
@@ -116,8 +125,15 @@ export function minAiScore(env: NodeJS.ProcessEnv = process.env): number {
   return Number.isFinite(n) && n >= 0 && n <= 100 ? n : DEFAULT_MIN_AI_SCORE
 }
 
+/**
+ * Editorial policy: syndicated items from enabled, non-kill-switched trusted
+ * sources are published automatically (source name + link are always shown), so
+ * the default is ON. Set AUTO_PUBLISH=false|0|off as an emergency stop.
+ * Reporter / field-report content never uses this path: it stays pending until
+ * an Admin/Studio editor approves it (see /api/admin/approve + DB guard).
+ */
 export function isAutoPublish(env: NodeJS.ProcessEnv = process.env): boolean {
-  const raw = (env.AUTO_PUBLISH ?? 'false').toLowerCase()
+  const raw = (env.AUTO_PUBLISH ?? 'true').trim().toLowerCase()
   return raw !== 'false' && raw !== '0' && raw !== 'off'
 }
 
@@ -290,6 +306,95 @@ export function originalityHoldReason(output: string, source: string | undefined
   return null
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic repair of the two most common non-copyright gate failures.
+// The original gate HELD the whole article for one bad sentence, which starved
+// the 14-minute publishing cadence. Dropping only the offending sentence keeps
+// every factual guarantee (nothing is added, nothing unsupported survives).
+// ---------------------------------------------------------------------------
+
+const SOURCE_LINE_RE = /^\s*সূত্র\s*:/u
+const MIN_RUN_FOR_SENTENCE_DROP = 4
+
+/** Split one paragraph into sentences without breaking decimals such as 3.5. */
+function splitSentences(paragraph: string): string[] {
+  return paragraph
+    .split(/(?<=[।!?])\s+|(?<=\.)\s+(?=\S)/u)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+}
+
+function rebuild(paragraphs: string[][]): string {
+  return paragraphs
+    .map((sentences) => sentences.join(' '))
+    .filter((p) => p.trim().length > 0)
+    .join('\n')
+}
+
+function parseParagraphs(text: string): string[][] {
+  return text.split(/\n+/u).map((line) => (SOURCE_LINE_RE.test(line) ? [line.trim()] : splitSentences(line)))
+}
+
+export type BodyRepairResult = {
+  body: string
+  changed: boolean
+  droppedSentences: number
+  notes: string[]
+}
+
+/**
+ * Remove sentences that contain a number/year that does not appear in the source
+ * text, and sentences that copy a long identical word run from the source.
+ * Returns the original body unchanged when the repaired text would no longer
+ * satisfy the length / Bengali-ratio requirements (the gate then holds as before).
+ */
+export function repairBodyForGate(body: string, source: string | undefined): BodyRepairResult {
+  const untouched: BodyRepairResult = { body, changed: false, droppedSentences: 0, notes: [] }
+  if (!source || source.trim().length === 0 || body.trim().length === 0) return untouched
+
+  let paragraphs = parseParagraphs(body)
+  let dropped = 0
+  const notes: string[] = []
+
+  // 1) unsupported numbers / years
+  paragraphs = paragraphs.map((sentences) =>
+    sentences.filter((sentence) => {
+      if (SOURCE_LINE_RE.test(sentence)) return true
+      if (missingSourceNumbers(sentence, source).length > 0) {
+        dropped += 1
+        if (!notes.includes('number_not_in_source')) notes.push('number_not_in_source')
+        return false
+      }
+      return true
+    }),
+  )
+
+  // 2) identical word runs (long first, then progressively shorter while still failing)
+  const wholeRun = () => longestIdenticalRun(stripSourceLine(rebuild(paragraphs)), source)
+  for (const threshold of [MAX_IDENTICAL_RUN, MIN_RUN_FOR_SENTENCE_DROP + 2, MIN_RUN_FOR_SENTENCE_DROP]) {
+    if (wholeRun() < MAX_IDENTICAL_RUN) break
+    paragraphs = paragraphs.map((sentences) =>
+      sentences.filter((sentence) => {
+        if (SOURCE_LINE_RE.test(sentence)) return true
+        if (longestIdenticalRun(sentence, source) >= threshold) {
+          dropped += 1
+          if (!notes.includes('identical_run')) notes.push('identical_run')
+          return false
+        }
+        return true
+      }),
+    )
+  }
+
+  if (dropped === 0) return untouched
+  const repaired = rebuild(paragraphs)
+  const visible = stripSourceLine(repaired).trim()
+  if (visible.length < MIN_BODY_CHARS || bengaliRatio(visible) < 0.6) return untouched
+  if (missingSourceNumbers(repaired, source).length > 0) return untouched
+  if (longestIdenticalRun(visible, source) >= MAX_IDENTICAL_RUN) return untouched
+  return { body: repaired, changed: true, droppedSentences: dropped, notes }
+}
+
 export function parseSensitivityJson(raw: string): { sensitive: boolean; reasons: string[] } | null {
   try {
     const start = raw.indexOf('{')
@@ -410,15 +515,17 @@ export function decidePublish(input: PublishGateInput): PublishGateResult {
   if (bengaliRatio(input.bodyBn) < 0.6 || bengaliRatio(input.titleBn) < 0.3) {
     return { action: 'hold', reason: 'bengali_quality', riskLevel, score }
   }
+  // Image policy: a missing / unrelated / unlicensed image NEVER blocks a story.
+  // The caller substitutes a rights-safe symbolic image and labels it
+  // "প্রতীকী ছবি"; only text-fidelity and originality checks can hold an article.
   const image = imagePublishable({
     imageUrl: input.imageUrl,
     isFallback: input.isFallback,
     imageSource: input.imageSource,
     licenceAllowsReuse: input.licenceAllowsReuse,
   })
-  if (!image.ok) {
-    return { action: 'hold', reason: image.reason, riskLevel, score }
-  }
+  const representationalImage = !image.ok || input.imageSource === 'brand-card' || input.imageSource === 'brand'
+  const imageReason = image.ok ? undefined : image.reason
   if (!input.sourceText || input.sourceText.trim().length === 0) {
     return { action: 'hold', reason: 'source_text_missing', riskLevel, score }
   }
@@ -435,7 +542,7 @@ export function decidePublish(input: PublishGateInput): PublishGateResult {
   if (score < threshold) {
     return { action: 'hold', reason: 'score_below_min', riskLevel, score }
   }
-  return { action: 'publish', reason: 'ok', riskLevel, score }
+  return { action: 'publish', reason: 'ok', riskLevel, score, representationalImage, imageReason }
 }
 
 export function consecutive403Count(

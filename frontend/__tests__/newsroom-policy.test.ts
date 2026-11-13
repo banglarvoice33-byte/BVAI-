@@ -20,7 +20,7 @@ describe('newsroom policy', () => {
     expect(isWorldClassFeed('https://example.com/rss.xml', 'local blog')).toBe(false)
   })
 
-  it('ranks world-class sources first and keeps the batch small', () => {
+  it('keeps the batch small and probes the stalest world-class feed first', () => {
     const ranked = rankSourcesForRun(
       [
         { name: 'Local', feed_url: 'https://example.com/rss.xml', last_probe_at: '2026-10-09T00:00:00.000Z' },
@@ -30,8 +30,38 @@ describe('newsroom policy', () => {
       2,
     )
     expect(ranked).toHaveLength(2)
-    expect(ranked.every((source) => isWorldClassFeed(source.feed_url, source.name))).toBe(true)
     expect(ranked[0].name).toBe('Al Jazeera')
+  })
+
+  it('never starves local feeds when there are many world-class feeds', () => {
+    const world = Array.from({ length: 12 }, (_, i) => ({
+      name: `World ${i}`,
+      feed_url: `https://feeds.bbci.co.uk/news/${i}/rss.xml`,
+      last_probe_at: '2026-10-01T00:00:00.000Z',
+    }))
+    const local = Array.from({ length: 6 }, (_, i) => ({
+      name: `Local ${i}`,
+      feed_url: `https://bd-news-${i}.example/rss.xml`,
+      last_probe_at: '2026-10-01T00:00:00.000Z',
+    }))
+    const ranked = rankSourcesForRun([...world, ...local], 10)
+    expect(ranked).toHaveLength(10)
+    expect(ranked.filter((s) => s.name.startsWith('Local'))).toHaveLength(5)
+    expect(ranked.filter((s) => s.name.startsWith('World'))).toHaveLength(5)
+  })
+
+  it('gives unused local slots back to world-class feeds', () => {
+    const world = Array.from({ length: 12 }, (_, i) => ({
+      name: `World ${i}`,
+      feed_url: `https://feeds.bbci.co.uk/news/${i}/rss.xml`,
+      last_probe_at: null,
+    }))
+    const ranked = rankSourcesForRun(
+      [...world, { name: 'Local 0', feed_url: 'https://bd-news-0.example/rss.xml', last_probe_at: null }],
+      10,
+    )
+    expect(ranked).toHaveLength(10)
+    expect(ranked.filter((s) => s.name.startsWith('Local'))).toHaveLength(1)
   })
 
   it('fills remaining slots from other enabled sources', () => {
