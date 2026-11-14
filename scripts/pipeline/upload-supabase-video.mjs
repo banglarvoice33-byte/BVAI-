@@ -24,7 +24,10 @@ export function inspectRender(manifest) {
   const video = probe.streams.find(stream => stream.codec_type === 'video');
   const audio = probe.streams.find(stream => stream.codec_type === 'audio');
   const duration = Number(probe.format.duration);
-  if (video?.codec_name !== 'h264' || audio?.codec_name !== 'aac' || video.width !== 1080 || video.height !== 1920 || video.pix_fmt !== 'yuv420p') throw new Error('Expected 1080×1920 H.264/yuv420p video with AAC audio');
+  if (video?.codec_name !== 'h264' || audio?.codec_name !== 'aac' || video.width !== 1080 || video.height !== 1920 || video.pix_fmt !== 'yuv420p') {
+    const seen = { video: video ? `${video.codec_name} ${video.width}x${video.height} ${video.pix_fmt}` : 'none', audio: audio ? audio.codec_name : 'none', streams: probe.streams.map(stream => stream.codec_type).join(',') };
+    throw new Error(`Expected 1080×1920 H.264/yuv420p video with AAC audio; ffprobe saw ${JSON.stringify(seen)}`);
+  }
   if (!Number.isFinite(duration) || duration < 40 || duration > 120) throw new Error('Video duration must be 40–120 seconds');
   if (!Number.isFinite(manifest.audio_duration) || duration + 0.5 < manifest.audio_duration) throw new Error('Render truncates narration');
   if (!['groq-whisper','edge-matched'].includes(manifest.caption_method)) throw new Error('Accurate actual-audio captions required before upload');

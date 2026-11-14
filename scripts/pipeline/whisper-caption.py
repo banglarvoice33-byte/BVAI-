@@ -8,6 +8,7 @@ import subprocess
 import sys
 import urllib.request
 import urllib.error
+import re
 import uuid
 
 
@@ -40,6 +41,51 @@ def build_vtt(words, duration):
     return '\n'.join(cues) + '\n'
 
 
+class GroqHttpError(Exception):
+    def __init__(self, code, detail):
+        super().__init__(f'Groq HTTP {code}: {detail}')
+        self.code = code
+
+
+def redact(text, key):
+    text = str(text or '')
+    if key:
+        text = text.replace(key, '[key]')
+    text = re.sub(r'gsk_[A-Za-z0-9]+', '[key]', text)
+    return re.sub(r'\s+', ' ', text).strip()[:200]
+
+
+def transcribe(base, key, model, audio_bytes, prompt):
+    boundary = 'BVAI' + uuid.uuid4().hex
+    fields = {'model': model, 'response_format': 'verbose_json', 'language': 'bn', 'timestamp_granularities[]': 'word', 'temperature': '0'}
+    if prompt:
+        fields['prompt'] = prompt
+    body = bytearray()
+    for name, value in fields.items():
+        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n'.encode())
+    body.extend(audio_bytes)
+    body.extend(f'\r\n--{boundary}--\r\n'.encode())
+    # Groq sits behind Cloudflare, which answers the default "Python-urllib/3.x" agent with 403 (error 1010) before the
+    # request ever reaches the API. A descriptive agent is required; the key is only ever sent in Authorization.
+    headers = {
+        'Authorization': f'Bearer {key}',
+        'Content-Type': f'multipart/form-data; boundary={boundary}',
+        'Accept': 'application/json',
+        'User-Agent': 'BVAI-Renderer/1.0 (+https://bvai-chi.vercel.app)',
+    }
+    req = urllib.request.Request(base + '/audio/transcriptions', data=bytes(body), headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        try:
+            detail = error.read(400).decode('utf8', 'replace')
+        except Exception:
+            detail = ''
+        raise GroqHttpError(error.code, f'{model}: {redact(detail, key) or "no body"}') from None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('audio')
@@ -56,28 +102,31 @@ def main():
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError('Invalid audio duration')
     script = Path(args.script_file).read_text(encoding='utf8') if args.script_file else ''
-    boundary = 'BVAI' + uuid.uuid4().hex
-    fields = {'model':'whisper-large-v3-turbo', 'response_format':'verbose_json', 'language':'bn', 'timestamp_granularities[]':'word', 'temperature':'0'}
-    if script:
-        fields['prompt'] = script[:1200]
-    body = bytearray()
-    for name, value in fields.items():
-        body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
-    body.extend(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n'.encode())
-    body.extend(audio.read_bytes())
-    body.extend(f'\r\n--{boundary}--\r\n'.encode())
-    req = urllib.request.Request('https://api.groq.com/openai/v1/audio/transcriptions', data=bytes(body), headers={'Authorization':f'Bearer {key}', 'Content-Type':f'multipart/form-data; boundary={boundary}'})
-    try:
-        with urllib.request.urlopen(req, timeout=120) as response:
-            payload = json.load(response)
-    except urllib.error.HTTPError as error:
-        raise ValueError(f'Groq HTTP {error.code}; check credentials, model access, quota and file format') from None
+    # Test hook only: a loopback base lets the offline test prove headers/fallback. Any other value is ignored so the
+    # bearer key can never be redirected to a third-party host through the environment.
+    base = os.environ.get('GROQ_API_BASE', '')
+    if not base.startswith(('http://127.0.0.1:', 'http://localhost:')):
+        base = 'https://api.groq.com/openai/v1'
+    audio_bytes = audio.read_bytes()
+    prompt = script[:1200] if script else ''
+    payload = None
+    last_error = None
+    # whisper-large-v3-turbo can be unavailable to an org/key (403/404) while whisper-large-v3 is allowed: try both.
+    for model in ('whisper-large-v3-turbo', 'whisper-large-v3'):
+        try:
+            payload = transcribe(base, key, model, audio_bytes, prompt)
+            break
+        except GroqHttpError as error:
+            last_error = error
+            if error.code not in (403, 404):
+                break
+    if payload is None:
+        raise ValueError(str(last_error))
     vtt = build_vtt(payload.get('words'), duration)
     # Keep ASR text attached to ASR times. A prompt improves spelling but is not forced alignment.
     # Detect poor agreement instead of assigning unrelated timestamps to script words.
     if script:
         import difflib
-        import re
         normalize = lambda text: re.sub(r'[^\w\s]', '', text).split()
         similarity = difflib.SequenceMatcher(None, normalize(script), normalize(' '.join(str(w['word']) for w in payload['words']))).ratio()
         threshold = float(os.environ.get('CAPTION_MIN_SCRIPT_MATCH', '0.65'))

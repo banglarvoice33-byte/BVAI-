@@ -1,0 +1,21 @@
+# BVAI ধাপ ৩বি — ভিডিও ক্যাপশন ফিক্স (Groq "403 / error code: 1010" = Python urllib-এর ডিফল্ট User-Agent ব্লক)
+# ফোল্ডার: ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-   (pwd দিয়ে মিলিয়ে নিন)
+# Supabase-এ কিছু চালাতে হবে না (ai-gateway ও মাইগ্রেশন ইতিমধ্যে লাইভ; ফাইলগুলো শুধু রিপোর সঙ্গে মেলানোর জন্য)। --force নয়।
+
+cd ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-
+git status --short | head                  # পরিষ্কার থাকা উচিত
+git fetch origin
+git log --oneline a92c933..origin/main     # শুধু 70eb077 দেখানো স্বাভাবিক; এর বেশি বা অন্য কিছু দেখালে থামুন ও আমাকে জানান
+git diff --name-only a92c933 origin/main -- scripts/pipeline/whisper-caption.py scripts/pipeline/upload-supabase-video.mjs supabase/functions/ai-gateway/index.ts   # খালি থাকা উচিত
+git checkout -B stage3b-20261114 origin/main
+unzip -o ~/storage/downloads/BVAI-STAGE3B-captions-20261114.zip -d .
+git status --short                         # ঠিক ৫টি ফাইল + TERMUX_GIT_COMMANDS_STAGE3B.txt
+git add -A
+git commit -m "fix: Groq Whisper User-Agent (Cloudflare 1010), model fallback, ffprobe diagnostics, repo sync of live gateway/dispatcher"
+git push origin HEAD:main
+
+# push-এর পর (Supabase SQL Editor):
+#   select cron.alter_job((select jobid from cron.job where jobname='bvai-video-dispatch'), active := true);
+# তারপর ~২০ মিনিটের মধ্যে ডিসপ্যাচার নিজেই রেন্ডার চালাবে। ফল দেখতে:
+#   select status, left(error_message,300) from video_generation_jobs order by created_at desc limit 3;
+#   select count(*), max(created_at) from videos;
