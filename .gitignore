@@ -192,3 +192,5 @@ recovery.tar.gz
 .bvaipatch-backups/
 supabase/.temp/
 BVAI-download/
+__pycache__/
+*.pyc
