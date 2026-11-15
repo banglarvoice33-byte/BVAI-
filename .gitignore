@@ -194,3 +194,4 @@ supabase/.temp/
 BVAI-download/
 __pycache__/
 *.pyc
+*.patch
