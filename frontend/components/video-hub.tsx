@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { youtubeHqThumbnail } from '../lib/video-thumbnail';
+import { startPolling } from '../lib/polling';
+import { videoIdentity, selectedVideo } from '../lib/video-identity';
 
 export type VideoItem = {
   id?: string;
@@ -23,13 +25,14 @@ export type VideoItem = {
  * Zero-CLS thumbnail: gradient art when no image is available. A broken
  * stored thumbnail is retried once with the YouTube HQ default.
  */
-function Thumb({ src, fallbackSrc, alt }: { src?: string; fallbackSrc?: string; alt: string }) {
+function Thumb({ src, fallbackSrc, alt, vertical = false }: { src?: string; fallbackSrc?: string; alt: string; vertical?: boolean }) {
   const [current, setCurrent] = useState(src || fallbackSrc);
   const [failed, setFailed] = useState(false);
+  useEffect(() => { setCurrent(src || fallbackSrc); setFailed(false); }, [src, fallbackSrc]);
   const visible = Boolean(current) && !failed;
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-900">
+    <div className={`relative ${vertical ? 'aspect-[9/16]' : 'aspect-video'} w-full overflow-hidden bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-900`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={visible ? current : undefined}
@@ -55,8 +58,11 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   const title = locale === 'en' ? video?.title_en || video?.title_bn : video?.title_bn || video?.title_en;
   const playLabel = locale === 'en' ? 'Play video' : 'ভিডিও চালান';
   const [playing, setPlaying] = useState(false);
+  // Snapshot the source only while playing: refreshing a signature must not restart narration.
+  const [playbackSrc, setPlaybackSrc] = useState<string>();
+  const [playbackFailed, setPlaybackFailed] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => { if (playing) { void videoRef.current?.play().catch(() => {}); } }, [playing]);
+  useEffect(() => { if (playing) { void videoRef.current?.play().catch(() => {}); } }, [playing, playbackSrc]);
 
   if (!video) {
     return (
@@ -69,10 +75,11 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
   const src = video.youtube_id
     ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtube_id)}?autoplay=1&rel=0&modestbranding=1&playsinline=1`
     : video.embed_url || null;
-  const hasDirectVideo = Boolean(video.video_url);
+  const hasDirectVideo = Boolean(video.video_url) && !src;
   const isVertical = hasDirectVideo && !video.youtube_id;
   const poster = video.thumbnail_url || youtubeHqThumbnail(video.youtube_id);
   const posterFallback = youtubeHqThumbnail(video.youtube_id);
+  const frameClass = `relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black ${isVertical ? 'aspect-[9/16] max-w-[420px] mx-auto' : 'aspect-video'}`;
 
   if (!src && !hasDirectVideo) {
     return (
@@ -84,13 +91,14 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
 
   if (!playing) {
     return (
+      <div>
       <button
         type="button"
-        onClick={() => setPlaying(true)}
+        onClick={() => { setPlaybackFailed(false); setPlaybackSrc(video.video_url); setPlaying(true); }}
         aria-label={title ? `${title} — ${playLabel}` : playLabel}
-        className="group relative block aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-black"
+        className={`group block ${frameClass}`}
       >
-        <Thumb src={poster} fallbackSrc={posterFallback} alt={title || (locale === 'en' ? 'Video' : 'ভিডিও')} />
+        <Thumb src={poster} fallbackSrc={posterFallback} vertical={isVertical} alt={title || (locale === 'en' ? 'Video' : 'ভিডিও')} />
         <span className="absolute inset-0 grid place-items-center bg-black/20 transition-colors group-hover:bg-black/40">
           <span className="grid h-16 w-16 place-items-center rounded-full bg-black/60 text-white shadow-lg ring-2 ring-white/70 transition-transform group-hover:scale-110 group-hover:bg-[#CC0000]">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -99,13 +107,16 @@ function Player({ video, locale = 'bn' }: { video?: VideoItem; locale?: 'bn' | '
           </span>
         </span>
       </button>
+      {playbackFailed && <p role="status" className="mt-2 text-sm text-white/80">{locale === 'en' ? 'Playback failed. Try again after the connection recovers.' : 'ভিডিও চালানো যায়নি। সংযোগ ফিরে এলে আবার চেষ্টা করুন।'}</p>}
+      </div>
     );
   }
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black ${isVertical ? 'aspect-[9/16] max-w-[420px] mx-auto' : 'aspect-video'}`}>
+    <div className={frameClass}>
       {hasDirectVideo ? (
-        <video ref={videoRef} key={video.id || video.video_url} src={video.video_url} poster={poster || undefined}
+        <video ref={videoRef} key={video.id || playbackSrc} src={playbackSrc || video.video_url} poster={poster || undefined}
+          onError={() => { setPlaybackFailed(true); setPlaying(false); }}
           controls autoPlay playsInline preload="metadata" className="h-full w-full object-contain" />
       ) : (
         <iframe key={video.id || src} src={src || undefined} title={title || (locale === 'en' ? 'Video' : 'ভিডিও')}
@@ -131,50 +142,26 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
     return list.slice(0, 5);
   }, [freshVideos]);
 
-  useEffect(() => {
-    let mounted = true;
-    const refresh = async () => {
-      try {
-        const response = await fetch('/api/public/videos?limit=5', { cache: 'no-store' });
-        if (!response.ok) return;
-        const payload = await response.json() as { videos?: VideoItem[] };
-        if (mounted && Array.isArray(payload.videos)) setFreshVideos(payload.videos);
-      } catch { /* Retain existing videos during temporary network failure. */ }
-    };
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
-    return () => { mounted = false; window.clearInterval(timer); };
-  }, []);
+  useEffect(() => { setFreshVideos(videos); }, [videos]);
+  useEffect(() => startPolling(async (signal) => {
+    const response = await fetch('/api/public/videos?limit=5', { cache: 'no-store', signal });
+    if (!response.ok) return;
+    const payload = await response.json() as { videos?: VideoItem[] };
+    if (!signal.aborted && Array.isArray(payload.videos)) setFreshVideos(payload.videos);
+  }, 60_000), []);
 
-  const [active, setActive] = useState<VideoItem | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [liveVideo, setLiveVideo] = useState<VideoItem | null>(null);
   const [resolvedFallback, setResolvedFallback] = useState<VideoItem | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const refresh = async () => {
-      try {
-        const result = await fetch('/api/youtube/live', { cache: 'no-store' });
-        if (!result.ok) return;
-        const payload = (await result.json()) as {
-          isLive?: boolean;
-          video?: VideoItem | null;
-          fallback?: VideoItem | null;
-        };
-        if (!mounted) return;
-        setLiveVideo(payload.isLive && payload.video ? payload.video : null);
-        setResolvedFallback(payload.fallback ?? null);
-      } catch {
-        // Keep server-rendered published videos on network or API failure.
-      }
-    };
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), 120_000);
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, []);
+  useEffect(() => startPolling(async (signal) => {
+    const result = await fetch('/api/youtube/live', { cache: 'no-store', signal });
+    if (!result.ok) return;
+    const payload = await result.json() as { isLive?: boolean; video?: VideoItem | null; fallback?: VideoItem | null };
+    if (signal.aborted) return;
+    setLiveVideo(payload.isLive && payload.video ? payload.video : null);
+    setResolvedFallback(payload.fallback ?? null);
+  }, 120_000), []);
 
   const playlist = useMemo(() => {
     const rows = liveVideo
@@ -183,7 +170,8 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
     if (!rows.length && resolvedFallback) rows.push(resolvedFallback);
     return rows.slice(0, 5);
   }, [liveVideo, ordered, resolvedFallback]);
-  const feature = active ?? liveVideo ?? ordered[0] ?? resolvedFallback;
+  // Resolve selection against the latest records so an idle player receives refreshed signed URLs.
+  const feature = selectedVideo(playlist, activeKey) ?? liveVideo ?? ordered[0] ?? resolvedFallback;
 
   if (!feature) return <section className="my-14 rounded-3xl bg-neutral-950 p-8 text-white" aria-live="polite">{locale === 'en' ? 'No videos are available right now.' : 'এই মুহূর্তে কোনো ভিডিও উপলভ্য নেই।'}</section>;
 
@@ -207,7 +195,7 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
         {/* Feature player */}
         <div className="lg:col-span-3">
           <div className="relative">
-            <Player key={feature?.id ?? feature?.youtube_id ?? 'feature'} video={feature} locale={locale} />
+            <Player key={videoIdentity(feature)} video={feature} locale={locale} />
             {feature?.is_live && (
               <span className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded bg-[#CC0000] px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />
@@ -227,12 +215,12 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
         <div className="flex flex-col gap-2 lg:col-span-2">
           {playlist.map((v) => {
             const isActive =
-              feature?.id === v.id && feature?.title_bn === v.title_bn;
+              videoIdentity(feature) === videoIdentity(v);
             return (
               <button
-                key={v.id ?? v.title_bn ?? v.embed_url}
+                key={videoIdentity(v)}
                 type="button"
-                onClick={() => setActive(v)}
+                onClick={() => setActiveKey(videoIdentity(v))}
                 aria-pressed={isActive}
                 className={`flex gap-3 rounded-xl p-2 text-left transition-colors ${
                   isActive ? 'bg-white/10 ring-1 ring-white/20' : 'hover:bg-white/5'
@@ -240,7 +228,7 @@ export function VideoHub({ videos, locale = 'bn' }: { videos: VideoItem[]; local
               >
                 <div className="w-28 shrink-0 overflow-hidden rounded-lg">
                   <Thumb
-                    key={v.id ?? v.title_bn ?? v.embed_url}
+                    key={videoIdentity(v)}
                     src={v.thumbnail_url}
                     fallbackSrc={youtubeHqThumbnail(v.youtube_id)}
                     alt={videoTitle(v) || ''}

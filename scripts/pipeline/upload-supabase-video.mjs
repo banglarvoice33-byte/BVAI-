@@ -1,5 +1,6 @@
 import { cleanupDownloadedMedia } from './media-cleanup.mjs';
-import { measureAudio } from './audio-qc.mjs';
+import { measureAudio, loudnessOk } from './audio-qc.mjs';
+import { validateMasterProbe } from './video-contract.mjs';
 import { deliveryTargets } from './delivery-worker.mjs';
 import { uploadResumable } from './storage-upload.mjs';
 import { assertEditorial, refreshEvidence } from './source-evidence.mjs';
@@ -21,26 +22,16 @@ export function inspectRender(manifest) {
   const size = fs.statSync(filename).size;
   if (size < 1024 || size > 100 * 1024 * 1024) throw new Error('Video size outside 1 KiB–100 MiB bounds');
   const probe = JSON.parse(execFileSync('ffprobe',['-v','error','-show_format','-show_streams','-of','json',filename], { encoding:'utf8',timeout:15000 }));
-  const video = probe.streams.find(stream => stream.codec_type === 'video');
-  const audio = probe.streams.find(stream => stream.codec_type === 'audio');
-  const duration = Number(probe.format.duration);
-  if (video?.codec_name !== 'h264' || audio?.codec_name !== 'aac' || video.width !== 1080 || video.height !== 1920 || video.pix_fmt !== 'yuv420p') {
-    const seen = { video: video ? `${video.codec_name} ${video.width}x${video.height} ${video.pix_fmt}` : 'none', audio: audio ? audio.codec_name : 'none', streams: probe.streams.map(stream => stream.codec_type).join(',') };
-    throw new Error(`Expected 1080×1920 H.264/yuv420p video with AAC audio; ffprobe saw ${JSON.stringify(seen)}`);
-  }
-  if (!Number.isFinite(duration) || duration < 40 || duration > 120) throw new Error('Video duration must be 40–120 seconds');
-  if (!Number.isFinite(manifest.audio_duration) || duration + 0.5 < manifest.audio_duration) throw new Error('Render truncates narration');
+  const { duration } = validateMasterProbe(probe, manifest.audio_duration);
+  /* Validation is shared with regression tests; keep captions/decode/loudness below. */
   if (!['groq-whisper','edge-matched'].includes(manifest.caption_method)) throw new Error('Accurate actual-audio captions required before upload');
-  const frameRate=video.avg_frame_rate?.split('/').map(Number);
-  if(!frameRate || Math.abs(frameRate[0]/frameRate[1]-30)>.01)throw new Error('30 fps master required');
-  if(audio.sample_rate!=='48000')throw new Error('48 kHz audio required');
   const captionFile=path.join(path.dirname(filename),'voice.vtt');
   if(!fs.existsSync(captionFile))throw new Error('Actual-audio caption sidecar missing');
   validateVtt(fs.readFileSync(captionFile,'utf8'),manifest.audio_duration);
   // Full decode catches corrupt/truncated streams that metadata-only probing misses.
   execFileSync('ffmpeg',['-v','error','-xerror','-i',filename,'-f','null','-'],{timeout:180000,stdio:'pipe'});
   const loudness=measureAudio(filename);
-  if(Math.abs(Number(loudness.input_i)+14)>2 || Number(loudness.input_tp)>-1)throw new Error('Audio outside -14 LUFS ±2 / peak <= -1 dBTP quality gate');
+  if(!loudnessOk(loudness))throw new Error('Audio outside -14 LUFS ±2 / peak <= -1 dBTP quality gate');
   const buffer = fs.readFileSync(filename);
   return { buffer, duration:Math.ceil(duration), size, hash:createHash('sha256').update(buffer).digest('hex') };
 }

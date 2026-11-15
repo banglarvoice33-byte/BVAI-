@@ -17,6 +17,7 @@ import { normalizeBanglaForTts } from './bangla-normalize.mjs';
 import { candidates, download } from './media-sources.mjs';
 import { prepareFonts, renderBrandOverlay, renderHeadlineBig, renderHeadlineSmall, renderEndCard, renderCreditStrip, renderSegment, composeFinal, probeDuration, FONT_FAMILY } from './video-compose.mjs';
 import { inspectRender } from './upload-supabase-video.mjs';
+import { createRenderHeartbeat } from './render-heartbeat.mjs';
 
 // Compatibility exports: the repository's contract tests (tests/repair-contract.test.mjs) and older callers use these names.
 export const CLOSING_CTA = CTA;
@@ -57,7 +58,7 @@ async function makeVoice(article, jobDir, beat, tts = synthesizeVoice) {
     const seconds = audioDuration(audioPath);
     last = { ...narration, caption_method: captions.method, seconds };
     log(`   🎙️ attempt ${attempt}: ${narration.chars} chars → ${seconds.toFixed(1)} s (${captions.method})`);
-    beat();
+    await beat();
     const tooShort = seconds < LIMITS.retryBelow && !narration.usedAll;
     const tooLong = seconds > LIMITS.maxAudio;
     if (!tooShort && !tooLong) break;
@@ -101,14 +102,14 @@ async function gatherMedia(db, claim, article, jobDir, need, beat, source = { ca
         if (error) throw new Error(error.message); // already used elsewhere -> never reuse
         picked.push({ ...candidate, file, sha256: info.sha256 });
         log(`   🎞️ ${candidate.provider} ${candidate.kind}: ${candidate.title.slice(0, 50)} (${candidate.license})`);
-        beat();
+        await beat();
       } catch (error) {
         fs.rmSync(file, { force: true });
-        if (/invalid_(broll|visual)_claim/.test(error.message)) throw error; // lease lost: stop
+        if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual)_claim/.test(error.message)) throw error; // lease lost: stop
       }
     }
   } catch (error) {
-    if (/invalid_(broll|visual)_claim/.test(error.message)) throw error;
+    if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual)_claim/.test(error.message)) throw error;
     log('   ⚠️ media search interrupted:', error.message);
   }
   return picked;
@@ -119,11 +120,13 @@ const creditLine = (m) => m
   : 'প্রতীকী গ্রাফিক · বাংলার ভয়েস';
 
 export async function renderClaim(db, claim, deps = {}) {
+  const heartbeat = createRenderHeartbeat(db, claim);
+  await heartbeat.renew(); // Validate ownership before touching a claimed job's directory.
   const jobDir = path.join(TMP, claim.job_id);
   fs.rmSync(jobDir, { recursive: true, force: true });
   fs.mkdirSync(jobDir, { recursive: true, mode: 0o700 });
-  const beat = () => db.rpc('heartbeat_reviewed_render', { p_job_id: claim.job_id, p_claim_token: claim.claim_token }).then(() => {}, () => {});
-  const timer = setInterval(beat, 45000); timer.unref();
+  const beat = () => heartbeat.renew();
+  heartbeat.start();
   try {
     const { data: article, error } = await db.from('articles').select('*').eq('id', claim.article_id).single();
     if (error || !article) throw new Error('Article fetch failed');
@@ -161,16 +164,19 @@ export async function renderClaim(db, claim, deps = {}) {
       const asset = media[i];
       renderCreditStrip(png(`credit${i}.png`), creditLine(asset), env);
       const out = png(`seg-${i}.mp4`);
-      renderSegment({ kind: asset ? asset.kind : 'brand', file: asset?.file, duration: durations[i], creditPng: png(`credit${i}.png`), outFile: out, env });
+      log(`   Segment ${i + 1}/${count}: ${asset?.kind || 'brand'} (${durations[i].toFixed(1)} s)`);
+      await renderSegment({ kind: asset ? asset.kind : 'brand', file: asset?.file, duration: durations[i], creditPng: png(`credit${i}.png`), outFile: out, env, signal: heartbeat.signal });
       segments.push(out);
-      beat();
+      await beat();
     }
     const finalFile = png('final_output.mp4');
-    composeFinal({
-      jobDir, segments, audioPath: voice.audioPath, assFile: png('voice.ass'), fontsDir, total, outFile: finalFile, env,
+    log('   Final composition + two-pass audio normalization...');
+    await composeFinal({
+      jobDir, segments, audioPath: voice.audioPath, assFile: png('voice.ass'), fontsDir, total, outFile: finalFile, env, signal: heartbeat.signal,
       overlays: { brand: png('brand.png'), headBig: png('head_big.png'), headSmall: png('head_small.png'), endCard: png('end.png') },
     });
 
+    await beat(); // Fence a stale worker before it can produce a ready-to-publish manifest.
     const renderSeconds = probeDuration(finalFile);
     const manifest = {
       schema: 2, article_id: claim.article_id, job_id: claim.job_id, claim_token: claim.claim_token, video_path: finalFile,
@@ -183,14 +189,20 @@ export async function renderClaim(db, claim, deps = {}) {
     };
     // Render is "confirmed" only when the uploader's own contract passes: probe, full decode, loudness, caption sidecar.
     inspectRender(manifest);
-    fs.writeFileSync(path.join(TMP, 'manifest.json'), JSON.stringify(manifest, null, 2), { mode: 0o600 });
+    await beat(); // Decode/loudness checks are bounded but can outlive a timer interval.
+    // Same-filesystem hard-link publication is atomic and refuses to overwrite an unfinished upload.
+    // Shared manifest/claim files still require a single worker per workspace.
+    const stagedManifest = path.join(jobDir, 'manifest.ready.json');
+    fs.writeFileSync(stagedManifest, JSON.stringify(manifest, null, 2), { mode: 0o600, flag: 'wx' });
+    try { fs.linkSync(stagedManifest, path.join(TMP, 'manifest.json')); }
+    finally { fs.rmSync(stagedManifest, { force: true }); }
 
     // Confirmed -> delete every downloaded source video/photo and all intermediates; keep only the final MP4, captions, script.
     fs.rmSync(path.join(jobDir, 'dl'), { recursive: true, force: true });
     for (const name of fs.readdirSync(jobDir)) if (!['final_output.mp4', 'voice.vtt', 'script.txt'].includes(name)) fs.rmSync(path.join(jobDir, name), { recursive: true, force: true });
     log(`✅ Render confirmed: ${(manifest.size_bytes / 1e6).toFixed(1)} MB, ${renderSeconds.toFixed(1)} s; downloaded assets deleted`);
     return manifest;
-  } finally { clearInterval(timer); }
+  } finally { await heartbeat.stop(); }
 }
 
 async function failClaim(db, claim, reason) {

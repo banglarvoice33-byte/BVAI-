@@ -12,6 +12,7 @@ on:
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
       - "supabase/migrations/*media_delivery*"
+      - "supabase/migrations/*render_heartbeat*"
   pull_request:
     paths:
       - ".github/workflows/video-render.yml"
@@ -21,6 +22,7 @@ on:
       - "supabase/functions/video-upload-authorize/**"
       - "supabase/migrations/*video_pipeline*"
       - "supabase/migrations/*media_delivery*"
+      - "supabase/migrations/*render_heartbeat*"
 
 permissions:
   contents: read
@@ -43,7 +45,7 @@ jobs:
           node --check scripts/pipeline/fail-video-job.cjs
           node --check scripts/pipeline/generate-video.js
           node --check scripts/pipeline/upload-supabase-video.mjs
-          for f in video-compose video-script media-sources audio-qc source-evidence delivery-worker delivery-providers; do node --check "scripts/pipeline/$f.mjs"; done
+          for f in video-contract render-heartbeat video-compose video-script media-sources audio-qc source-evidence delivery-worker delivery-providers; do node --check "scripts/pipeline/$f.mjs"; done
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Install offline test tools
@@ -111,6 +113,9 @@ jobs:
             -f supabase/migrations/20261111030000_dhaka_business_hours_cadence.sql \
             -f supabase/migrations/20261111040000_restore_social_dispatch_contract.sql \
             -f supabase/migrations/20261111041000_media_capacity_and_cadence_boundaries.sql \
-            -f scripts/pipeline/tests/repair-contract.test.sql
+            -f scripts/pipeline/tests/repair-contract.test.sql \
+            -f supabase/migrations/20261113000000_render_heartbeat_fencing.sql \
+            -f supabase/migrations/20261113000000_render_heartbeat_fencing.sql \
+            -f scripts/pipeline/tests/render-heartbeat.test.sql
       - name: Test two-session claim race
         run: node scripts/pipeline/tests/database-concurrency.mjs

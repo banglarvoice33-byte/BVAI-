@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { prepareFonts, renderBrandOverlay, renderHeadlineBig, renderHeadlineSmall, renderEndCard, renderCreditStrip, renderSegment, composeFinal, FONT_FAMILY } from '../video-compose.mjs';
 import { inspectRender } from '../upload-supabase-video.mjs';
 
@@ -13,11 +14,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const tmp = path.join(root, 'temp_assets');
 if (fs.existsSync(path.join(tmp, 'manifest.json')) || fs.existsSync(path.join(tmp, 'claim.json'))) throw new Error('Refusing smoke test over a live render');
-const jobId = '00000000-0000-4000-8000-000000000002';
+// Never delete another smoke test's files: simultaneous invocations get isolated jobs.
+const jobId = randomUUID();
 const jobDir = path.join(tmp, jobId);
-fs.rmSync(jobDir, { recursive: true, force: true });
 fs.mkdirSync(jobDir, { recursive: true });
-const ff = (...args) => execFileSync('ffmpeg', ['-y', '-v', 'error', ...args], { stdio: 'pipe' });
+const started = Date.now();
+const stage = (message) => console.log(`[smoke +${((Date.now() - started) / 1000).toFixed(1)}s] ${message}`);
+stage(`job ${jobId}; synthetic fixtures only, no provider calls`);
+const ff = (...args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-v', 'error', '-filter_threads', '2', ...args], { stdio: 'pipe', timeout: 180000 });
+if (process.env.SMOKE_PREVIEW_DIR) fs.mkdirSync(process.env.SMOKE_PREVIEW_DIR, { recursive: true });
 try {
   const { fontsDir, env } = prepareFonts(jobDir);
   const total = 42.0;
@@ -30,6 +35,7 @@ try {
   fs.writeFileSync(path.join(jobDir, 'voice.vtt'), vtt);
   execFileSync('python3', [path.join(here, '../vtt-to-karaoke.py'), path.join(jobDir, 'voice.vtt'), path.join(jobDir, 'voice.ass'), FONT_FAMILY]);
 
+  stage('Fixtures ready; shaping Bengali overlays');
   const title = 'ঢাকায় আজ বিকেলে ভারী বৃষ্টিতে জলাবদ্ধতা, যান চলাচলে চরম দুর্ভোগ';
   renderBrandOverlay(path.join(jobDir, 'brand.png'), { sourceName: 'Prothom Alo' }, env);
   renderHeadlineBig(path.join(jobDir, 'head_big.png'), title, env);
@@ -43,28 +49,29 @@ try {
     { kind: 'brand', file: null, credit: 'credit1.png', d: 14 },
   ];
   const segments = [];
-  slots.forEach((s, i) => {
+  for (const [i, s] of slots.entries()) {
     const out = path.join(jobDir, `seg-${i}.mp4`);
-    renderSegment({ kind: s.kind, file: s.file, duration: s.d, creditPng: path.join(jobDir, s.credit), outFile: out, env });
+    stage(`Rendering segment ${i + 1}/${slots.length}: ${s.kind}`);
+    await renderSegment({ kind: s.kind, file: s.file, duration: s.d, creditPng: path.join(jobDir, s.credit), outFile: out, env });
     segments.push(out);
-  });
+  }
   const out = path.join(jobDir, 'final_output.mp4');
-  composeFinal({
+  stage('Composing final master and normalizing narration');
+  const composition = await composeFinal({
     jobDir, segments, audioPath: path.join(jobDir, 'voice.mp3'), assFile: path.join(jobDir, 'voice.ass'), fontsDir,
     overlays: { brand: path.join(jobDir, 'brand.png'), headBig: path.join(jobDir, 'head_big.png'), headSmall: path.join(jobDir, 'head_small.png'), endCard: path.join(jobDir, 'end.png') },
     total, outFile: out, env,
   });
+  stage('Checking metadata, caption sidecar, full decode and encoded loudness');
   const meta = inspectRender({
     article_id: '00000000-0000-4000-8000-000000000001', job_id: jobId, claim_token: '00000000-0000-4000-8000-000000000003',
     video_path: out, audio_duration: 40.5, caption_method: 'groq-whisper',
   });
   assert.ok(meta.duration >= 40 && meta.duration <= 120);
   for (const [name, t] of [['early', 1.0], ['mid', 20], ['end', 38]]) if (process.env.SMOKE_PREVIEW_DIR) ff('-ss', String(t), '-i', out, '-frames:v', '1', path.join(process.env.SMOKE_PREVIEW_DIR, `smoke-${name}.png`));
-  console.log('PASS offline render: 1080x1920 H.264/AAC, burned Bengali captions, symbolic label, loudness gate, full decode');
-} catch (error) {
-  // Annotations can be read through the GitHub API without downloading the run log.
-  if (process.env.GITHUB_ACTIONS) console.log('::error title=render-smoke::' + String(error?.message || error).replace(/[%\r\n]+/g, ' ').slice(0, 400));
-  throw error;
+  assert.ok(composition.burnCaptions, 'Smoke requires libass complex shaping; captions were not burned');
+  stage('PASS: 1080x1920 H.264/yuv420p, SAR 1:1, limited BT.709, AAC stereo 48 kHz, Bengali captions, loudness, full decode');
 } finally {
   if (!process.env.SMOKE_KEEP) fs.rmSync(jobDir, { recursive: true, force: true });
+  else stage(`Kept artifacts: ${path.relative(root, jobDir)}`);
 }

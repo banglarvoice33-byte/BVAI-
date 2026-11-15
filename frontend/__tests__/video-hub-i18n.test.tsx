@@ -37,6 +37,18 @@ describe('VideoHub locale rendering', () => {
     expect(html).toContain('aria-label="বাংলা শিরোনাম — Play video"');
   });
 
+  it('reserves a vertical frame before playing a direct short to avoid aspect-ratio layout shift', () => {
+    const html = renderToStaticMarkup(<VideoHub locale="en" videos={[{ id: 'short', title_en: 'Short', video_url: 'https://storage.example/a.mp4' }]} />);
+    expect(html).toContain('aspect-[9/16]');
+    expect(html).toContain('max-w-[420px]');
+    expect(html).toContain('Short — Play video');
+  });
+
+  it('retains a landscape frame for YouTube even when a direct URL is also present', () => {
+    const html = renderToStaticMarkup(<VideoHub locale="en" videos={[{ ...video, video_url: 'https://storage.example/a.mp4' }]} />);
+    expect(html).not.toContain('aspect-[9/16]');
+  });
+
   it('shows a localized empty state when no published videos are available', () => {
     const english = renderToStaticMarkup(<VideoHub locale="en" videos={[]} />);
     const bengali = renderToStaticMarkup(<VideoHub locale="bn" videos={[]} />);

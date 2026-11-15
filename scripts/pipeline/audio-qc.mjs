@@ -1,6 +1,8 @@
 // EBU R128 loudness measurement + two-pass normalisation helpers (ffmpeg loudnorm, no extra deps).
 // upload-supabase-video.mjs gates every render on -14 LUFS ±2 and true peak <= -1 dBTP.
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const execAsync = promisify(execFile);
 
 export const LOUDNESS_TARGET = Object.freeze({ I: -14, TP: -1.5, LRA: 11 });
 
@@ -25,6 +27,15 @@ export function measureAudio(file, target = LOUDNESS_TARGET) {
   return parseLoudnormJson(run.stderr);
 }
 
+/** Async measurement keeps the render lease heartbeat responsive during the first pass. */
+export async function measureAudioAsync(file, target = LOUDNESS_TARGET, { signal } = {}) {
+  const { stderr } = await execAsync('ffmpeg', [
+    '-nostdin', '-hide_banner', '-nostats', '-i', file, '-vn',
+    '-af', `loudnorm=I=${target.I}:TP=${target.TP}:LRA=${target.LRA}:print_format=json`, '-f', 'null', '-',
+  ], { encoding: 'utf8', timeout: 180000, maxBuffer: 16 * 1024 * 1024, signal });
+  return parseLoudnormJson(stderr);
+}
+
 /** Second-pass filter string that applies the measured values linearly (no pumping, exact target). */
 export function loudnormFilter(measured, target = LOUDNESS_TARGET) {
   return `loudnorm=I=${target.I}:TP=${target.TP}:LRA=${target.LRA}`
@@ -34,7 +45,9 @@ export function loudnormFilter(measured, target = LOUDNESS_TARGET) {
 }
 
 export function loudnessOk(measured) {
-  return Math.abs(Number(measured.input_i) + 14) <= 2 && Number(measured.input_tp) <= -1;
+  const integrated = Number(measured?.input_i); const peak = Number(measured?.input_tp);
+  return measured?.input_i != null && measured?.input_tp != null && Number.isFinite(integrated) && Number.isFinite(peak)
+    && Math.abs(integrated + 14) <= 2 && peak <= -1;
 }
 
 // ── Compatibility surface used by the repository's existing tests and callers (tests/repair-contract.test.mjs) ──
