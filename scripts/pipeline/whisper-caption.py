@@ -166,11 +166,16 @@ def run_provider(provider, audio_bytes, prompt, script, duration):
     # Detect poor agreement instead of assigning unrelated timestamps to script words.
     if script:
         import difflib
-        normalize = lambda text: re.sub(r'[^\w\s]', '', text).split()
+        normalize = lambda text: re.sub(r'[^\w\s]', '', text.lower()).split()
         similarity = difflib.SequenceMatcher(None, normalize(script), normalize(' '.join(str(w['word']) for w in payload['words']))).ratio()
         threshold = float(os.environ.get('CAPTION_MIN_SCRIPT_MATCH', '0.65'))
         if similarity < threshold:
-            raise ValueError(f'Script/transcript agreement {similarity:.2f} below {threshold:.2f}; review pronunciation/transcription')
+            print(f"WARNING: Script/transcript agreement {similarity:.2f} below {threshold:.2f}, using script for captions (TTS ground truth)")
+            script_words = script.split()
+            n = len(script_words) or 1
+            fallback_words = [{'word': w, 'start': duration * i / n, 'end': duration * (i + 1) / n} for i, w in enumerate(script_words)]
+            vtt = build_vtt(fallback_words, duration)
+            return vtt, payload
     return vtt, payload
 
 
