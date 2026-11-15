@@ -23,8 +23,10 @@ function startApi(handler) {
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString('latin1');
       const model = /name="model"\r\n\r\n([^\r]+)/.exec(body)?.[1];
-      seen.push({ ua: req.headers['user-agent'], model, auth: req.headers.authorization });
-      handler(req, res, { model, ua: req.headers['user-agent'] });
+      // The body is read as latin1, so the captured prompt's length is its UTF-8 byte length (what Groq measures).
+      const promptBytes = /name="prompt"\r\n\r\n([\s\S]*?)\r\n--BVAI/.exec(body)?.[1]?.length ?? null;
+      seen.push({ ua: req.headers['user-agent'], model, auth: req.headers.authorization, promptBytes });
+      handler(req, res, { model, ua: req.headers['user-agent'], promptBytes });
     });
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, seen, base: `http://127.0.0.1:${server.address().port}` })));
@@ -43,10 +45,10 @@ function runPython(base, dir, extraEnv = {}) {
     child.on('close', (code) => resolve({ code, stderr, stdout }));
   });
 }
-function fixture() {
+function fixture(scriptText) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'whisper-test-'));
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=4.2', '-c:a', 'libmp3lame', path.join(dir, 'a.mp3')]);
-  fs.writeFileSync(path.join(dir, 's.txt'), words.map((w) => w.word).join(' '), 'utf8');
+  fs.writeFileSync(path.join(dir, 's.txt'), scriptText ?? words.map((w) => w.word).join(' '), 'utf8');
   return dir;
 }
 
@@ -152,4 +154,58 @@ test('without any key the error says so', { skip: !hasFfmpeg }, async () => {
     assert.notEqual(result.code, 0);
     assert.match(result.stderr, /no caption API key/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Groq's real rule (observed in production): HTTP 400 when the prompt is over 896 characters, counted in UTF-8 bytes.
+const groqPromptRule = (limit = 896) => (req, res, { promptBytes }) => (promptBytes !== null && promptBytes > limit
+  ? (res.writeHead(400, { 'content-type': 'application/json' }), res.end(JSON.stringify({ error: { message: `prompt length must be ${limit} characters or fewer, but provided prompt contains ${promptBytes} character(s)`, type: 'invalid_request_error' } })))
+  : ok(res));
+const longBengaliScript = Array.from({ length: 120 }, (_, i) => words[i % words.length].word).join(' ') + ' ' + 'সংবাদ '.repeat(80); // > 1200 chars, ~3 bytes each
+
+test('a long Bengali script is fitted under Groq\'s byte limit instead of failing with HTTP 400', { skip: !hasFfmpeg }, async () => {
+  const api = await startApi(groqPromptRule());
+  const dir = fixture(longBengaliScript);
+  try {
+    assert.ok(Buffer.byteLength(longBengaliScript) > 2400, 'fixture must exceed the limit by a wide margin');
+    const result = await runPython(api.base, dir, { CAPTION_MIN_SCRIPT_MATCH: '0' });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(api.seen.length, 1, 'no retry needed');
+    assert.ok(api.seen[0].promptBytes > 0 && api.seen[0].promptBytes <= 800, `prompt was ${api.seen[0].promptBytes} bytes`);
+  } finally { api.server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('if a provider still rejects the prompt, captions are retried without it', { skip: !hasFfmpeg }, async () => {
+  const api = await startApi((req, res, { promptBytes }) => (promptBytes !== null
+    ? (res.writeHead(400), res.end('{"error":{"message":"prompt is not accepted here"}}')) : ok(res)));
+  const dir = fixture();
+  try {
+    const result = await runPython(api.base, dir);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(api.seen.map((x) => x.promptBytes !== null), [true, false]);
+  } finally { api.server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a non-auth failure (400) does not retry another key of the same API but still reaches OpenAI', { skip: !hasFfmpeg }, async () => {
+  const api = await startApi(byKey({
+    [KEY]: (_q, r) => { r.writeHead(400); r.end('{"error":{"message":"could not process audio"}}'); },
+    [VAULT_KEY]: (_q, r) => { r.writeHead(500); r.end('vault key must not be tried'); },
+    [OPENAI_KEY]: (_q, r) => ok(r),
+  }));
+  const dir = fixture();
+  try {
+    const result = await runPython(api.base, dir, { GROQ_API_KEY_VAULT: VAULT_KEY, CAPTION_OPENAI_API_KEY: OPENAI_KEY });
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(api.seen.map((x) => x.auth), [`Bearer ${KEY}`, `Bearer ${OPENAI_KEY}`]);
+  } finally { api.server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the failure text stays short and readable (fits the 300-char job error with 3 providers)', { skip: !hasFfmpeg }, async () => {
+  const api = await startApi((req, res) => { res.writeHead(401); res.end('{"error":{"message":"Invalid API Key provided and it is long enough to need trimming for the stored job error text"}}'); });
+  const dir = fixture();
+  try {
+    const result = await runPython(api.base, dir, { GROQ_API_KEY_VAULT: VAULT_KEY, CAPTION_OPENAI_API_KEY: OPENAI_KEY });
+    const line = result.stderr.replace(/^Caption failed:\s*/, '').trim();
+    assert.ok(line.length <= 3 * 95 + 6, `message was ${line.length} chars`);
+    assert.match(line, /Invalid API Key/);
+  } finally { api.server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

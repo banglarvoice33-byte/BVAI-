@@ -1,0 +1,17 @@
+# BVAI ধাপ ৩ডি — ক্যাপশনের আসল কারণ ঠিক: Groq HTTP 400 "prompt length must be 896 characters or fewer"
+# (বাংলা স্ক্রিপ্টের প্রম্পট UTF-8 বাইটে মাপা হয়; ১২০০ অক্ষর ≈ ৩৫০০ বাইট ছিল। এখন ≤৮০০ বাইটে কাটা হয়, প্রম্পট নিয়ে আপত্তি এলে প্রম্পট ছাড়া আবার চেষ্টা)
+# ফোল্ডার: ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-   (pwd দিয়ে মিলিয়ে নিন)
+# Supabase-এ কিছু চালাতে হবে না। --force নয়।
+
+cd ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-
+git status --short | head                  # পরিষ্কার থাকা উচিত
+git fetch origin
+git log --oneline 7f4730b..origin/main     # খালি থাকা উচিত; কিছু দেখালে থামুন ও আমাকে জানান
+git checkout -B stage3d-20261115 origin/main
+unzip -o ~/storage/downloads/BVAI-STAGE3D-whisper-prompt-fix-20261115.zip -d .
+git status --short                         # ঠিক ৩টি ফাইল + TERMUX_GIT_COMMANDS_STAGE3D.txt
+git add -A
+git commit -m "fix: Groq Whisper prompt limit (896 bytes), retry without prompt, compact multi-provider error"
+git push origin HEAD:main
+
+# push-এর পর আমাকে শুধু লিখুন "pushed"।

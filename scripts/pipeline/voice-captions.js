@@ -64,7 +64,7 @@ export async function synthesizeVoice(text, audioPath, subPath) {
       return { method: 'groq-whisper', timed: true };
     } catch (error) {
       const raw = error.stderr?.toString() || error.message;
-      whisperFailure = scrubSecrets(raw.replace(/^\s*Caption failed:\s*/, ''), 150);
+      whisperFailure = scrubSecrets(raw.replace(/^\s*Caption failed:\s*/, ''), 190);
       console.warn('   ⚠️ Actual-audio captioning failed: ' + scrubSecrets(raw, 400));
       fs.rmSync(subPath,{ force:true });
     }
@@ -85,7 +85,7 @@ export async function synthesizeVoice(text, audioPath, subPath) {
           fs.copyFileSync(edgeAudio,audioPath); fs.copyFileSync(edgeVtt,subPath);
           console.log('   ✅ Matched Edge voice + subtitles: ' + voice);
           return { method:'edge-matched', timed:true };
-        } catch (error) { const why = scrubSecrets(error.stderr?.toString() || error.message, 180); edgeFailure = `${voice.split('-')[2] || voice}: ${why.slice(0, 55)}`; console.warn(`   ⚠️ ${voice}: ${why}`); }
+        } catch (error) { const why = scrubSecrets(error.stderr?.toString() || error.message, 180); edgeFailure = `${voice.split('-')[2] || voice}: ${why.slice(0, 40)}`; console.warn(`   ⚠️ ${voice}: ${why}`); }
       }
     } finally { fs.rmSync(edgeAudio,{ force:true }); fs.rmSync(edgeVtt,{ force:true }); }
   }

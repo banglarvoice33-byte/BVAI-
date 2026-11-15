@@ -45,6 +45,7 @@ class ApiHttpError(Exception):
     def __init__(self, label, code, detail):
         super().__init__(f'{label} HTTP {code}: {detail}')
         self.code = code
+        self.detail = detail
 
 
 def redact(text, key, limit=200):
@@ -53,6 +54,33 @@ def redact(text, key, limit=200):
         text = text.replace(key, '[key]')
     text = re.sub(r'(?:gsk_|sk-)[A-Za-z0-9_-]{8,}', '[key]', text)
     text = re.sub(r'Bearer\s+\S+', 'Bearer [key]', text, flags=re.I)
+    return re.sub(r'\s+', ' ', text).strip()[:limit]
+
+
+# Groq rejects a Whisper prompt above 896 "characters" with HTTP 400 and measures it in UTF-8 bytes (a Bengali letter is
+# 3 bytes), so 1200 characters of Bengali script was ~3x over the limit. OpenAI keeps only the last 224 tokens anyway.
+PROMPT_MAX_BYTES = 800
+
+
+def fit_prompt(text, max_bytes=PROMPT_MAX_BYTES):
+    data = (text or '').strip().encode('utf8')
+    if len(data) <= max_bytes:
+        return data.decode('utf8')
+    cut = data[:max_bytes].decode('utf8', 'ignore')  # never splits a multi-byte character
+    head = cut.rsplit(None, 1)[0] if ' ' in cut else cut  # end on a whole word
+    return head.strip()
+
+
+def short_detail(text, limit=70):
+    """Reduce an API error body to its message so several provider failures fit the 300-char job error."""
+    text = str(text or '')
+    try:
+        body = text[text.index('{'):]
+        message = json.loads(body).get('error', {}).get('message')
+        if message:
+            text = str(message)
+    except Exception:
+        pass
     return re.sub(r'\s+', ' ', text).strip()[:limit]
 
 
@@ -94,7 +122,7 @@ def loopback_or(value, default):
 
 
 def providers_from_env(env):
-    """Ordered (label, base, key, models). Duplicate keys are tried once."""
+    """Ordered (label, base, key, models, family). Duplicate keys are tried once; family groups keys of one API."""
     groq_base = loopback_or(env.get('GROQ_API_BASE', ''), 'https://api.groq.com/openai/v1')
     openai_base = loopback_or(env.get('OPENAI_API_BASE', ''), 'https://api.openai.com/v1')
     out, seen = [], set()
@@ -103,19 +131,29 @@ def providers_from_env(env):
         key = (env.get(var) or '').strip()
         if key and key not in seen:
             seen.add(key)
-            out.append((label, groq_base, key, ('whisper-large-v3-turbo', 'whisper-large-v3')))
+            out.append((label, groq_base, key, ('whisper-large-v3-turbo', 'whisper-large-v3'), 'groq'))
     key = (env.get('CAPTION_OPENAI_API_KEY') or '').strip()
     if key and key not in seen:
-        out.append(('OpenAI', openai_base, key, ('whisper-1',)))
+        out.append(('OpenAI', openai_base, key, ('whisper-1',), 'openai'))
     return out
 
 
 def run_provider(provider, audio_bytes, prompt, script, duration):
-    label, base, key, models = provider
+    label, base, key, models, _family = provider
     payload, last_error = None, None
+    prompt = fit_prompt(prompt)
     for model in models:
         try:
-            payload = transcribe(label, base, key, model, audio_bytes, prompt)
+            try:
+                payload = transcribe(label, base, key, model, audio_bytes, prompt)
+            except ApiHttpError as error:
+                # The prompt only improves spelling; if a provider still rejects it, caption without it
+                # (the script-agreement check below keeps the result honest).
+                if error.code == 400 and prompt and 'prompt' in str(error).lower():
+                    prompt = ''
+                    payload = transcribe(label, base, key, model, audio_bytes, prompt)
+                else:
+                    raise
             break
         except ApiHttpError as error:
             last_error = error
@@ -155,13 +193,22 @@ def main():
     audio_bytes = audio.read_bytes()
     prompt = script[:1200] if script else ''
     failures = []
+    skip_families = set()
     for provider in providers:
-        label, _base, key, _models = provider
+        label, _base, key, _models, family = provider
+        if family in skip_families:
+            continue
         try:
             vtt, payload = run_provider(provider, audio_bytes, prompt, script, duration)
         except Exception as error:  # any provider problem (HTTP, network, bad timings) falls through to the next one
-            text = str(error)
-            failures.append(redact(text if text.startswith(label) else f'{label}: {text}', key, 150))
+            code = getattr(error, 'code', None)
+            if code not in (401, 403, 429):
+                skip_families.add(family)  # another key on the same API would fail identically (bad request, outage, timings)
+            if isinstance(error, ApiHttpError):
+                summary = f'{label} HTTP {error.code}: {short_detail(error.detail, 62)}'
+            else:
+                summary = f'{label}: {short_detail(error, 70)}'
+            failures.append(redact(summary, key, 95))
             continue
         output = Path(args.output)
         tmp = output.with_suffix(output.suffix + '.part')
