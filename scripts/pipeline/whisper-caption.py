@@ -138,6 +138,31 @@ def providers_from_env(env):
     return out
 
 
+
+def _sanitize_words(words, duration):
+    clean = []
+    prev_end = 0.0
+    try:
+        ordered = sorted(words or [], key=lambda x: float(x.get('start', 0) or 0))
+    except Exception:
+        ordered = words or []
+    for w in ordered:
+        try:
+            s = float(w.get('start', 0) or 0)
+            e = float(w.get('end', s + 0.05) or (s + 0.05))
+        except Exception:
+            continue
+        s = max(0.0, min(s, duration))
+        e = max(s + 0.05, min(e, duration))
+        if s < prev_end:
+            s = prev_end
+            e = max(s + 0.05, e)
+        if s >= duration:
+            break
+        clean.append({'word': str(w.get('word', '')), 'start': s, 'end': min(e, duration)})
+        prev_end = min(e, duration)
+    return clean
+
 def run_provider(provider, audio_bytes, prompt, script, duration):
     label, base, key, models, _family = provider
     payload, last_error = None, None
@@ -161,6 +186,7 @@ def run_provider(provider, audio_bytes, prompt, script, duration):
                 break
     if payload is None:
         raise last_error
+    payload['words'] = _sanitize_words(payload.get('words') or [], duration)
     vtt = build_vtt(payload.get('words'), duration)
     # Keep ASR text attached to ASR times. A prompt improves spelling but is not forced alignment.
     # Detect poor agreement instead of assigning unrelated timestamps to script words.
