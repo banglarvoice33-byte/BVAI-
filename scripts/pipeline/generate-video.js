@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { loadVaultEnv } from './load-vault-env.mjs';
-import { synthesizeVoice, audioDuration } from './voice-captions.js';
+import { synthesizeVoice, audioDuration, scrubSecrets } from './voice-captions.js';
 import { buildNarration, contentKey, scriptHash, sourceNameBn, CTA } from './video-script.mjs';
 import { normalizeBanglaForTts } from './bangla-normalize.mjs';
 import { candidates, download } from './media-sources.mjs';
@@ -220,6 +220,8 @@ export async function main() {
       return;
     } catch (error) {
       console.error('❌', error.message);
+      // GitHub annotations are readable through the API without downloading logs; secrets are scrubbed first.
+      if (process.env.GITHUB_ACTIONS) console.log('::error title=BVAI render failed::' + scrubSecrets(error.message, 300).replace(/[%\r\n]+/g, ' '));
       await failClaim(db, claim, error.message);
       if (!error.skip || requested) throw error;
       log('↪ trying the next eligible article');

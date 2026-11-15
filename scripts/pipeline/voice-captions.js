@@ -28,6 +28,18 @@ export function validateVtt(content, duration) {
   if (!count) throw new Error('No timed captions returned');
   return count;
 }
+// Secrets must never reach a log, a job row or a GitHub annotation: the message below is stored in the database.
+export function scrubSecrets(value, max = 160) {
+  return String(value ?? '')
+    .replace(/(?:gsk_|sk-)[A-Za-z0-9_-]{8,}/g, '[key]')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [key]')
+    .replace(/\s+/g, ' ').trim().slice(0, max);
+}
+// Any one of these enables the actual-audio (Whisper) caption path. GROQ_API_KEY_VAULT and CAPTION_OPENAI_API_KEY are
+// hydrated from the Supabase vault, so a stale GitHub secret can no longer block captions on its own.
+export function captionKeysPresent(env = process.env) {
+  return Boolean(env.GROQ_API_KEY || env.GROQ_API_KEY_VAULT || env.CAPTION_OPENAI_API_KEY);
+}
 export async function synthesizeVoice(text, audioPath, subPath) {
   const tmp = path.dirname(audioPath);
   fs.mkdirSync(tmp, { recursive: true });
@@ -43,14 +55,17 @@ export async function synthesizeVoice(text, audioPath, subPath) {
     console.warn('   ⚠️ Router unavailable: ' + error.message.slice(0, 200));
   }
   // Caption the ACTUAL router audio. Never reuse timings from another voice.
-  if (routerOk && process.env.GROQ_API_KEY) {
+  let whisperFailure = '';
+  if (routerOk && captionKeysPresent()) {
     try {
       execFileSync(process.env.PYTHON || 'python3', [path.join(HERE,'whisper-caption.py'),audioPath,subPath,'--script-file',textPath], { timeout: 150000, stdio: 'pipe' });
       const count = validateVtt(fs.readFileSync(subPath,'utf8'), audioDuration(audioPath));
       console.log(`   ✅ Groq Whisper captions: ${count} words`);
       return { method: 'groq-whisper', timed: true };
     } catch (error) {
-      console.warn('   ⚠️ Actual-audio captioning failed: ' + (error.stderr?.toString() || error.message).slice(0,300));
+      const raw = error.stderr?.toString() || error.message;
+      whisperFailure = scrubSecrets(raw.replace(/^\s*Caption failed:\s*/, ''), 150);
+      console.warn('   ⚠️ Actual-audio captioning failed: ' + scrubSecrets(raw, 400));
       fs.rmSync(subPath,{ force:true });
     }
   }
@@ -58,7 +73,8 @@ export async function synthesizeVoice(text, audioPath, subPath) {
   // When the router succeeded, repeated failing Edge requests are skipped by default.
   // Without a Groq key (or after a Whisper failure) the only accurate caption source is Edge TTS with ITS OWN audio.
   // Never block the newsroom on a missing paid key: use the matched Edge voice instead of failing.
-  if (!routerOk || process.env.EDGE_CAPTION_FALLBACK === 'true' || !process.env.GROQ_API_KEY || !fs.existsSync(subPath)) {
+  let edgeFailure = '';
+  if (!routerOk || process.env.EDGE_CAPTION_FALLBACK === 'true' || !captionKeysPresent() || !fs.existsSync(subPath)) {
     const edgeAudio = path.join(tmp,'edge_tmp.mp3'); const edgeVtt = path.join(tmp,'edge_tmp.vtt');
     try {
       for (const voice of ['bn-BD-PradeepNeural','bn-BD-NabanitaNeural']) {
@@ -69,12 +85,16 @@ export async function synthesizeVoice(text, audioPath, subPath) {
           fs.copyFileSync(edgeAudio,audioPath); fs.copyFileSync(edgeVtt,subPath);
           console.log('   ✅ Matched Edge voice + subtitles: ' + voice);
           return { method:'edge-matched', timed:true };
-        } catch (error) { console.warn(`   ⚠️ ${voice}: ${(error.stderr?.toString() || error.message).slice(0,180)}`); }
+        } catch (error) { const why = scrubSecrets(error.stderr?.toString() || error.message, 180); edgeFailure = `${voice.split('-')[2] || voice}: ${why.slice(0, 55)}`; console.warn(`   ⚠️ ${voice}: ${why}`); }
       }
     } finally { fs.rmSync(edgeAudio,{ force:true }); fs.rmSync(edgeVtt,{ force:true }); }
   }
   if (!routerOk) throw new Error('All TTS providers failed');
-  if (process.env.VIDEO_REQUIRE_CAPTIONS !== 'false') throw new Error('Accurate captions unavailable. Configure GROQ_API_KEY; video was NOT published.');
+  if (process.env.VIDEO_REQUIRE_CAPTIONS !== 'false') {
+    // The text is stored in video_generation_jobs.error_message (300 chars): lead with the real cause, not a generic hint.
+    const causes = [whisperFailure ? `whisper: ${whisperFailure}` : 'no caption API key reached the renderer', edgeFailure && `edge: ${edgeFailure}`].filter(Boolean).join('; ');
+    throw new Error(`Accurate captions unavailable (${causes}); video NOT published.`);
+  }
   fs.writeFileSync(subPath,'WEBVTT\n\n','utf8');
   return { method:'none', timed:false };
 }

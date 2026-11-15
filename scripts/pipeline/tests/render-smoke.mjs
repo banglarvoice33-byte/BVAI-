@@ -61,6 +61,10 @@ try {
   assert.ok(meta.duration >= 40 && meta.duration <= 120);
   for (const [name, t] of [['early', 1.0], ['mid', 20], ['end', 38]]) if (process.env.SMOKE_PREVIEW_DIR) ff('-ss', String(t), '-i', out, '-frames:v', '1', path.join(process.env.SMOKE_PREVIEW_DIR, `smoke-${name}.png`));
   console.log('PASS offline render: 1080x1920 H.264/AAC, burned Bengali captions, symbolic label, loudness gate, full decode');
+} catch (error) {
+  // Annotations can be read through the GitHub API without downloading the run log.
+  if (process.env.GITHUB_ACTIONS) console.log('::error title=render-smoke::' + String(error?.message || error).replace(/[%\r\n]+/g, ' ').slice(0, 400));
+  throw error;
 } finally {
   if (!process.env.SMOKE_KEEP) fs.rmSync(jobDir, { recursive: true, force: true });
 }

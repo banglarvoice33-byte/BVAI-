@@ -20,29 +20,37 @@ const DEFAULT_KEYS = [
   'NEWSROOM_INGEST_KEY',
 ];
 
-export async function loadVaultEnv(keys = DEFAULT_KEYS) {
+// env name -> vault service_name. Loaded even when a GitHub secret already set the plain name, so a stale secret cannot
+// shadow the vault key (captions try both). CAPTION_OPENAI_API_KEY is a distinct name on purpose: it enables only the
+// Whisper fallback and cannot switch on any other OpenAI code path.
+const VAULT_ALIASES = {
+  GROQ_API_KEY_VAULT: 'GROQ_API_KEY',
+  CAPTION_OPENAI_API_KEY: 'OPENAI_API_KEY',
+};
+
+export async function loadVaultEnv(keys = DEFAULT_KEYS, { aliases = VAULT_ALIASES, makeClient = createClient } = {}) {
   const url = process.env.SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !service) {
     console.warn('[vault] SUPABASE_URL/SERVICE_ROLE_KEY missing; skip vault hydrate');
     return { loaded: [], skipped: keys.slice() };
   }
-  const need = keys.filter((k) => !process.env[k]);
+  const need = [...keys.map((k) => [k, k]), ...Object.entries(aliases)].filter(([envName]) => !process.env[envName]);
   if (!need.length) {
     console.log('[vault] all requested keys already present in env');
     return { loaded: [], skipped: [] };
   }
-  const db = createClient(url, service, {
+  const db = makeClient(url, service, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const loaded = [];
   const missing = [];
-  for (const name of need) {
+  for (const [name, serviceName] of need) {
     try {
       const { data: row, error } = await db
         .from('api_vault')
         .select('key_encrypted')
-        .eq('service_name', name)
+        .eq('service_name', serviceName)
         .eq('environment', 'prod')
         .eq('is_active', true)
         .maybeSingle();
@@ -58,6 +66,8 @@ export async function loadVaultEnv(keys = DEFAULT_KEYS) {
         continue;
       }
       process.env[name] = plain;
+      // Vault values are not GitHub secrets, so the runner would not mask them by itself.
+      if (process.env.GITHUB_ACTIONS && plain.length >= 8) console.log('::add-mask::' + plain);
       loaded.push(name);
     } catch {
       missing.push(name);

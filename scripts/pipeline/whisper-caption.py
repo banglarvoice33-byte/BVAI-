@@ -41,21 +41,22 @@ def build_vtt(words, duration):
     return '\n'.join(cues) + '\n'
 
 
-class GroqHttpError(Exception):
-    def __init__(self, code, detail):
-        super().__init__(f'Groq HTTP {code}: {detail}')
+class ApiHttpError(Exception):
+    def __init__(self, label, code, detail):
+        super().__init__(f'{label} HTTP {code}: {detail}')
         self.code = code
 
 
-def redact(text, key):
+def redact(text, key, limit=200):
     text = str(text or '')
     if key:
         text = text.replace(key, '[key]')
-    text = re.sub(r'gsk_[A-Za-z0-9]+', '[key]', text)
-    return re.sub(r'\s+', ' ', text).strip()[:200]
+    text = re.sub(r'(?:gsk_|sk-)[A-Za-z0-9_-]{8,}', '[key]', text)
+    text = re.sub(r'Bearer\s+\S+', 'Bearer [key]', text, flags=re.I)
+    return re.sub(r'\s+', ' ', text).strip()[:limit]
 
 
-def transcribe(base, key, model, audio_bytes, prompt):
+def transcribe(label, base, key, model, audio_bytes, prompt):
     boundary = 'BVAI' + uuid.uuid4().hex
     fields = {'model': model, 'response_format': 'verbose_json', 'language': 'bn', 'timestamp_granularities[]': 'word', 'temperature': '0'}
     if prompt:
@@ -83,45 +84,45 @@ def transcribe(base, key, model, audio_bytes, prompt):
             detail = error.read(400).decode('utf8', 'replace')
         except Exception:
             detail = ''
-        raise GroqHttpError(error.code, f'{model}: {redact(detail, key) or "no body"}') from None
+        raise ApiHttpError(label, error.code, f'{model}: {redact(detail, key) or "no body"}') from None
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('audio')
-    parser.add_argument('output')
-    parser.add_argument('--script-file')
-    args = parser.parse_args()
-    key = os.environ.get('GROQ_API_KEY', '')
-    if not key:
-        raise ValueError('GROQ_API_KEY missing')
-    audio = Path(args.audio)
-    if not audio.is_file() or not 1024 <= audio.stat().st_size <= 24 * 1024 * 1024:
-        raise ValueError('Audio missing, too small or exceeds configured 24 MiB upload bound')
-    duration = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',str(audio)], text=True, timeout=15).strip())
-    if not math.isfinite(duration) or duration <= 0:
-        raise ValueError('Invalid audio duration')
-    script = Path(args.script_file).read_text(encoding='utf8') if args.script_file else ''
-    # Test hook only: a loopback base lets the offline test prove headers/fallback. Any other value is ignored so the
+def loopback_or(value, default):
+    # Test hook only: a loopback base lets the offline tests prove headers/fallback. Any other value is ignored so a
     # bearer key can never be redirected to a third-party host through the environment.
-    base = os.environ.get('GROQ_API_BASE', '')
-    if not base.startswith(('http://127.0.0.1:', 'http://localhost:')):
-        base = 'https://api.groq.com/openai/v1'
-    audio_bytes = audio.read_bytes()
-    prompt = script[:1200] if script else ''
-    payload = None
-    last_error = None
+    return value if value.startswith(('http://127.0.0.1:', 'http://localhost:')) else default
+
+
+def providers_from_env(env):
+    """Ordered (label, base, key, models). Duplicate keys are tried once."""
+    groq_base = loopback_or(env.get('GROQ_API_BASE', ''), 'https://api.groq.com/openai/v1')
+    openai_base = loopback_or(env.get('OPENAI_API_BASE', ''), 'https://api.openai.com/v1')
+    out, seen = [], set()
     # whisper-large-v3-turbo can be unavailable to an org/key (403/404) while whisper-large-v3 is allowed: try both.
-    for model in ('whisper-large-v3-turbo', 'whisper-large-v3'):
+    for label, var in (('Groq', 'GROQ_API_KEY'), ('Groq-vault', 'GROQ_API_KEY_VAULT')):
+        key = (env.get(var) or '').strip()
+        if key and key not in seen:
+            seen.add(key)
+            out.append((label, groq_base, key, ('whisper-large-v3-turbo', 'whisper-large-v3')))
+    key = (env.get('CAPTION_OPENAI_API_KEY') or '').strip()
+    if key and key not in seen:
+        out.append(('OpenAI', openai_base, key, ('whisper-1',)))
+    return out
+
+
+def run_provider(provider, audio_bytes, prompt, script, duration):
+    label, base, key, models = provider
+    payload, last_error = None, None
+    for model in models:
         try:
-            payload = transcribe(base, key, model, audio_bytes, prompt)
+            payload = transcribe(label, base, key, model, audio_bytes, prompt)
             break
-        except GroqHttpError as error:
+        except ApiHttpError as error:
             last_error = error
             if error.code not in (403, 404):
                 break
     if payload is None:
-        raise ValueError(str(last_error))
+        raise last_error
     vtt = build_vtt(payload.get('words'), duration)
     # Keep ASR text attached to ASR times. A prompt improves spelling but is not forced alignment.
     # Detect poor agreement instead of assigning unrelated timestamps to script words.
@@ -132,11 +133,43 @@ def main():
         threshold = float(os.environ.get('CAPTION_MIN_SCRIPT_MATCH', '0.65'))
         if similarity < threshold:
             raise ValueError(f'Script/transcript agreement {similarity:.2f} below {threshold:.2f}; review pronunciation/transcription')
-    output = Path(args.output)
-    tmp = output.with_suffix(output.suffix + '.part')
-    tmp.write_text(vtt, encoding='utf8')
-    tmp.replace(output)
-    print(f'Whisper VTT: {len(payload["words"])} actual-audio words')
+    return vtt, payload
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('audio')
+    parser.add_argument('output')
+    parser.add_argument('--script-file')
+    args = parser.parse_args()
+    providers = providers_from_env(os.environ)
+    if not providers:
+        raise ValueError('no caption API key (GROQ_API_KEY / GROQ_API_KEY_VAULT / CAPTION_OPENAI_API_KEY)')
+    audio = Path(args.audio)
+    if not audio.is_file() or not 1024 <= audio.stat().st_size <= 24 * 1024 * 1024:
+        raise ValueError('Audio missing, too small or exceeds configured 24 MiB upload bound')
+    duration = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',str(audio)], text=True, timeout=15).strip())
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Invalid audio duration')
+    script = Path(args.script_file).read_text(encoding='utf8') if args.script_file else ''
+    audio_bytes = audio.read_bytes()
+    prompt = script[:1200] if script else ''
+    failures = []
+    for provider in providers:
+        label, _base, key, _models = provider
+        try:
+            vtt, payload = run_provider(provider, audio_bytes, prompt, script, duration)
+        except Exception as error:  # any provider problem (HTTP, network, bad timings) falls through to the next one
+            text = str(error)
+            failures.append(redact(text if text.startswith(label) else f'{label}: {text}', key, 150))
+            continue
+        output = Path(args.output)
+        tmp = output.with_suffix(output.suffix + '.part')
+        tmp.write_text(vtt, encoding='utf8')
+        tmp.replace(output)
+        print(f'Whisper VTT ({label}): {len(payload["words"])} actual-audio words')
+        return
+    raise ValueError(' | '.join(failures))
 
 
 if __name__ == '__main__':

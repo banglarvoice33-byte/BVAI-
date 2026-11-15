@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ffmpeg 6.1.1 is what the render contract was validated on (ubuntu-latest is moving to Ubuntu 26)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,7 +68,7 @@ jobs:
           grep -q "FOR UPDATE OF a SKIP LOCKED" supabase/migrations/20261109060000_website_only_video_delivery.sql
 
   database-contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned: ffmpeg 6.1.1 is what the render contract was validated on (ubuntu-latest is moving to Ubuntu 26)
     services:
       postgres:
         image: postgres:16

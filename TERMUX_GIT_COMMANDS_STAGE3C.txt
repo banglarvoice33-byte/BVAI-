@@ -1,0 +1,17 @@
+# BVAI ধাপ ৩সি — ক্যাপশনে Groq-এর ওপর একক নির্ভরতা শেষ: Groq → Groq(ভল্ট কী) → OpenAI whisper-1 ফলব্যাক
+# + ব্যর্থতার আসল কারণ জবের error_message ও GitHub annotation-এ + ভিডিও workflow ubuntu-24.04-এ পিন
+# ফোল্ডার: ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-   (pwd দিয়ে মিলিয়ে নিন)
+# Supabase-এ কিছু চালাতে হবে না। --force নয়।
+
+cd ~/BVAI-CLEAN-PUSH/BVAI-/BVAI-
+git status --short | head                  # পরিষ্কার থাকা উচিত
+git fetch origin
+git log --oneline 9db064f..origin/main     # খালি থাকা উচিত; কিছু দেখালে থামুন ও আমাকে জানান
+git checkout -B stage3c-20261115 origin/main
+unzip -o ~/storage/downloads/BVAI-STAGE3C-captions-fallback-20261115.zip -d .
+git status --short                         # ঠিক ৯টি ফাইল (১টি নতুন টেস্ট) + TERMUX_GIT_COMMANDS_STAGE3C.txt
+git add -A
+git commit -m "fix: caption fallback Groq->Groq(vault)->OpenAI whisper-1, surface real failure cause, pin video workflows to ubuntu-24.04"
+git push origin HEAD:main
+
+# push-এর পর আমাকে শুধু লিখুন "pushed"। আমি নিজে ডিসপ্যাচার চালু করব, রান যাচাই করব, ফল জানাব।
