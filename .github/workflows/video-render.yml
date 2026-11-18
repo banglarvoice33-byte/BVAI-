@@ -35,7 +35,7 @@ jobs:
   gate:
     # Cheap probe (about 10 s): never spend render minutes when no slot/article is due.
     if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04 # pinned: ffmpeg 6.1.1 is what the render contract was validated on (ubuntu-latest is moving to Ubuntu 26)
+    runs-on: self-hosted
     timeout-minutes: 3
     outputs:
       due: ${{ steps.probe.outputs.due }}
@@ -60,7 +60,9 @@ jobs:
   render-and-upload:
     needs: gate
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.gate.outputs.due == 'true') }}
-    runs-on: ubuntu-24.04 # pinned: ffmpeg 6.1.1 is what the render contract was validated on (ubuntu-latest is moving to Ubuntu 26)
+    runs-on: self-hosted
+    container:
+      image: ubuntu:24.04
     timeout-minutes: 30
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
