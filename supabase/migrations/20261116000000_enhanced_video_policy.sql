@@ -54,11 +54,16 @@ GRANT EXECUTE ON FUNCTION public.approve_reporter_article(uuid,text) TO authenti
 
 -- Preserve the old stricter review for legacy clients without forcing it on the new newsroom policy.
 DO $$ BEGIN
- IF to_regprocedure('public.record_video_quality_review_v1(uuid,jsonb)') IS NULL THEN
+ IF to_regprocedure('public.record_video_quality_review_v1(uuid,jsonb)') IS NULL
+   AND to_regprocedure('public.record_video_quality_review(uuid,jsonb)') IS NOT NULL THEN
   ALTER FUNCTION public.record_video_quality_review(uuid,jsonb) RENAME TO record_video_quality_review_v1;
  END IF;
 END $$;
-REVOKE ALL ON FUNCTION public.record_video_quality_review_v1(uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+DO $$ BEGIN
+  IF to_regprocedure('public.record_video_quality_review_v1(uuid,jsonb)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.record_video_quality_review_v1(uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+  END IF;
+END $$;
 CREATE OR REPLACE FUNCTION public.record_video_quality_review(p_job_id uuid,p_review jsonb)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE actor uuid:=auth.uid(); asset public.video_delivery_assets%ROWTYPE; gate text;
