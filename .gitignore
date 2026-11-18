@@ -195,3 +195,7 @@ BVAI-download/
 __pycache__/
 *.pyc
 *.patch
+backup/
+backup_*.dump
+backup_*.sql
+migration_before.txt
