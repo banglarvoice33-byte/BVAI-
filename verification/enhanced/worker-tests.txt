@@ -1,0 +1,63 @@
+
+> banglar-voice-worker@1.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.1.0 [39m[90m/home/user/bvai/source/worker[39m
+
+[90mstderr[2m | src/agents/collector.test.ts[2m > [22m[2mcollector[2m > [22m[2mskips SSRF-prone feed URLs
+[22m[39m[collector] feed skipped { url: [32m'http://127.0.0.1/secret.xml'[39m, error: [32m'blocked_host'[39m }
+
+[90mstderr[2m | src/agents/collector.test.ts[2m > [22m[2mcollector[2m > [22m[2mdoes not crash when a feed fails
+[22m[39m[collector] feed_fetch_http_500 { url: [32m'https://example.com/feed.xml'[39m }
+
+ [32m✓[39m src/agents/collector.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 635[2mms[22m[39m
+   [32m✓[39m collector [2m(6)[22m
+     [33m[2m✓[22m[39m does not crash when a feed fails[33m 605[2mms[22m[39m
+ [32m✓[39m src/lib/publish-gate.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/http.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/agents/media.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+[90mstderr[2m | src/agents/rewriter.test.ts[2m > [22m[2mrewrite[2m > [22m[2mmarks fallback=true when no chat key is configured (why deterministicParaphrase is reached)
+[22m[39m[rewriter] ai_rewrite failure {
+  reason: [32m'missing_env:CHAT_AI_KEY'[39m,
+  model: [32m'gpt-test'[39m,
+  has_key: [33mfalse[39m,
+  base_host: [32m'api.example.com'[39m,
+  source_url: [32m'https://example.com/a'[39m
+}
+
+[90mstderr[2m | src/agents/rewriter.test.ts[2m > [22m[2mrewrite[2m > [22m[2mmarks fallback=true when the AI rewrite request fails
+[22m[39m[rewriter] ai_rewrite failure {
+  reason: [32m'ai_rewrite_failed:chat 500: upstream down'[39m,
+  model: [32m'gpt-test'[39m,
+  has_key: [33mtrue[39m,
+  base_host: [32m'api.example.com'[39m,
+  source_url: [32m'https://example.com/a'[39m
+}
+
+[90mstderr[2m | src/agents/rewriter.test.ts[2m > [22m[2mrewrite[2m > [22m[2mholds when the article page cannot be fetched
+[22m[39m[rewriter] ai_rewrite failure {
+  reason: [32m'source_fetch_failed'[39m,
+  model: [32m'gpt-test'[39m,
+  has_key: [33mtrue[39m,
+  base_host: [32m'api.example.com'[39m,
+  source_url: [32m'https://example.com/a'[39m
+}
+
+ [32m✓[39m src/agents/rewriter.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/agents/supervisor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/publish-gate-originality.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/ingest.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/pipeline.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/ssrf.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/agents/epaper-cron.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
+[2m   Start at [22m 21:36:48
+[2m   Duration [22m 2.71s[2m (tests 64%, import 27%, transform 5%, worker 4%)[22m
+
+[2m    Isolate [22m [33m12 workers spawned[39m[2m · ~105ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~1.15s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+

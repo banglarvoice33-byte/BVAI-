@@ -14,8 +14,8 @@ const fetcher=async url=>({bytes:Buffer.from('source evidence'),url,headers:new 
 test('trusted one-source policy is honored at fresh evidence fetch, not just precheck',async()=>{
  const evidence=await refreshEvidence(trusted,'website',{fetcher});assert.equal(evidence.filter(e=>e.sha256).length,1);
 });
-test('approved original content still needs two fresh evidence domains',async()=>{
- await assert.rejects(()=>refreshEvidence({...trusted,origin:'manual',human_verified:true,verification_status:'verified'},'website',{fetcher}),/Fewer than 2/);
+test('human-approved original content has no external multi-source quota; trusted-source fetch still required',async()=>{
+ const own=await refreshEvidence({...trusted,origin:'manual',human_verified:true,verification_status:'verified'},'website',{fetcher});assert.equal(own.filter(e=>e.sha256).length,1);
  await assert.rejects(()=>refreshEvidence(trusted,'website',{fetcher:async()=>{throw new Error('HTTP 503');}}),/Fewer than 1/);
 });
 test('automated licensing rejects NC ND SA unknown or misleading BY license URLs',()=>{

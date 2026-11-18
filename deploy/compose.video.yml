@@ -1,0 +1,24 @@
+# Explicit one-shot worker; no implicit scheduler or public ingress.
+services:
+  video-renderer:
+    build:
+      context: ..
+      dockerfile: deploy/video-renderer.Dockerfile
+    env_file: .env
+    environment:
+      VIDEO_PUBLISH_MODE: ${VIDEO_PUBLISH_MODE:-review}
+      VIDEO_DISTRIBUTION_WORKER_ENABLED: "false"
+    volumes:
+      - video-assets:/app/temp_assets
+      - video-logs:/app/logs
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 256
+    tmpfs: ["/tmp:size=512m,mode=1777"]
+volumes:
+  video-assets:
+  video-logs:

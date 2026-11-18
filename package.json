@@ -9,14 +9,23 @@
   },
   "type": "module",
   "scripts": {
-    "test": "node --test scripts/pipeline/tests/*.test.mjs scripts/pipeline/quality-v3/*.test.mjs",
+    "test": "node --test --test-concurrency=1 scripts/pipeline/tests/*.test.mjs scripts/pipeline/quality-v3/*.test.mjs",
     "test:captions": "python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'",
     "test:render": "node scripts/pipeline/tests/render-smoke.mjs",
     "check:imports": "node scripts/pipeline/check-imports.mjs",
     "check:publish-gate": "cmp -s worker/src/lib/publish-gate.ts frontend/lib/publish-gate.ts",
-    "preflight": "node scripts/pipeline/readiness.mjs"
+    "preflight": "node scripts/pipeline/readiness.mjs",
+    "test:review-db": "node scripts/pipeline/tests/database/test-video-review.mjs && node scripts/pipeline/tests/database/test-quality-approval.mjs",
+    "test:render-e2e": "node scripts/pipeline/tests/pipeline-e2e.mjs",
+    "check:review-gate": "cmp -s scripts/pipeline/quality-v3/review-contract.mjs frontend/lib/video-review.mjs",
+    "test:enhanced-db": "node scripts/pipeline/tests/database/test-enhanced-policy.mjs",
+    "test:all-pipeline": "npm test && npm run test:captions && npm run test:review-db && npm run test:enhanced-db",
+    "test:quality-repair": "node scripts/pipeline/tests/quality-repair-e2e.mjs && node scripts/pipeline/tests/quality-repair-integration.mjs"
   },
   "engines": {
     "node": ">=22.12"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16"
   }
 }

@@ -1,0 +1,1141 @@
+
+> banglarvoice-scripts@1.0.0 test:all-pipeline
+> npm test && npm run test:captions && npm run test:review-db && npm run test:enhanced-db
+
+
+> banglarvoice-scripts@1.0.0 test
+> node --test --test-concurrency=1 scripts/pipeline/tests/*.test.mjs scripts/pipeline/quality-v3/*.test.mjs
+
+TAP version 13
+# Subtest: complete per-claim human evidence contract validates
+ok 1 - complete per-claim human evidence contract validates
+  ---
+  duration_ms: 2.174281
+  type: 'test'
+  ...
+# Subtest: media/script changes invalidate previous review
+ok 2 - media/script changes invalidate previous review
+  ---
+  duration_ms: 1.082166
+  type: 'test'
+  ...
+# Subtest: same ownership on two news domains blocked
+ok 3 - same ownership on two news domains blocked
+  ---
+  duration_ms: 1.214371
+  type: 'test'
+  ...
+# Subtest: primary and supposedly independent outlet cannot share owner
+ok 4 - primary and supposedly independent outlet cannot share owner
+  ---
+  duration_ms: 0.484591
+  type: 'test'
+  ...
+# Subtest: Wikipedia and Commons cannot stand in for verified news
+ok 5 - Wikipedia and Commons cannot stand in for verified news
+  ---
+  duration_ms: 0.358451
+  type: 'test'
+  ...
+# Subtest: disputed claims never auto-approved
+ok 6 - disputed claims never auto-approved
+  ---
+  duration_ms: 0.237199
+  type: 'test'
+  ...
+# Subtest: fresh probe does not replace captured source evidence
+ok 7 - fresh probe does not replace captured source evidence
+  ---
+  duration_ms: 0.308367
+  type: 'test'
+  ...
+# Subtest: old or future review and capture timestamps blocked
+ok 8 - old or future review and capture timestamps blocked
+  ---
+  duration_ms: 0.332276
+  type: 'test'
+  ...
+# Subtest: unverified quote and missing human QC block
+ok 9 - unverified quote and missing human QC block
+  ---
+  duration_ms: 0.525542
+  type: 'test'
+  ...
+# Subtest: duplicate claim/source IDs blocked
+ok 10 - duplicate claim/source IDs blocked
+  ---
+  duration_ms: 1.008042
+  type: 'test'
+  ...
+# Subtest: Facebook edit requires reviewed 40–90 sec separate binding
+ok 11 - Facebook edit requires reviewed 40–90 sec separate binding
+  ---
+  duration_ms: 0.542688
+  type: 'test'
+  ...
+# Subtest: source URL cannot carry tokens or arbitrary protocols
+ok 12 - source URL cannot carry tokens or arbitrary protocols
+  ---
+  duration_ms: 0.342795
+  type: 'test'
+  ...
+# Subtest: 64-bit hamming and strict frame input
+ok 13 - 64-bit hamming and strict frame input
+  ---
+  duration_ms: 0.308481
+  type: 'test'
+  ...
+# Subtest: fingerprint matching only produces review candidates
+ok 14 - fingerprint matching only produces review candidates
+  ---
+  duration_ms: 0.416918
+  type: 'test'
+  ...
+# Subtest: Bengali grapheme chunks do not split conjuncts or normalization
+ok 15 - Bengali grapheme chunks do not split conjuncts or normalization
+  ---
+  duration_ms: 10.161623
+  type: 'test'
+  ...
+# Subtest: scene timing comes from actual matched word boundaries
+ok 16 - scene timing comes from actual matched word boundaries
+  ---
+  duration_ms: 0.354596
+  type: 'test'
+  ...
+# Subtest: overlap gaps missing scenes and unreviewed relevance blocked
+ok 17 - overlap gaps missing scenes and unreviewed relevance blocked
+  ---
+  duration_ms: 0.236795
+  type: 'test'
+  ...
+# Subtest: conservative caption safe zone checked geometrically
+ok 18 - conservative caption safe zone checked geometrically
+  ---
+  duration_ms: 0.224476
+  type: 'test'
+  ...
+# Subtest: feed probe alone never records successful ingestion
+ok 19 - feed probe alone never records successful ingestion
+  ---
+  duration_ms: 0.373242
+  type: 'test'
+  ...
+# Subtest: unknown counters are missing not invented zero
+ok 20 - unknown counters are missing not invented zero
+  ---
+  duration_ms: 0.163772
+  type: 'test'
+  ...
+# Subtest: accepted/unlisted response never counts as independent public verification
+ok 21 - accepted/unlisted response never counts as independent public verification
+  ---
+  duration_ms: 0.34043
+  type: 'test'
+  ...
+# Subtest: outbox age remains based on creation even after repeated attempts
+ok 22 - outbox age remains based on creation even after repeated attempts
+  ---
+  duration_ms: 0.225377
+  type: 'test'
+  ...
+# Subtest: preview escapes hostile claims and never embeds provider/signed URLs as assets
+ok 23 - preview escapes hostile claims and never embeds provider/signed URLs as assets
+  ---
+  duration_ms: 0.486956
+  type: 'test'
+  ...
+# Subtest: real FFmpeg transcode fingerprint and final-file loudness measurement
+ok 24 - real FFmpeg transcode fingerprint and final-file loudness measurement
+  ---
+  duration_ms: 1038.641529
+  type: 'test'
+  ...
+# Subtest: trusted source technical route does not invent a human review
+ok 25 - trusted source technical route does not invent a human review
+  ---
+  duration_ms: 1.576753
+  type: 'test'
+  ...
+# Subtest: reporter route always needs an unexpired asset-bound human approval
+ok 26 - reporter route always needs an unexpired asset-bound human approval
+  ---
+  duration_ms: 1.172264
+  type: 'test'
+  ...
+# Subtest: no policy basis, forged checks, changed hash, missing or stale report never publish
+ok 27 - no policy basis, forged checks, changed hash, missing or stale report never publish
+  ---
+  duration_ms: 0.613532
+  type: 'test'
+  ...
+# Subtest: every technical check is mandatory
+ok 28 - every technical check is mandatory
+  ---
+  duration_ms: 0.597441
+  type: 'test'
+  ...
+# Subtest: technical report rejects changed scripts, missing credit and incomplete rights metadata
+ok 29 - technical report rejects changed scripts, missing credit and incomplete rights metadata
+  ---
+  duration_ms: 0.31347
+  type: 'test'
+  ...
+# Subtest: source-only sentence selector rejects injected strings, duplicate, missing, unordered or negative IDs
+ok 30 - source-only sentence selector rejects injected strings, duplicate, missing, unordered or negative IDs
+  ---
+  duration_ms: 1.566319
+  type: 'test'
+  ...
+# Subtest: AI disabled means zero network calls and deterministic source-only narration
+ok 31 - AI disabled means zero network calls and deterministic source-only narration
+  ---
+  duration_ms: 2.454714
+  type: 'test'
+  ...
+# Subtest: configured multi-model planner falls back after malformed output and uses next provider
+ok 32 - configured multi-model planner falls back after malformed output and uses next provider
+  ---
+  duration_ms: 18.464002
+  type: 'test'
+  ...
+# Subtest: provider failures fall back without leaking response bodies or API keys
+ok 33 - provider failures fall back without leaking response bodies or API keys
+  ---
+  duration_ms: 0.909554
+  type: 'test'
+  ...
+# Subtest: credential endpoints cannot be redirected or configured to arbitrary hosts
+ok 34 - credential endpoints cannot be redirected or configured to arbitrary hosts
+  ---
+  duration_ms: 0.574248
+  type: 'test'
+  ...
+# Subtest: scene selection ranks licensed metadata matches and uses each asset once
+ok 35 - scene selection ranks licensed metadata matches and uses each asset once
+  ---
+  duration_ms: 1.610687
+  type: 'test'
+  ...
+# Subtest: unrelated or unlicensed B-roll is replaced with own symbolic graphics
+ok 36 - unrelated or unlicensed B-roll is replaced with own symbolic graphics
+  ---
+  duration_ms: 0.149542
+  type: 'test'
+  ...
+# Subtest: QC repair normalizes and reinspects instead of lowering thresholds
+ok 37 - QC repair normalizes and reinspects instead of lowering thresholds
+  ---
+  duration_ms: 0.50037
+  type: 'test'
+  ...
+# Subtest: QC repair budget is finite and exhaustion is explicit
+ok 38 - QC repair budget is finite and exhaustion is explicit
+  ---
+  duration_ms: 0.737195
+  type: 'test'
+  ...
+# Subtest: unknown failures and ownership loss never trigger blind repair
+ok 39 - unknown failures and ownership loss never trigger blind repair
+  ---
+  duration_ms: 0.260738
+  type: 'test'
+  ...
+# Subtest: abort halts QC before inspect or repair
+ok 40 - abort halts QC before inspect or repair
+  ---
+  duration_ms: 0.162395
+  type: 'test'
+  ...
+# Subtest: new human attestation needs explicit editorial action but no external three-source quota
+ok 41 - new human attestation needs explicit editorial action but no external three-source quota
+  ---
+  duration_ms: 0.574932
+  type: 'test'
+  ...
+# Subtest: pure-JS policy also rejects missing or out-of-range measured quality
+ok 42 - pure-JS policy also rejects missing or out-of-range measured quality
+  ---
+  duration_ms: 0.350439
+  type: 'test'
+  ...
+# Subtest: deterministic experiment bucketing never needs raw personal identifiers
+ok 43 - deterministic experiment bucketing never needs raw personal identifiers
+  ---
+  duration_ms: 2.311632
+  type: 'test'
+  ...
+# Subtest: draft and stopped experiments do not enroll readers
+ok 44 - draft and stopped experiments do not enroll readers
+  ---
+  duration_ms: 0.248809
+  type: 'test'
+  ...
+# Subtest: invalid or duplicate experiment variants and weights are rejected
+ok 45 - invalid or duplicate experiment variants and weights are rejected
+  ---
+  duration_ms: 0.256513
+  type: 'test'
+  ...
+# Subtest: stable allocation is approximately balanced across synthetic subjects
+ok 46 - stable allocation is approximately balanced across synthetic subjects
+  ---
+  duration_ms: 16.12701
+  type: 'test'
+  ...
+# Subtest: Wilson interval treats missing samples as unknown rather than zero performance
+ok 47 - Wilson interval treats missing samples as unknown rather than zero performance
+  ---
+  duration_ms: 0.336771
+  type: 'test'
+  ...
+# Subtest: experiment event adapter stores assignment only through server-side RPC
+ok 48 - experiment event adapter stores assignment only through server-side RPC
+  ---
+  duration_ms: 0.305391
+  type: 'test'
+  ...
+# Subtest: telemetry strips arbitrary payload keys and records only operational details
+ok 49 - telemetry strips arbitrary payload keys and records only operational details
+  ---
+  duration_ms: 0.345119
+  type: 'test'
+  ...
+# Subtest: telemetry loss is visible without pretending the video failed or was published
+ok 50 - telemetry loss is visible without pretending the video failed or was published
+  ---
+  duration_ms: 0.193567
+  type: 'test'
+  ...
+# Subtest: known repair exhaustion can yield the slot; unknown infrastructure failures still stop
+ok 51 - known repair exhaustion can yield the slot; unknown infrastructure failures still stop
+  ---
+  duration_ms: 0.817537
+  type: 'test'
+  ...
+# Subtest: Bengali scene topics bridge to English B-roll metadata without pretending event verification
+ok 52 - Bengali scene topics bridge to English B-roll metadata without pretending event verification
+  ---
+  duration_ms: 3.451758
+  type: 'test'
+  ...
+# Subtest: production plan separates display and spoken numbers; it cannot approve itself
+ok 53 - production plan separates display and spoken numbers; it cannot approve itself
+  ---
+  duration_ms: 5.927929
+  type: 'test'
+  ...
+# Subtest: planner flags sensitive content and rejects headline-only filler
+ok 54 - planner flags sensitive content and rejects headline-only filler
+  ---
+  duration_ms: 1.665348
+  type: 'test'
+  ...
+# Subtest: director and voice instructions preserve uncertainty and prohibit invented footage
+ok 55 - director and voice instructions preserve uncertainty and prohibit invented footage
+  ---
+  duration_ms: 0.117385
+  type: 'test'
+  ...
+# Subtest: scene plan preserves actual speech gaps, never equal-word interpolation
+ok 56 - scene plan preserves actual speech gaps, never equal-word interpolation
+  ---
+  duration_ms: 1.009926
+  type: 'test'
+  ...
+# Subtest: scene plan rejects malformed timelines
+ok 57 - scene plan rejects malformed timelines
+  ---
+  duration_ms: 0.435742
+  type: 'test'
+  ...
+# Subtest: story failure advances to a replacement without losing gates
+ok 58 - story failure advances to a replacement without losing gates
+  ---
+  duration_ms: 0.710774
+  type: 'test'
+  ...
+# Subtest: infrastructure and lease failures stop rather than burning another story
+ok 59 - infrastructure and lease failures stop rather than burning another story
+  ---
+  duration_ms: 0.411893
+  type: 'test'
+  ...
+# Subtest: failure acknowledgement is required before a replacement claim
+ok 60 - failure acknowledgement is required before a replacement claim
+  ---
+  duration_ms: 0.331275
+  type: 'test'
+  ...
+# Subtest: duplicate failed articles and bounded capacity cannot loop forever
+ok 61 - duplicate failed articles and bounded capacity cannot loop forever
+  ---
+  duration_ms: 0.511149
+  type: 'test'
+  ...
+# Subtest: no eligible replacement is reported honestly, not treated as published
+ok 62 - no eligible replacement is reported honestly, not treated as published
+  ---
+  duration_ms: 0.394757
+  type: 'test'
+  ...
+# Subtest: Azure SSML cannot be injected or redirect a credential to an arbitrary domain
+ok 63 - Azure SSML cannot be injected or redirect a credential to an arbitrary domain
+  ---
+  duration_ms: 0.421097
+  type: 'test'
+  ...
+# Subtest: Azure uses official endpoint and validates binary response without paid generation
+ok 64 - Azure uses official endpoint and validates binary response without paid generation
+  ---
+  duration_ms: 18.010853
+  type: 'test'
+  ...
+# Subtest: ElevenLabs rejects the old non-Bengali model and selects an explicit supported model
+ok 65 - ElevenLabs rejects the old non-Bengali model and selects an explicit supported model
+  ---
+  duration_ms: 0.143185
+  type: 'test'
+  ...
+# Subtest: public delivery defaults are review-first and unofficial downgrade is opt-in only
+ok 66 - public delivery defaults are review-first and unofficial downgrade is opt-in only
+  ---
+  duration_ms: 0.45906
+  type: 'test'
+  ...
+# Subtest: narration uses only source sentences, credits the source and always ends with the mandatory closing line
+ok 67 - narration uses only source sentences, credits the source and always ends with the mandatory closing line
+  ---
+  duration_ms: 4.32825
+  type: 'test'
+  ...
+# Subtest: narration budget cuts at sentence boundaries and reports whether the whole article fit
+ok 68 - narration budget cuts at sentence boundaries and reports whether the whole article fit
+  ---
+  duration_ms: 2.137984
+  type: 'test'
+  ...
+# Subtest: TTS chunks preserve spaces and keep every word within the bound
+ok 69 - TTS chunks preserve spaces and keep every word within the bound
+  ---
+  duration_ms: 0.695188
+  type: 'test'
+  ...
+# Subtest: timestamp milliseconds carry to the next minute
+ok 70 - timestamp milliseconds carry to the next minute
+  ---
+  duration_ms: 0.147227
+  type: 'test'
+  ...
+# Subtest: VTT validator rejects empty, overlapping and out-of-range captions
+ok 71 - VTT validator rejects empty, overlapping and out-of-range captions
+  ---
+  duration_ms: 0.617479
+  type: 'test'
+  ...
+# Subtest: Sarvam request uses current v3 fields, decodes and normalizes real bytes offline
+ok 72 - Sarvam request uses current v3 fields, decodes and normalizes real bytes offline
+  ---
+  duration_ms: 166.953967
+  type: 'test'
+  ...
+# Subtest: planning records excerpts honestly, normalizes spoken numbers and cannot approve itself
+ok 73 - planning records excerpts honestly, normalizes spoken numbers and cannot approve itself
+  ---
+  duration_ms: 4.912137
+  type: 'test'
+  ...
+# Subtest: sensitive stories are marked and incomplete content cannot pass planning
+ok 74 - sensitive stories are marked and incomplete content cannot pass planning
+  ---
+  duration_ms: 2.019128
+  type: 'test'
+  ...
+# Subtest: scene planning uses actual-audio cue boundaries, not evenly divided words
+ok 75 - scene planning uses actual-audio cue boundaries, not evenly divided words
+  ---
+  duration_ms: 0.625299
+  type: 'test'
+  ...
+# Subtest: render cuts use measured scene starts and preserve exact total frame count
+ok 76 - render cuts use measured scene starts and preserve exact total frame count
+  ---
+  duration_ms: 0.806243
+  type: 'test'
+  ...
+# Subtest: unknown infrastructure failures stop, known content defects allow replacement
+ok 77 - unknown infrastructure failures stop, known content defects allow replacement
+  ---
+  duration_ms: 0.805889
+  type: 'test'
+  ...
+# Subtest: one bad story does not cancel a successful replacement and quality is unchanged
+ok 78 - one bad story does not cancel a successful replacement and quality is unchanged
+  ---
+  duration_ms: 0.405675
+  type: 'test'
+  ...
+# Subtest: failure acknowledgement error prevents another claim
+ok 79 - failure acknowledgement error prevents another claim
+  ---
+  duration_ms: 0.337443
+  type: 'test'
+  ...
+# Subtest: duplicate replacement story is refused without paying twice
+ok 80 - duplicate replacement story is refused without paying twice
+  ---
+  duration_ms: 0.255927
+  type: 'test'
+  ...
+# Subtest: empty queue and exhausted budget are observable, never false success
+ok 81 - empty queue and exhausted budget are observable, never false success
+  ---
+  duration_ms: 0.476651
+  type: 'test'
+  ...
+# Subtest: Azure adapter escapes script XML and pins region to official host
+ok 82 - Azure adapter escapes script XML and pins region to official host
+  ---
+  duration_ms: 0.720778
+  type: 'test'
+  ...
+# Subtest: Azure network contract is checked offline without speech generation
+ok 83 - Azure network contract is checked offline without speech generation
+  ---
+  duration_ms: 18.629729
+  type: 'test'
+  ...
+# Subtest: ElevenLabs Bengali path rejects the old unsupported v2 model
+ok 84 - ElevenLabs Bengali path rejects the old unsupported v2 model
+  ---
+  duration_ms: 0.267848
+  type: 'test'
+  ...
+# Subtest: publication defaults are review-only and Edge downgrade is explicit opt-in
+ok 85 - publication defaults are review-only and Edge downgrade is explicit opt-in
+  ---
+  duration_ms: 0.915322
+  type: 'test'
+  ...
+# Subtest: Bangla complete irregular 0–99 table and safe large grouping
+ok 86 - Bangla complete irregular 0–99 table and safe large grouping
+  ---
+  duration_ms: 1.30514
+  type: 'test'
+  ...
+# Subtest: Normalizer handles decimal percent mixed digits money phone and valid date
+ok 87 - Normalizer handles decimal percent mixed digits money phone and valid date
+  ---
+  duration_ms: 1.070906
+  type: 'test'
+  ...
+# Subtest: Normalizer preserves numeric punctuation and expands ordinals / ISO dates
+ok 88 - Normalizer preserves numeric punctuation and expands ordinals / ISO dates
+  ---
+  duration_ms: 0.448911
+  type: 'test'
+  ...
+# Subtest: Normalizer rejects invalid dates grouping empty text and preserves display-language conjuncts
+ok 89 - Normalizer rejects invalid dates grouping empty text and preserves display-language conjuncts
+  ---
+  duration_ms: 0.445542
+  type: 'test'
+  ...
+# Subtest: Editorial gate blocks unverified or English content; approved reporter work has no external source quota
+ok 90 - Editorial gate blocks unverified or English content; approved reporter work has no external source quota
+  ---
+  duration_ms: 0.713166
+  type: 'test'
+  ...
+# Subtest: Near duplicate token overlap catches obvious recycle without claiming semantic proof
+ok 91 - Near duplicate token overlap catches obvious recycle without claiming semantic proof
+  ---
+  duration_ms: 2.258582
+  type: 'test'
+  ...
+# Subtest: Reject private and mapped IPv4/IPv6 source destinations
+ok 92 - Reject private and mapped IPv4/IPv6 source destinations
+  ---
+  duration_ms: 5.547538
+  type: 'test'
+  ...
+# Subtest: Targets disabled by default, explicit account required and unsupported platforms rejected
+ok 93 - Targets disabled by default, explicit account required and unsupported platforms rejected
+  ---
+  duration_ms: 0.891684
+  type: 'test'
+  ...
+# Subtest: Ambiguous side effects go to reconciliation, never automatic fresh upload
+ok 94 - Ambiguous side effects go to reconciliation, never automatic fresh upload
+  ---
+  duration_ms: 0.343503
+  type: 'test'
+  ...
+# Subtest: YouTube persists session BEFORE bytes, verifies processing and account
+ok 95 - YouTube persists session BEFORE bytes, verifies processing and account
+  ---
+  duration_ms: 20.275423
+  type: 'test'
+  ...
+# Subtest: YouTube resume after lost response reuses completed session without creating or uploading again
+ok 96 - YouTube resume after lost response reuses completed session without creating or uploading again
+  ---
+  duration_ms: 0.775176
+  type: 'test'
+  ...
+# Subtest: YouTube uncertain initiation never silently opens another session
+ok 97 - YouTube uncertain initiation never silently opens another session
+  ---
+  duration_ms: 0.322946
+  type: 'test'
+  ...
+# Subtest: YouTube partial resume starts at acknowledged byte offset
+ok 98 - YouTube partial resume starts at acknowledged byte offset
+  ---
+  duration_ms: 1.063389
+  type: 'test'
+  ...
+# Subtest: Facebook API duration gate blocks 120s before any request
+ok 99 - Facebook API duration gate blocks 120s before any request
+  ---
+  duration_ms: 0.37141
+  type: 'test'
+  ...
+# Subtest: Facebook confirmed ID is reconciled without issuing another finish
+ok 100 - Facebook confirmed ID is reconciled without issuing another finish
+  ---
+  duration_ms: 0.882224
+  type: 'test'
+  ...
+# Subtest: Instagram PUBLISHED container with missing receipt never gets republished
+ok 101 - Instagram PUBLISHED container with missing receipt never gets republished
+  ---
+  duration_ms: 1.63451
+  type: 'test'
+  ...
+# Subtest: TUS persists session and resumes same URL using acknowledged offsets
+ok 102 - TUS persists session and resumes same URL using acknowledged offsets
+  ---
+  duration_ms: 1.749499
+  type: 'test'
+  ...
+# Subtest: Provider processing polls are safely retryable using the same checkpoint
+ok 103 - Provider processing polls are safely retryable using the same checkpoint
+  ---
+  duration_ms: 0.141328
+  type: 'test'
+  ...
+# Subtest: Recovery archive encrypts/authenticates roundtrip and rejects tampering
+ok 104 - Recovery archive encrypts/authenticates roundtrip and rejects tampering
+  ---
+  duration_ms: 131.866954
+  type: 'test'
+  ...
+# Subtest: heartbeat rejects malformed claims before filesystem work
+ok 105 - heartbeat rejects malformed claims before filesystem work
+  ---
+  duration_ms: 1.261379
+  type: 'test'
+  ...
+# Subtest: heartbeat coalesces overlapping renewals
+ok 106 - heartbeat coalesces overlapping renewals
+  ---
+  duration_ms: 0.672265
+  type: 'test'
+  ...
+# Subtest: heartbeat fails closed on rejected ownership or missing RPC
+ok 107 - heartbeat fails closed on rejected ownership or missing RPC
+  ---
+  duration_ms: 1.579085
+  type: 'test'
+  ...
+# Subtest: heartbeat fails closed on rejected ownership or missing RPC
+ok 108 - heartbeat fails closed on rejected ownership or missing RPC
+  ---
+  duration_ms: 0.305677
+  type: 'test'
+  ...
+# Subtest: heartbeat bounds a hung RPC and aborts render work
+ok 109 - heartbeat bounds a hung RPC and aborts render work
+  ---
+  duration_ms: 11.565347
+  type: 'test'
+  ...
+# Subtest: periodic heartbeat keeps running during asynchronous work and stops cleanly
+ok 110 - periodic heartbeat keeps running during asynchronous work and stops cleanly
+  ---
+  duration_ms: 50.322522
+  type: 'test'
+  ...
+# Subtest: periodic heartbeat catches fulfilled Supabase errors without unhandled rejections
+ok 111 - periodic heartbeat catches fulfilled Supabase errors without unhandled rejections
+  ---
+  duration_ms: 31.144524
+  type: 'test'
+  ...
+# Subtest: headline wrapping bounds single unbroken words and URLs, including one-line titles
+ok 112 - headline wrapping bounds single unbroken words and URLs, including one-line titles
+  ---
+  duration_ms: 5.511103
+  type: 'test'
+  ...
+# Subtest: headline wrapping handles empty titles and invalid budgets
+ok 113 - headline wrapping handles empty titles and invalid budgets
+  ---
+  duration_ms: 2.479413
+  type: 'test'
+  ...
+# Subtest: rendering rejects invalid duration/kind before spawning FFmpeg
+ok 114 - rendering rejects invalid duration/kind before spawning FFmpeg
+  ---
+  duration_ms: 1.07935
+  type: 'test'
+  ...
+# Archived verified terminal local claim; a new eligible story may now be claimed.
+# Subtest: trusted one-source policy is honored at fresh evidence fetch, not just precheck
+ok 115 - trusted one-source policy is honored at fresh evidence fetch, not just precheck
+  ---
+  duration_ms: 18.50394
+  type: 'test'
+  ...
+# Subtest: human-approved original content has no external multi-source quota; trusted-source fetch still required
+ok 116 - human-approved original content has no external multi-source quota; trusted-source fetch still required
+  ---
+  duration_ms: 0.748306
+  type: 'test'
+  ...
+# Subtest: automated licensing rejects NC ND SA unknown or misleading BY license URLs
+ok 117 - automated licensing rejects NC ND SA unknown or misleading BY license URLs
+  ---
+  duration_ms: 0.534612
+  type: 'test'
+  ...
+# Subtest: Commons downloader is bounded reserves original hash and records symbolic video attribution
+ok 118 - Commons downloader is bounded reserves original hash and records symbolic video attribution
+  ---
+  duration_ms: 1.663735
+  type: 'test'
+  ...
+# Subtest: cleanup deletes only checksum-matched downloaded clips, not output or escaped paths
+ok 119 - cleanup deletes only checksum-matched downloaded clips, not output or escaped paths
+  ---
+  duration_ms: 0.801657
+  type: 'test'
+  ...
+# Subtest: narration always retains exact closing CTA and never invents date or impacts
+ok 120 - narration always retains exact closing CTA and never invents date or impacts
+  ---
+  duration_ms: 2.993137
+  type: 'test'
+  ...
+# Subtest: loudness parser rejects silence and missing measurement
+ok 121 - loudness parser rejects silence and missing measurement
+  ---
+  duration_ms: 0.319905
+  type: 'test'
+  ...
+# Subtest: local coverage slots use Dhaka time independent of host timezone
+ok 122 - local coverage slots use Dhaka time independent of host timezone
+  ---
+  duration_ms: 5.096729
+  type: 'test'
+  ...
+# Subtest: Commons WebM/OGV inputs are motion streams, never image loop arguments
+ok 123 - Commons WebM/OGV inputs are motion streams, never image loop arguments
+  ---
+  duration_ms: 0.446809
+  type: 'test'
+  ...
+# Subtest: terminal failed local claim is archived without deleting evidence, live lease stays blocked
+ok 124 - terminal failed local claim is archived without deleting evidence, live lease stays blocked
+  ---
+  duration_ms: 2.063046
+  type: 'test'
+  ...
+# Subtest: credited trusted aggregated news passes without a human, with one source domain
+ok 125 - credited trusted aggregated news passes without a human, with one source domain
+  ---
+  duration_ms: 1.306042
+  type: 'test'
+  ...
+# Subtest: reporter / field-report / manual / original content stays human-gated
+ok 126 - reporter / field-report / manual / original content stays human-gated
+  ---
+  duration_ms: 0.407661
+  type: 'test'
+  ...
+# Subtest: approved reporter content passes only with BOTH human_verified and verified, without a second external news-source quota
+ok 127 - approved reporter content passes only with BOTH human_verified and verified, without a second external news-source quota
+  ---
+  duration_ms: 0.228805
+  type: 'test'
+  ...
+# Subtest: fails closed on incomplete or unsafe trusted-source articles
+ok 128 - fails closed on incomplete or unsafe trusted-source articles
+  ---
+  duration_ms: 0.209692
+  type: 'test'
+  ...
+# Subtest: a symbolic/fallback-image article is still eligible (image rights are labelled, not a news-trust problem)
+ok 129 - a symbolic/fallback-image article is still eligible (image rights are labelled, not a news-trust problem)
+  ---
+  duration_ms: 0.160189
+  type: 'test'
+  ...
+# Subtest: freshness and Bengali content requirements are unchanged
+ok 130 - freshness and Bengali content requirements are unchanged
+  ---
+  duration_ms: 0.294732
+  type: 'test'
+  ...
+# Subtest: delivery metadata accepts the exact SDR master contract
+ok 131 - delivery metadata accepts the exact SDR master contract
+  ---
+  duration_ms: 1.27454
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects full range JPEG YUV with actionable diagnostics
+ok 132 - delivery metadata rejects full range JPEG YUV with actionable diagnostics
+  ---
+  duration_ms: 0.568125
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects wrong dimensions with actionable diagnostics
+ok 133 - delivery metadata rejects wrong dimensions with actionable diagnostics
+  ---
+  duration_ms: 0.129484
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects missing video codec with actionable diagnostics
+ok 134 - delivery metadata rejects missing video codec with actionable diagnostics
+  ---
+  duration_ms: 0.110048
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects Termux fractional SAR with actionable diagnostics
+ok 135 - delivery metadata rejects Termux fractional SAR with actionable diagnostics
+  ---
+  duration_ms: 0.227651
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects unspecified SAR with actionable diagnostics
+ok 136 - delivery metadata rejects unspecified SAR with actionable diagnostics
+  ---
+  duration_ms: 0.108592
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects NaN frame rate with actionable diagnostics
+ok 137 - delivery metadata rejects NaN frame rate with actionable diagnostics
+  ---
+  duration_ms: 0.181636
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects infinite frame rate with actionable diagnostics
+ok 138 - delivery metadata rejects infinite frame rate with actionable diagnostics
+  ---
+  duration_ms: 0.09796
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects malformed frame rate with actionable diagnostics
+ok 139 - delivery metadata rejects malformed frame rate with actionable diagnostics
+  ---
+  duration_ms: 0.251342
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects wrong frame rate with actionable diagnostics
+ok 140 - delivery metadata rejects wrong frame rate with actionable diagnostics
+  ---
+  duration_ms: 0.434759
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects full range signaling with actionable diagnostics
+ok 141 - delivery metadata rejects full range signaling with actionable diagnostics
+  ---
+  duration_ms: 0.172515
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects unknown range with actionable diagnostics
+ok 142 - delivery metadata rejects unknown range with actionable diagnostics
+  ---
+  duration_ms: 0.090683
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects unknown matrix with actionable diagnostics
+ok 143 - delivery metadata rejects unknown matrix with actionable diagnostics
+  ---
+  duration_ms: 0.105901
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects missing/extra streams, mono and wrong sample rate
+ok 144 - delivery metadata rejects missing/extra streams, mono and wrong sample rate
+  ---
+  duration_ms: 0.315058
+  type: 'test'
+  ...
+# Subtest: delivery metadata rejects invalid durations and truncated narration
+ok 145 - delivery metadata rejects invalid durations and truncated narration
+  ---
+  duration_ms: 0.31085
+  type: 'test'
+  ...
+# Subtest: rational parser rejects malformed and nonfinite values
+ok 146 - rational parser rejects malformed and nonfinite values
+  ---
+  duration_ms: 0.248512
+  type: 'test'
+  ...
+# Subtest: loudness gate fails closed on silence/nonfinite/missing readings
+ok 147 - loudness gate fails closed on silence/nonfinite/missing readings
+  ---
+  duration_ms: 0.197951
+  type: 'test'
+  ...
+# Subtest: only CC0 / public domain / plain CC BY licences are usable for symbolic B-roll
+ok 148 - only CC0 / public domain / plain CC BY licences are usable for symbolic B-roll
+  ---
+  duration_ms: 1.400385
+  type: 'test'
+  ...
+# Subtest: queries are topical, bounded and always end with a safe generic fallback
+ok 149 - queries are topical, bounded and always end with a safe generic fallback
+  ---
+  duration_ms: 0.880713
+  type: 'test'
+  ...
+# Subtest: source names are spoken in Bengali; unknown Latin names are never mispronounced
+ok 150 - source names are spoken in Bengali; unknown Latin names are never mispronounced
+  ---
+  duration_ms: 0.500595
+  type: 'test'
+  ...
+# Subtest: story identity is stable across punctuation and case, scripts hash differently
+ok 151 - story identity is stable across punctuation and case, scripts hash differently
+  ---
+  duration_ms: 2.902104
+  type: 'test'
+  ...
+# Subtest: long sentences are split at commas, short fragments dropped
+ok 152 - long sentences are split at commas, short fragments dropped
+  ---
+  duration_ms: 0.859604
+  type: 'test'
+  ...
+# Subtest: slot plan covers the whole timeline with at least three cuts and never more slots than assets
+ok 153 - slot plan covers the whole timeline with at least three cuts and never more slots than assets
+  ---
+  duration_ms: 0.344463
+  type: 'test'
+  ...
+# Subtest: headline wrapping never exceeds its line budget
+ok 154 - headline wrapping never exceeds its line budget
+  ---
+  duration_ms: 0.878744
+  type: 'test'
+  ...
+# Subtest: loudness helpers parse ffmpeg output and enforce the upload gate
+ok 155 - loudness helpers parse ffmpeg output and enforce the upload gate
+  ---
+  duration_ms: 0.648696
+  type: 'test'
+  ...
+# [vault] hydrated 2 keys
+# Subtest: scrubSecrets removes Groq/OpenAI keys and bearer tokens and bounds the length
+ok 156 - scrubSecrets removes Groq/OpenAI keys and bearer tokens and bounds the length
+  ---
+  duration_ms: 1.23551
+  type: 'test'
+  ...
+# Subtest: captionKeysPresent accepts any of the three key variables
+ok 157 - captionKeysPresent accepts any of the three key variables
+  ---
+  duration_ms: 0.219091
+  type: 'test'
+  ...
+# Subtest: vault hydrate loads GROQ_API_KEY_VAULT / CAPTION_OPENAI_API_KEY even when GROQ_API_KEY is already set
+ok 158 - vault hydrate loads GROQ_API_KEY_VAULT / CAPTION_OPENAI_API_KEY even when GROQ_API_KEY is already set
+  ---
+  duration_ms: 1.90702
+  type: 'test'
+  ...
+# Subtest: sends a descriptive User-Agent (Cloudflare blocks the urllib default)
+ok 159 - sends a descriptive User-Agent (Cloudflare blocks the urllib default)
+  ---
+  duration_ms: 227.040224
+  type: 'test'
+  ...
+# Subtest: falls back to whisper-large-v3 when the turbo model is forbidden
+ok 160 - falls back to whisper-large-v3 when the turbo model is forbidden
+  ---
+  duration_ms: 222.158151
+  type: 'test'
+  ...
+# Subtest: surfaces the API error body but never the key; stops on 401
+ok 161 - surfaces the API error body but never the key; stops on 401
+  ---
+  duration_ms: 230.082994
+  type: 'test'
+  ...
+# Subtest: ignores a non-loopback GROQ_API_BASE / OPENAI_API_BASE so a key cannot be redirected
+ok 162 - ignores a non-loopback GROQ_API_BASE / OPENAI_API_BASE so a key cannot be redirected
+  ---
+  duration_ms: 0.355682
+  type: 'test'
+  ...
+# Subtest: a stale primary key falls through to the vault Groq key
+ok 163 - a stale primary key falls through to the vault Groq key
+  ---
+  duration_ms: 211.017938
+  type: 'test'
+  ...
+# Subtest: uses OpenAI whisper-1 when every Groq key fails
+ok 164 - uses OpenAI whisper-1 when every Groq key fails
+  ---
+  duration_ms: 211.638886
+  type: 'test'
+  ...
+# Subtest: works with only the OpenAI key (no Groq key at all)
+ok 165 - works with only the OpenAI key (no Groq key at all)
+  ---
+  duration_ms: 209.925302
+  type: 'test'
+  ...
+# Subtest: when all providers fail, every cause is reported and no key leaks
+ok 166 - when all providers fail, every cause is reported and no key leaks
+  ---
+  duration_ms: 211.268912
+  type: 'test'
+  ...
+# Subtest: without any key the error says so
+ok 167 - without any key the error says so
+  ---
+  duration_ms: 132.607586
+  type: 'test'
+  ...
+# Subtest: a long Bengali script is fitted under Groq's byte limit instead of failing with HTTP 400
+ok 168 - a long Bengali script is fitted under Groq's byte limit instead of failing with HTTP 400
+  ---
+  duration_ms: 207.791484
+  type: 'test'
+  ...
+# Subtest: if a provider still rejects the prompt, captions are retried without it
+ok 169 - if a provider still rejects the prompt, captions are retried without it
+  ---
+  duration_ms: 193.586021
+  type: 'test'
+  ...
+# Subtest: a non-auth failure (400) does not retry another key of the same API but still reaches OpenAI
+ok 170 - a non-auth failure (400) does not retry another key of the same API but still reaches OpenAI
+  ---
+  duration_ms: 195.078269
+  type: 'test'
+  ...
+# Subtest: the failure text stays short and readable (fits the 300-char job error with 3 providers)
+ok 171 - the failure text stays short and readable (fits the 300-char job error with 3 providers)
+  ---
+  duration_ms: 200.987668
+  type: 'test'
+  ...
+1..171
+# tests 171
+# suites 0
+# pass 171
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5431.007625
+
+> banglarvoice-scripts@1.0.0 test:captions
+> python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
+
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.004s
+
+OK
+
+> banglarvoice-scripts@1.0.0 test:review-db
+> node scripts/pipeline/tests/database/test-video-review.mjs && node scripts/pipeline/tests/database/test-quality-approval.mjs
+
+PASS migration applies and replays on isolated PostgreSQL
+PASS publication without review is blocked
+PASS no authenticated UID is rejected
+PASS non-editor identity is rejected
+PASS different video hash is rejected
+PASS different script hash is rejected
+PASS spoofed reviewer is rejected
+PASS missing pronunciation check is rejected
+PASS empty claims is rejected
+PASS different duration is rejected
+PASS same-owner sources is rejected
+PASS invented quote approval is rejected
+PASS stale evidence is rejected
+PASS Wikimedia as verification is rejected
+PASS duplicate claim ID is rejected
+PASS authenticated complete bound review is recorded
+PASS reviewed asset can transition to published
+PASS changed asset invalidates earlier approval
+PASS expired approval cannot publish
+PASS service-role runner cannot invoke human approval RPC
+PASS authenticated users cannot write approval table directly
+Review gate: 21 checks passed. Scope: isolated schema fixture, not a hosted migration replay.
+PASS both migrations apply and replay on representative isolated schema
+PASS unreviewed publish blocked even outside JS uploader
+PASS unauthed review blocked
+PASS non-editor review blocked
+PASS forged identity blocked
+PASS changed video hash blocked
+PASS changed spoken script hash blocked
+PASS stale review timestamp blocked
+PASS missing pronunciation approval blocked
+PASS empty claim evidence blocked
+PASS complete asset-bound editor review accepted
+PASS approved asset may transition to public
+PASS changing the stored asset invalidates approval
+PASS expired approval blocks publication
+PASS service-role cannot call the human-session recording function
+PASS editor can update ticker persistently
+PASS ticker pause preserves last copy
+PASS invalid ticker text and public RPC access blocked
+Quality-approval database checks passed: 18. Scope: isolated fixture, not hosted migration replay or live publication.
+
+> banglarvoice-scripts@1.0.0 test:enhanced-db
+> node scripts/pipeline/tests/database/test-enhanced-policy.mjs
+
+PASS enhanced migrations apply and replay transactionally
+PASS trusted source publishes WITHOUT human attestation or three independent sources
+PASS idempotent repeat does not create duplicate delivery targets
+PASS service runner cannot bypass human approval RPC
+PASS old finalizer is no longer a directly callable bypass
+PASS missing report blocks public publication
+PASS changed video hash blocks public publication
+PASS changed script hash blocks public publication
+PASS failed captions blocks public publication
+PASS missing rights blocks public publication
+PASS stale report blocks public publication
+PASS future report blocks public publication
+PASS bad loudness blocks public publication
+PASS bad peak blocks public publication
+PASS wrong credited evidence blocks public publication
+PASS stale source capture blocks public publication
+PASS changing a published asset outside finalizer is blocked at commit
+PASS kill-switched source cannot use automatic route
+PASS stale source publication is distinct from fresh technical inspection
+PASS reporter data cannot enter automatic source route
+PASS reporter article and photo publication is held without explicit human approval
+PASS unauthenticated editorial instruction fails
+PASS authenticated editor can approve article with audit trail
+PASS approved reporter article still requires approval of the actual video
+PASS forged editor ID cannot approve a video
+PASS missing explicit editorial decision cannot approve a video
+PASS human video approval does not need three external sources
+PASS expired human video approval is not reusable
+PASS review mode cannot accidentally enqueue public targets
+PASS experiment RPC is not writable by public or signed-in clients
+PASS invalid experiment weights are rejected by PostgreSQL
+PASS click requires a real earlier exposure
+PASS exposures deduplicate across repeated event keys
+PASS exposed experiment definitions are immutable
+PASS subject cannot silently switch experiment variant
+PASS stopped experiment rejects new telemetry
+Enhanced PostgreSQL checks passed: 36. Scope: isolated representative tables + all three actual supplied finalizers; not full hosted schema, network or real storage.

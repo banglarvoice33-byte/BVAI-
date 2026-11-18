@@ -1,3 +1,4 @@
+import { assertPublicationPolicy, technicalReport } from './enhanced/policy.mjs';
 import { cleanupDownloadedMedia } from './media-cleanup.mjs';
 import { measureAudio, loudnessOk } from './audio-qc.mjs';
 import { validateMasterProbe } from './video-contract.mjs';
@@ -33,17 +34,18 @@ export function inspectRender(manifest) {
   const loudness=measureAudio(filename);
   if(!loudnessOk(loudness))throw new Error('Audio outside -14 LUFS ±2 / peak <= -1 dBTP quality gate');
   const buffer = fs.readFileSync(filename);
-  return { buffer, duration:Math.ceil(duration), size, hash:createHash('sha256').update(buffer).digest('hex') };
+  return { buffer, duration:Math.ceil(duration), size, loudness, hash:createHash('sha256').update(buffer).digest('hex') };
 }
 export async function upload() {
   const manifestPath = path.join(TMP,'manifest.json');
   if (!fs.existsSync(manifestPath)) { console.log('No pending manifest — nothing to upload.'); return; }
   const manifest = JSON.parse(fs.readFileSync(manifestPath,'utf8'));
   const render = inspectRender(manifest);
+  manifest.technical_qc = technicalReport(manifest, render);
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Supabase server credentials missing');
   const supabase = createClient(url,key,{ auth:{ persistSession:false,autoRefreshToken:false } });
-  const mode = process.env.VIDEO_PUBLISH_MODE || manifest.publish_mode || (process.env.VIDEO_DELIVERY_PLATFORMS ? 'distribute' : 'website');
+  const mode = process.env.VIDEO_PUBLISH_MODE || 'review';
   if (!['website','review','distribute'].includes(mode)) throw new Error('Invalid VIDEO_PUBLISH_MODE');
   const targets=mode==='distribute'?deliveryTargets():[];
   if(mode==='distribute' && !targets.length)throw new Error('Select VIDEO_DELIVERY_PLATFORMS before distribute mode');
@@ -51,6 +53,11 @@ export async function upload() {
   if(articleError)throw new Error('Article recheck failed');
   assertEditorial(article,mode);
   if(mode!=='review') {
+    const {data:basis,error:basisError}=await supabase.rpc('video_gate_basis',{p_article_id:manifest.article_id});
+    if(basisError)throw new Error('Authoritative editorial policy unavailable');
+    let approval=null;
+    if(basis==='editorial'){const result=await supabase.from('video_quality_approvals').select('video_sha256,script_sha256,expires_at').eq('job_id',manifest.job_id).maybeSingle();if(result.error)throw new Error('Human approval unavailable');approval=result.data;}
+    manifest.publication_policy=assertPublicationPolicy({basis,manifest,videoHash:render.hash,approval});
     let feedUrl=null;
     if(article.source_id) {
       const {data:src}=await supabase.from('news_sources').select('feed_url').eq('id',article.source_id).maybeSingle();

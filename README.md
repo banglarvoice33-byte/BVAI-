@@ -1,3 +1,7 @@
+# Enhanced video pipeline — policy v2
+
+বর্তমান আপডেটের শুরু, ডেপ্লয় ক্রম ও সুনির্দিষ্ট সীমাবদ্ধতা: **[START_HERE_ENHANCED_BN.txt](START_HERE_ENHANCED_BN.txt)**। নিচের পুরোনো প্রতিবেদনগুলো ঐতিহাসিক; ভিডিও অনুমোদনের দ্বন্দ্বে নতুন নির্দেশনা ও 20261116 মাইগ্রেশন প্রাধান্য পাবে।
+
 # Newsroom — fresh account-neutral distribution
 
 নতুন ডেপলয়মেন্ট শুরু: **[FRESH_DEPLOY_BN.md](FRESH_DEPLOY_BN.md)**  

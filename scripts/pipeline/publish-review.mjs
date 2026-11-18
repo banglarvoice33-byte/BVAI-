@@ -2,6 +2,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {createHash} from 'node:crypto';
 import {assertEditorial,refreshEvidence} from './source-evidence.mjs';
+import {assertPublicationPolicy} from './enhanced/policy.mjs';
 import {deliveryTargets} from './delivery-worker.mjs';
 const id=process.argv[2];
 const distribute=process.argv.includes('--approve-distribute');
@@ -17,8 +18,14 @@ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id ||
     if(assetError)throw new Error('Version-2 asset missing. Legacy review assets require audited reconciliation; do not invent a reservation.');
     const {data:article,error:articleError}=await db.from('articles').select('*').eq('id',job.article_id).single();
     if(articleError)throw new Error('Article unavailable');
+    const { data: approval, error: approvalError } = await db.from('video_quality_approvals').select('video_sha256,script_sha256,expires_at').eq('job_id', id).single();
+    const {data:basis,error:basisError}=await db.rpc('video_gate_basis',{p_article_id:job.article_id});
+    if(basisError || (basis==='editorial' && approvalError))throw new Error('Editorial policy/approval unavailable');
+    assertPublicationPolicy({basis,manifest:asset.manifest,videoHash:asset.sha256,approval});
     assertEditorial(article,distribute?'distribute':'website');
-    const manifest={...asset.manifest,evidence:await refreshEvidence(article,'website')};
+    let feedUrl=null;
+    if(article.source_id){const source=await db.from('news_sources').select('feed_url').eq('id',article.source_id).maybeSingle();feedUrl=source.data?.feed_url || null;}
+    const manifest={...asset.manifest,evidence:await refreshEvidence(article,'website',{feedUrl})};
     const targets=distribute?deliveryTargets():[];
     if(distribute&&!targets.length)throw new Error('Configure VIDEO_DELIVERY_PLATFORMS and target account IDs');
     const bucket=db.storage.from('reels');

@@ -1,0 +1,32 @@
+{
+  "release": "2026-11-16",
+  "classification": "tested_source_release_candidate_not_live_deployed",
+  "passing_checks": {
+    "pipeline_js": 171,
+    "frontend": 185,
+    "worker": 67,
+    "python_captions": 12,
+    "enhanced_postgres": 41,
+    "legacy_postgres": [
+      21,
+      18
+    ]
+  },
+  "typescript": {
+    "frontend": "passed",
+    "worker": "passed"
+  },
+  "next_production_build": "passed_with_nonsecret_fixture_config",
+  "renderer": "passed_synthetic_41.2s_full_1080x1920_30fps_H264_AAC",
+  "repair_master": "passed_actual_ffmpeg_synthetic_720p_24fps_mono_to_delivery_master",
+  "repair_audio": "passed_actual_ffmpeg_synthetic_tone",
+  "hosted_deployment": "not_performed_missing_authentication_and_configuration",
+  "docker_build": "not_performed_no_docker_daemon",
+  "paid_model_requests": "none",
+  "live_platform_posts": "none",
+  "notes": [
+    "Mock provider contracts do not establish live model quality.",
+    "Synthetic audio does not prove Bengali pronunciation or editorial presentation.",
+    "Database fixture exercises actual supplied finalizers on representative tables, not a hosted full-schema clone."
+  ]
+}

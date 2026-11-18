@@ -18,6 +18,13 @@ import { candidates, download } from './media-sources.mjs';
 import { prepareFonts, renderBrandOverlay, renderHeadlineBig, renderHeadlineSmall, renderEndCard, renderCreditStrip, renderSegment, composeFinal, probeDuration, FONT_FAMILY } from './video-compose.mjs';
 import { inspectRender } from './upload-supabase-video.mjs';
 import { createRenderHeartbeat } from './render-heartbeat.mjs';
+import { buildProductionPlan, timelineFromVtt, renderSlotsFromTimeline } from './production-plan.mjs';
+import { runContinuity } from './continuity.mjs';
+import { generateScript } from './enhanced/script-router.mjs';
+import { assignVisuals, rankVisuals } from './enhanced/composer.mjs';
+import { inspectWithRepair } from './enhanced/quality-repair.mjs';
+import { emitPipelineEvent } from './enhanced/events.mjs';
+import { technicalReport } from './enhanced/policy.mjs';
 
 // Compatibility exports: the repository's contract tests (tests/repair-contract.test.mjs) and older callers use these names.
 export const CLOSING_CTA = CTA;
@@ -45,13 +52,13 @@ export function planSlots(total, mediaCount) {
   return { count, durations: Array.from({ length: count }, (_, i) => (i === count - 1 ? total - each * (count - 1) : each)) };
 }
 
-async function makeVoice(article, jobDir, beat, tts = synthesizeVoice) {
+async function makeVoice(article, jobDir, beat, tts = synthesizeVoice, signal) {
   const audioPath = path.join(jobDir, 'voice.mp3');
   const subPath = path.join(jobDir, 'voice.vtt');
   let target = Number(process.env.VIDEO_TARGET_CHARS || 900);
   let last;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const narration = buildNarration(article, { targetChars: target });
+    const narration = await generateScript(article, { targetChars: target, signal });
     // Numbers/currency/dates are spoken as Bengali words; captions come from the audio actually produced.
     const captions = await tts(normalizeBanglaForTts(narration.script), audioPath, subPath);
     if (!['groq-whisper', 'edge-matched'].includes(captions.method)) throw new Error('Actual-audio captions unavailable; refusing to render');
@@ -93,6 +100,8 @@ async function gatherMedia(db, claim, article, jobDir, need, beat, source = { ca
     for await (const candidate of source.candidates(article)) {
       if (picked.length >= need || tried >= 45 || Date.now() > deadline) break;
       tried++;
+      const relevance=rankVisuals({spoken_text:article.title_bn+' '+String(article.content_bn || '').slice(0,1200)},[candidate])[0];
+      if(!relevance?.rights || relevance.score<=0)continue;
       const file = path.join(dir, `m${tried}.${extensionFor(candidate)}`);
       try {
         const info = await source.download(candidate, file, fs);
@@ -131,9 +140,20 @@ export async function renderClaim(db, claim, deps = {}) {
     const { data: article, error } = await db.from('articles').select('*').eq('id', claim.article_id).single();
     if (error || !article) throw new Error('Article fetch failed');
     log('📰 ' + String(article.title_bn).slice(0, 80));
+    await emitPipelineEvent(db,{jobId:claim.job_id,articleId:claim.article_id,type:'render_started'});
 
+    const plan = buildProductionPlan(article);
+    fs.writeFileSync(path.join(jobDir, 'production-plan.json'), JSON.stringify(plan, null, 2), { mode: 0o600 });
     log('🎙️ Voice + captions...');
-    const voice = await makeVoice(article, jobDir, beat, deps.synthesizeVoice);
+    const voice = await makeVoice(article, jobDir, beat, deps.synthesizeVoice, heartbeat.signal);
+    const spokenScript = normalizeBanglaForTts(voice.script);
+    plan.display_script = voice.script; plan.spoken_script = spokenScript;
+    plan.excerpts = voice.sentences.map((text, i) => ({ id: `excerpt-${i + 1}`, text, verification: 'not_established_by_this_planner' }));
+    plan.spoken_script_sha256 = scriptHash(spokenScript);
+    plan.audio_duration = voice.seconds;
+    plan.script_selection = voice.selection;
+    plan.scenes = timelineFromVtt(fs.readFileSync(voice.subPath, 'utf8'), voice.seconds);
+    fs.writeFileSync(path.join(jobDir, 'production-plan.json'), JSON.stringify(plan, null, 2), { mode: 0o600 });
     const key = contentKey(article); const hash = scriptHash(voice.script);
     const reserved = await db.rpc('reserve_video_story', { p_job_id: claim.job_id, p_claim_token: claim.claim_token, p_content_key: key, p_script_hash: hash, p_content_text: voice.script });
     if (reserved.error) {
@@ -142,16 +162,27 @@ export async function renderClaim(db, claim, deps = {}) {
     }
 
     const total = Math.max(LIMITS.minTotal, voice.seconds + LIMITS.tail);
-    const wanted = planSlots(total, 99).count;
+    const sceneSlots = renderSlotsFromTimeline(plan.scenes, total);
+    const wanted = sceneSlots.count;
     log(`🎞️ Symbolic B-roll (want up to ${wanted})...`);
     const media = await gatherMedia(db, claim, article, jobDir, wanted, beat, deps.media);
-    const { count, durations } = planSlots(total, media.length);
+    const { count, durations } = sceneSlots;
+    plan.visual_cuts = sceneSlots.boundaries;
+    const assignments = assignVisuals(plan.scenes, media, {context: article.title_bn});
+    plan.visual_assets = plan.scenes.map((scene, index) => ({
+      spoken_text: scene.spoken_text, start: sceneSlots.boundaries[index], end: sceneSlots.boundaries[index + 1],
+      asset: assignments[index].asset ? { source_url: assignments[index].asset.source_url, sha256: assignments[index].asset.sha256, license: assignments[index].asset.license, title: assignments[index].asset.title } : null,
+      selection: assignments[index].selection,
+      classification: 'symbolic', relevance_status: 'needs_human_review',
+    }));
+    fs.writeFileSync(path.join(jobDir, 'production-plan.json'), JSON.stringify(plan, null, 2), { mode: 0o600 });
     log(`   ${media.length} licensed asset(s) reserved; ${Math.max(0, count - media.length)} branded motion slot(s) fill the rest`);
 
     log('🎨 Overlays + compose...');
     const { fontsDir, env } = prepareFonts(jobDir);
     const host = (() => { try { return new URL(process.env.SITE_URL || 'https://bvai-chi.vercel.app').host; } catch { return ''; } })();
-    const sourceName = String(article.source_name || '').trim();
+    const sourceName = String(article.source_name || 'নিজস্ব প্রতিবেদক').trim();
+    const sourceUrl = article.source_url || (process.env.SITE_URL && article.slug ? new URL('/article/' + encodeURIComponent(article.slug), process.env.SITE_URL).href : null);
     const png = (name) => path.join(jobDir, name);
     renderBrandOverlay(png('brand.png'), { sourceName }, env);
     renderHeadlineBig(png('head_big.png'), article.title_bn, env);
@@ -161,7 +192,7 @@ export async function renderClaim(db, claim, deps = {}) {
 
     const segments = [];
     for (let i = 0; i < count; i++) {
-      const asset = media[i];
+      const asset = assignments[i].asset;
       renderCreditStrip(png(`credit${i}.png`), creditLine(asset), env);
       const out = png(`seg-${i}.mp4`);
       log(`   Segment ${i + 1}/${count}: ${asset?.kind || 'brand'} (${durations[i].toFixed(1)} s)`);
@@ -181,14 +212,19 @@ export async function renderClaim(db, claim, deps = {}) {
     const manifest = {
       schema: 2, article_id: claim.article_id, job_id: claim.job_id, claim_token: claim.claim_token, video_path: finalFile,
       audio_duration: voice.seconds, render_duration: renderSeconds, size_bytes: fs.statSync(finalFile).size,
-      caption_method: voice.caption_method, script_hash: hash, content_key: key, script_chars: voice.script.length,
+      caption_method: voice.caption_method, script_hash: hash, spoken_script_hash: plan.spoken_script_sha256,
+      production_plan: plan, content_key: key, script_chars: voice.script.length,
       symbolic_visuals: true, synthetic_realistic: false, visual_label: 'প্রতীকী ভিজ্যুয়াল',
-      source: { name: sourceName, name_bn: sourceNameBn(sourceName), url: article.source_url },
-      media: media.map((m) => ({ provider: m.provider, kind: m.kind, title: m.title, author: m.author, license: m.license, license_url: m.license_url, source_url: m.source_url, sha256: m.sha256 })),
+      source: { name: sourceName, name_bn: sourceNameBn(sourceName), url: sourceUrl },
+      media: media.filter(m => assignments.some(a => a.asset === m)).map((m) => ({ provider: m.provider, kind: m.kind, title: m.title, author: m.author, license: m.license, license_url: m.license_url, source_url: m.source_url, sha256: m.sha256 })),
       evidence: [], generated_at: new Date().toISOString(),
     };
     // Render is "confirmed" only when the uploader's own contract passes: probe, full decode, loudness, caption sidecar.
-    inspectRender(manifest);
+    const quality = await inspectWithRepair(manifest, {inspect: inspectRender, beat, signal: heartbeat.signal, onEvent: async event => {log(JSON.stringify(event));await emitPipelineEvent(db,{jobId:claim.job_id,articleId:claim.article_id,type:'quality_repair_attempt',details:event});}});
+    manifest.size_bytes = quality.result.size;
+    manifest.render_duration = probeDuration(finalFile);
+    manifest.technical_qc = technicalReport(manifest, quality.result);
+    manifest.quality_repair_history = quality.history;
     await beat(); // Decode/loudness checks are bounded but can outlive a timer interval.
     // Same-filesystem hard-link publication is atomic and refuses to overwrite an unfinished upload.
     // Shared manifest/claim files still require a single worker per workspace.
@@ -199,14 +235,17 @@ export async function renderClaim(db, claim, deps = {}) {
 
     // Confirmed -> delete every downloaded source video/photo and all intermediates; keep only the final MP4, captions, script.
     fs.rmSync(path.join(jobDir, 'dl'), { recursive: true, force: true });
-    for (const name of fs.readdirSync(jobDir)) if (!['final_output.mp4', 'voice.vtt', 'script.txt'].includes(name)) fs.rmSync(path.join(jobDir, name), { recursive: true, force: true });
+    for (const name of fs.readdirSync(jobDir)) if (!['final_output.mp4', 'voice.vtt', 'script.txt', 'production-plan.json'].includes(name)) fs.rmSync(path.join(jobDir, name), { recursive: true, force: true });
+    await emitPipelineEvent(db,{jobId:claim.job_id,articleId:claim.article_id,type:'render_completed',details:{repairs:quality.history.length,duration_sec:manifest.render_duration}});
     log(`✅ Render confirmed: ${(manifest.size_bytes / 1e6).toFixed(1)} MB, ${renderSeconds.toFixed(1)} s; downloaded assets deleted`);
     return manifest;
   } finally { await heartbeat.stop(); }
 }
 
-async function failClaim(db, claim, reason) {
-  await db.rpc('fail_video_generation_job', { p_job_id: claim.job_id, p_claim_token: claim.claim_token, p_reason: String(reason).slice(0, 300) }).then(() => {}, () => {});
+async function failClaim(db, claim, reason, failure) {
+  if(failure?.code==='QUALITY_REPAIR_EXHAUSTED')await emitPipelineEvent(db,{jobId:claim.job_id,articleId:claim.article_id,type:'quality_repair_escalated',details:{repairs:failure.repair_history?.length || 0}});
+  const { data, error } = await db.rpc('fail_video_generation_job', { p_job_id: claim.job_id, p_claim_token: claim.claim_token, p_reason: scrubSecrets(reason, 300) });
+  if (error || data !== true) throw new Error('Failure acknowledgement unavailable; stop before claiming another story');
   fs.rmSync(path.join(TMP, claim.job_id), { recursive: true, force: true });
   fs.rmSync(path.join(TMP, 'claim.json'), { force: true });
 }
@@ -220,26 +259,25 @@ export async function main() {
   const db = admin();
   await db.rpc('recover_expired_video_generation_jobs').then(() => {}, () => {});
   const requested = (process.env.ARTICLE_ID || '').trim() || null;
-  for (let attempt = 1; attempt <= LIMITS.maxClaims; attempt++) {
-    const { data, error } = await db.rpc('claim_reviewed_video_job', { p_article_id: requested });
-    if (error) throw new Error('Claim failed: ' + error.message);
-    const claim = data?.[0];
-    if (!claim) { log('ℹ️ No video due: outside peak slot quota, daily cap reached, or no fresh eligible article.'); return; }
-    if (process.env.GITHUB_ACTIONS) console.log('::add-mask::' + claim.claim_token);
-    fs.writeFileSync(path.join(TMP, 'claim.json'), JSON.stringify(claim), { mode: 0o600 });
-    try {
-      await renderClaim(db, claim);
-      return;
-    } catch (error) {
-      console.error('❌', error.message);
-      // GitHub annotations are readable through the API without downloading logs; secrets are scrubbed first.
-      if (process.env.GITHUB_ACTIONS) console.log('::error title=BVAI render failed::' + scrubSecrets(error.message, 300).replace(/[%\r\n]+/g, ' '));
-      await failClaim(db, claim, error.message);
-      if (!error.skip || requested) throw error;
-      log('↪ trying the next eligible article');
-    }
-  }
-  throw new Error('Several eligible articles were skipped; see log');
+  const result = await runContinuity({
+    requested: Boolean(requested), maxClaims: LIMITS.maxClaims,
+    claim: async () => {
+      const { data, error } = await db.rpc('claim_reviewed_video_job', { p_article_id: requested });
+      if (error) throw new Error('Claim failed: ' + scrubSecrets(error.message));
+      const claim = data?.[0];
+      if (!claim) return null;
+      if (process.env.GITHUB_ACTIONS) console.log('::add-mask::' + claim.claim_token);
+      fs.writeFileSync(path.join(TMP, 'claim.json'), JSON.stringify(claim), { mode: 0o600 });
+      return claim;
+    },
+    render: claim => renderClaim(db, claim),
+    fail: (claim, error) => failClaim(db, claim, error.message, error),
+    report: ({ action, error }) => {
+      console.error('❌', scrubSecrets(error.message, 300));
+      if (action === 'next_story') log('↪ trying the next eligible article without lowering quality');
+    },
+  });
+  if (result.status === 'no_eligible_story') log('ℹ️ No fresh eligible replacement/slot. No video published; alert the operator.');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

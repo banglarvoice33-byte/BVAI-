@@ -1,0 +1,45 @@
+
+> banglarvoice-scripts@1.0.0 test:review-db
+> node scripts/pipeline/tests/database/test-video-review.mjs && node scripts/pipeline/tests/database/test-quality-approval.mjs
+
+PASS migration applies and replays on isolated PostgreSQL
+PASS publication without review is blocked
+PASS no authenticated UID is rejected
+PASS non-editor identity is rejected
+PASS different video hash is rejected
+PASS different script hash is rejected
+PASS spoofed reviewer is rejected
+PASS missing pronunciation check is rejected
+PASS empty claims is rejected
+PASS different duration is rejected
+PASS same-owner sources is rejected
+PASS invented quote approval is rejected
+PASS stale evidence is rejected
+PASS Wikimedia as verification is rejected
+PASS duplicate claim ID is rejected
+PASS authenticated complete bound review is recorded
+PASS reviewed asset can transition to published
+PASS changed asset invalidates earlier approval
+PASS expired approval cannot publish
+PASS service-role runner cannot invoke human approval RPC
+PASS authenticated users cannot write approval table directly
+Review gate: 21 checks passed. Scope: isolated schema fixture, not a hosted migration replay.
+PASS both migrations apply and replay on representative isolated schema
+PASS unreviewed publish blocked even outside JS uploader
+PASS unauthed review blocked
+PASS non-editor review blocked
+PASS forged identity blocked
+PASS changed video hash blocked
+PASS changed spoken script hash blocked
+PASS stale review timestamp blocked
+PASS missing pronunciation approval blocked
+PASS empty claim evidence blocked
+PASS complete asset-bound editor review accepted
+PASS approved asset may transition to public
+PASS changing the stored asset invalidates approval
+PASS expired approval blocks publication
+PASS service-role cannot call the human-session recording function
+PASS editor can update ticker persistently
+PASS ticker pause preserves last copy
+PASS invalid ticker text and public RPC access blocked
+Quality-approval database checks passed: 18. Scope: isolated fixture, not hosted migration replay or live publication.

@@ -1,0 +1,45 @@
+{
+  "scan_scope": "Pattern scan of text files up to 3MB; not an exhaustive secret or vulnerability audit. Values never printed.",
+  "findings": [],
+  "configuration_syntax": [
+    {
+      "file": ".github/workflows/enhanced-ci.yml",
+      "yaml_parsed": true
+    },
+    {
+      "file": ".github/workflows/video-manual.yml",
+      "yaml_parsed": true
+    },
+    {
+      "file": "deploy/compose.video.yml",
+      "yaml_parsed": true
+    }
+  ],
+  "production_dependency_audits": {
+    "root": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "worker": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "frontend": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "docker_build_tested": false
+}

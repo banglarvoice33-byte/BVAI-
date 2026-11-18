@@ -1,0 +1,22 @@
+
+> banglarvoice-scripts@1.0.0 test:render-e2e
+> node scripts/pipeline/tests/pipeline-e2e.mjs
+
+📰 ঢাকায় ভারী বৃষ্টিতে জলাবদ্ধতা, যান চলাচলে দুর্ভোগ
+🎙️ Voice + captions...
+   🎙️ attempt 1: 843 chars → 40.0 s (groq-whisper)
+🎞️ Symbolic B-roll (want up to 7)...
+   🎞️ wikimedia-commons image: monsoon rain street (CC BY 4.0)
+   🎞️ pexels video: highway traffic road (Pexels License)
+   2 licensed asset(s) reserved; 5 branded motion slot(s) fill the rest
+🎨 Overlays + compose...
+   Segment 1/7: image (5.6 s)
+   Segment 2/7: video (8.1 s)
+   Segment 3/7: brand (6.1 s)
+   Segment 4/7: brand (6.4 s)
+   Segment 5/7: brand (5.8 s)
+   Segment 6/7: brand (5.2 s)
+   Segment 7/7: brand (4.0 s)
+   Final composition + two-pass audio normalization...
+✅ Render confirmed: 8.2 MB, 41.2 s; downloaded assets deleted
+PASS e2e: 41.2 s video, 2 licensed assets, leftovers = final_output.mp4, production-plan.json, script.txt, voice.vtt

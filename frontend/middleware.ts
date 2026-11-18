@@ -1,3 +1,4 @@
+import {createClient as createBearerClient} from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -62,13 +63,15 @@ export async function middleware(request: NextRequest) {
       },
     })
 
+    let profileClient = supabase
     let user = (await supabase.auth.getUser()).data.user
 
     if (!user) {
       const authHeader = request.headers.get('authorization') || ''
       if (authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice(7).trim()
-        const { data } = await supabase.auth.getUser(token)
+        profileClient = createBearerClient(supabaseUrl,supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false},global:{headers:{Authorization:`Bearer ${token}`}}})
+        const { data } = await profileClient.auth.getUser(token)
         user = data.user
       }
     }
@@ -83,7 +86,7 @@ export async function middleware(request: NextRequest) {
       return decorate(redirectToLogin(request, path))
     }
 
-    const { data: profile } = await supabase
+    const { data: profile } = await profileClient
       .from('profiles')
       .select('role')
       .eq('id', user.id)

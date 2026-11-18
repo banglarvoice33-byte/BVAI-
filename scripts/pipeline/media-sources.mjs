@@ -41,6 +41,10 @@ const KEYWORD_QUERIES = [
 ];
 const SPACE_TOPIC = /space|science|technology|মহাকাশ|নাসা|বিজ্ঞান|প্রযুক্তি|রকেট|গ্রহ/i;
 
+export function topicQueries(text) {
+  return KEYWORD_QUERIES.filter(([pattern]) => pattern.test(String(text || ''))).map(([,query]) => query);
+}
+
 export function buildQueries(article) {
   const key = String(article.category_key || article.category || '').toLowerCase().trim();
   const category = CATEGORY_QUERIES[key] ? key : CATEGORY_ALIASES[article.category_key] || CATEGORY_ALIASES[article.category] || CATEGORY_ALIASES[key] || 'national';

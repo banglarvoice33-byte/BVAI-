@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import {editorialContext,EditorialAuthError} from '@/lib/server/editorial-context';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -13,29 +14,15 @@ function getAdmin() {
 
 export async function POST(req: Request) {
   try {
-    const { id, note } = await req.json();
-    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const {session} = await editorialContext(req);
+    if (Number(req.headers.get('content-length') || 0) > 16384) return NextResponse.json({error:'instruction_too_large'},{status:413});
+    const text = await req.text();
+    if (text.length > 16384) return NextResponse.json({error:'instruction_too_large'},{status:413});
+    const { id, note } = JSON.parse(text);
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id || '')) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const supabase = getAdmin();
-    const { data, error } = await supabase
-      .from('articles')
-      .update({
-        status: 'published',
-        // A human editor (Admin/Studio, enforced by middleware.ts role check) approved this
-        // item. These flags are what the DB guard on reporter/field-report articles and the
-        // video gate (video_gate_basis = 'editorial') rely on.
-        editorial_status: 'approved',
-        verification_status: 'verified',
-        human_verified: true,
-        workflow_status: 'published',
-        review_reason: null,
-        published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('status', 'pending')
-      .select('id, status, published_at')
-      .maybeSingle();
+    const { data, error } = await session.rpc('approve_reporter_article', {p_article_id:id,p_note:typeof note==='string'?note.slice(0,4000):''}).maybeSingle<{id:string;status:string;published_at:string}>();
 
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'not found or not pending' }, { status: 404 });
@@ -71,7 +58,7 @@ export async function POST(req: Request) {
               .upload(dest, dl.data, { contentType, upsert: true });
             if (!up.error) {
               const pub = supabase.storage.from('thumbnails').getPublicUrl(dest).data.publicUrl;
-              await supabase
+              await session
                 .from('articles')
                 .update({ featured_image: pub, thumbnail_url: pub, media_type: 'image' })
                 .eq('id', id);
@@ -89,8 +76,9 @@ export async function POST(req: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {
+    if(e instanceof EditorialAuthError)return NextResponse.json({error:e.message},{status:e.status});
     return NextResponse.json(
-      { error: String(e instanceof Error ? e.message : e) },
+      { error: 'editorial_approval_unavailable' },
       { status: 500 },
     );
   }

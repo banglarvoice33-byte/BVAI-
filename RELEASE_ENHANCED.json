@@ -1,0 +1,517 @@
+{
+  "release": "BVAI-ENHANCED-20261116",
+  "state": "tested_source_release_candidate_not_live_deployed",
+  "original_zip_sha256": "ca93c58359f0c12bbedb3add891c91d007f3eeb439972ce7b58bf2cf2b44f475",
+  "test_results": {
+    "release": "2026-11-16",
+    "classification": "tested_source_release_candidate_not_live_deployed",
+    "passing_checks": {
+      "pipeline_js": 171,
+      "frontend": 185,
+      "worker": 67,
+      "python_captions": 12,
+      "enhanced_postgres": 41,
+      "legacy_postgres": [
+        21,
+        18
+      ]
+    },
+    "typescript": {
+      "frontend": "passed",
+      "worker": "passed"
+    },
+    "next_production_build": "passed_with_nonsecret_fixture_config",
+    "renderer": "passed_synthetic_41.2s_full_1080x1920_30fps_H264_AAC",
+    "repair_master": "passed_actual_ffmpeg_synthetic_720p_24fps_mono_to_delivery_master",
+    "repair_audio": "passed_actual_ffmpeg_synthetic_tone",
+    "hosted_deployment": "not_performed_missing_authentication_and_configuration",
+    "docker_build": "not_performed_no_docker_daemon",
+    "paid_model_requests": "none",
+    "live_platform_posts": "none",
+    "notes": [
+      "Mock provider contracts do not establish live model quality.",
+      "Synthetic audio does not prove Bengali pronunciation or editorial presentation.",
+      "Database fixture exercises actual supplied finalizers on representative tables, not a hosted full-schema clone."
+    ]
+  },
+  "changed_files": [
+    {
+      "path": ".dockerignore",
+      "status": "added",
+      "sha256": "6976924238e3ade4fae933428397b3a384ef7f3df0d4f3de072a353951fd9d88",
+      "bytes": 184
+    },
+    {
+      "path": ".env.video.example",
+      "status": "modified",
+      "sha256": "8f01c92d70e71329eef3139ba8426b2ebdf2d005a64e686a3af37a554c5af0e8",
+      "bytes": 3762
+    },
+    {
+      "path": ".github/workflows/enhanced-ci.yml",
+      "status": "added",
+      "sha256": "7b363b6aae1e9d6fe0dffaf067cc02d41a3b61cb367c9327eb0ef629d4a36c55",
+      "bytes": 1601
+    },
+    {
+      "path": ".github/workflows/video-manual.yml",
+      "status": "added",
+      "sha256": "d60694c0b78ee3998cc35cc1063f715e53a240b58fda856a4b000b05690f0fce",
+      "bytes": 2963
+    },
+    {
+      "path": "README.md",
+      "status": "modified",
+      "sha256": "f20e7678d07b3efcb67c7b74a8e513d9fc6c0b87cd26a6619d58484b5aea38bf",
+      "bytes": 2035
+    },
+    {
+      "path": "START_HERE_ENHANCED_BN.txt",
+      "status": "added",
+      "sha256": "faedb02d186d4a450ff9be3cbf35f13cb8b099fe0c6a6cf5671e0073be1b466c",
+      "bytes": 15974
+    },
+    {
+      "path": "TEST_RESULTS_ENHANCED.json",
+      "status": "added",
+      "sha256": "9b916c987377c1d6a5f08ea741ca724ad13d4d9c3dc92fb1871fbf131a7827bf",
+      "bytes": 1143
+    },
+    {
+      "path": "deploy/compose.video.yml",
+      "status": "added",
+      "sha256": "fa4a3a6774d791fc86f450cd93e060978a06d0f513d2c8f74e97211773e096c9",
+      "bytes": 625
+    },
+    {
+      "path": "deploy/video-renderer.Dockerfile",
+      "status": "added",
+      "sha256": "f3dd9237dc655a7f5e32d24c3a7c2eb953dad5c0126f032b31a571c553708e7d",
+      "bytes": 679
+    },
+    {
+      "path": "frontend/__tests__/enhanced-video-api.test.ts",
+      "status": "added",
+      "sha256": "64e9dcb460b7e611c367a92401994fd1a0ecc43dd0cdaf4a5b72a0c2dbc32882",
+      "bytes": 4220
+    },
+    {
+      "path": "frontend/__tests__/enhanced-video.test.tsx",
+      "status": "added",
+      "sha256": "da28e916c61e8831aac6e8dc3ccba6143e060872f1f75c460338695672a0f1aa",
+      "bytes": 6385
+    },
+    {
+      "path": "frontend/__tests__/reader-polish.test.ts",
+      "status": "modified",
+      "sha256": "8850a356a292a9c07acb578f8b08ccee0b55d6c1bb976cd855878a0998049eda",
+      "bytes": 3644
+    },
+    {
+      "path": "frontend/app/admin/video-pipeline/page.tsx",
+      "status": "added",
+      "sha256": "e699c385d294edcd171583dbaa5efd4fcab94149d8d6a723f4eea3331c82b2ce",
+      "bytes": 1437
+    },
+    {
+      "path": "frontend/app/admin/video-quality/page.tsx",
+      "status": "modified",
+      "sha256": "bf02c231f20a16f3ef347d8d43a80b03c309f6e46d12d904648c927a723339cc",
+      "bytes": 4545
+    },
+    {
+      "path": "frontend/app/api/admin/approve/route.ts",
+      "status": "modified",
+      "sha256": "4a02e79409f2e0e9fdad55045487f2c71d96ef674e80bff2534b36222768ccca",
+      "bytes": 3793
+    },
+    {
+      "path": "frontend/app/api/admin/video-pipeline/route.ts",
+      "status": "added",
+      "sha256": "26b286661417d1ee58d6c919077114312f3c4f01e59ef37655210c8f6e287934",
+      "bytes": 2707
+    },
+    {
+      "path": "frontend/app/api/admin/video-quality/route.ts",
+      "status": "modified",
+      "sha256": "3d1b8cd739cdadf4d89c74724d1ab9f26b097add9ca07222abd63d35650c3bce",
+      "bytes": 3402
+    },
+    {
+      "path": "frontend/components/admin/video-pipeline-monitor.tsx",
+      "status": "added",
+      "sha256": "b00d8ee566a27a752033fecd7e92253e2aebc78c22958947166b595b42cca203",
+      "bytes": 3507
+    },
+    {
+      "path": "frontend/components/admin/video-quality-form.tsx",
+      "status": "modified",
+      "sha256": "26a1ee3f38c0ad902dbf9dd4a6bf43a5b1b3608980566a1dd1c8f96bdc9a8101",
+      "bytes": 4794
+    },
+    {
+      "path": "frontend/lib/server/editorial-context.ts",
+      "status": "added",
+      "sha256": "73f13a64e61ffe8451f3cf33b250a449c5cc82d71f16dd8ed67716d0e123a863",
+      "bytes": 2134
+    },
+    {
+      "path": "frontend/lib/video-review.mjs",
+      "status": "modified",
+      "sha256": "0c1a68558e44eb81835f756a1e0e50e39a46a9140fdae3db811d8fa6d7b5a60f",
+      "bytes": 5194
+    },
+    {
+      "path": "frontend/middleware.ts",
+      "status": "modified",
+      "sha256": "8d99c7743b779725a6462606c4d7e8b83c8fbab6114af9e639d055cab93ddbf6",
+      "bytes": 4522
+    },
+    {
+      "path": "package-lock.json",
+      "status": "modified",
+      "sha256": "cb7641a2133abd18d8382b722423403de40fe60f54e74370c9a0e717f6e4459d",
+      "bytes": 10584
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "sha256": "d330fa4b4e8fbd8688a0fb3926809b8065ac665ecf520c1de4ec220e6eee4af1",
+      "bytes": 1515
+    },
+    {
+      "path": "scripts/pipeline/check-imports.mjs",
+      "status": "modified",
+      "sha256": "368a43b07508fbbaac85f53695cc994f2391ac34677b5c70dedf568b851b0a28",
+      "bytes": 912
+    },
+    {
+      "path": "scripts/pipeline/continuity.mjs",
+      "status": "modified",
+      "sha256": "856cfa82af26fd5ed8ebba90ed21866d2759bc3948a8b73df337c2912bca9465",
+      "bytes": 2004
+    },
+    {
+      "path": "scripts/pipeline/delivery-worker.mjs",
+      "status": "modified",
+      "sha256": "75bfc1f7a6736c6a13d3a54aea8d19bfe7c134e6165753f493ba5c08cfd9193d",
+      "bytes": 9630
+    },
+    {
+      "path": "scripts/pipeline/enhanced/composer.mjs",
+      "status": "added",
+      "sha256": "7228dc4379288f7e067b2e253442399c955995e977ad7378bd194c88b28d32ab",
+      "bytes": 1562
+    },
+    {
+      "path": "scripts/pipeline/enhanced/events.mjs",
+      "status": "added",
+      "sha256": "e5698fc4bafff20430ba4161b7806275d84dadf69f15476f3269d5aa660ad6fc",
+      "bytes": 968
+    },
+    {
+      "path": "scripts/pipeline/enhanced/experiments.mjs",
+      "status": "added",
+      "sha256": "7577796e8961927519e7226d87b100aef6ddceca2963e0a5c7db978b28e80921",
+      "bytes": 2716
+    },
+    {
+      "path": "scripts/pipeline/enhanced/policy.mjs",
+      "status": "added",
+      "sha256": "3654cdaa26a1a0baad127cc4a109f7700576c0b8d149ee72d9222392ca974020",
+      "bytes": 3568
+    },
+    {
+      "path": "scripts/pipeline/enhanced/quality-repair.mjs",
+      "status": "added",
+      "sha256": "78e77c216c9cc60749690b2b6dff3624c9aa6aff3888f8ba345d5c47d8202759",
+      "bytes": 2922
+    },
+    {
+      "path": "scripts/pipeline/enhanced/script-router.mjs",
+      "status": "added",
+      "sha256": "514f7e7157a082afc153d73c7b16c1e1e8ceeb5a193d98dd5abe5a6380aa1172",
+      "bytes": 5088
+    },
+    {
+      "path": "scripts/pipeline/generate-video.js",
+      "status": "modified",
+      "sha256": "1c904ee7d309f4b786d0c2158649ffff1ee64cb4609bebd84d1a36ad3b6b4c2d",
+      "bytes": 19218
+    },
+    {
+      "path": "scripts/pipeline/media-sources.mjs",
+      "status": "modified",
+      "sha256": "5ad3189a96ada339c6e23e0324506512b2272c0adadba3d51f4c09dfb55378b9",
+      "bytes": 12206
+    },
+    {
+      "path": "scripts/pipeline/production-plan.mjs",
+      "status": "modified",
+      "sha256": "f1246b2e64da37abd4792621be9258773b3d121d1f0550cdcdbe4179524417f6",
+      "bytes": 9588
+    },
+    {
+      "path": "scripts/pipeline/publish-review.mjs",
+      "status": "modified",
+      "sha256": "753948308188c79cb524ae3b3cea281bcadf018d67435dacdd940f42ecbec9d7",
+      "bytes": 3957
+    },
+    {
+      "path": "scripts/pipeline/quality-v3/review-contract.mjs",
+      "status": "modified",
+      "sha256": "0c1a68558e44eb81835f756a1e0e50e39a46a9140fdae3db811d8fa6d7b5a60f",
+      "bytes": 5194
+    },
+    {
+      "path": "scripts/pipeline/readiness.mjs",
+      "status": "modified",
+      "sha256": "dbdb2447f32cc99db4e073b46aee5e64c79539139fd2352f76c9d1542966fb1f",
+      "bytes": 2625
+    },
+    {
+      "path": "scripts/pipeline/source-evidence.mjs",
+      "status": "modified",
+      "sha256": "0e8667f1f148fbe767d4358cad891df8d6cd0b2c96d8364affbfdd68ca7be833",
+      "bytes": 8569
+    },
+    {
+      "path": "scripts/pipeline/tests/database/test-enhanced-policy.mjs",
+      "status": "added",
+      "sha256": "4699539416211a332757c57f3dbded8f57bfd06d789e37a21cb610c4432d39f6",
+      "bytes": 15982
+    },
+    {
+      "path": "scripts/pipeline/tests/enhanced.test.mjs",
+      "status": "added",
+      "sha256": "3113104dc4cb8a14f5a92787d3f86608daa8d350cb5e019dbc6e890a368229b9",
+      "bytes": 9077
+    },
+    {
+      "path": "scripts/pipeline/tests/experiments.test.mjs",
+      "status": "added",
+      "sha256": "5b320311a37e13c1bfef533416e080c294aaeab63bc8ba770b31a858fdb974f2",
+      "bytes": 4104
+    },
+    {
+      "path": "scripts/pipeline/tests/pipeline-e2e.mjs",
+      "status": "modified",
+      "sha256": "27b99d8f1f434fb23be0110a97e90d9c48076465edd3b81bcd261c87b20d0f53",
+      "bytes": 8265
+    },
+    {
+      "path": "scripts/pipeline/tests/quality-repair-e2e.mjs",
+      "status": "added",
+      "sha256": "9b4be35ea966b1c08dc44022ce3f830e30fb64e628509259bf32d2078a92c3bc",
+      "bytes": 2049
+    },
+    {
+      "path": "scripts/pipeline/tests/quality-repair-integration.mjs",
+      "status": "added",
+      "sha256": "6a0a47bf5683856a6b8b0be3ffea7fe89cc42bad6d885fa83a9087a5805fbd3d",
+      "bytes": 2015
+    },
+    {
+      "path": "scripts/pipeline/tests/reliability.test.mjs",
+      "status": "modified",
+      "sha256": "36aaf5c18402cfd1cdf7313bca188330ad3c4cfff62c790541363cc28606e001",
+      "bytes": 12382
+    },
+    {
+      "path": "scripts/pipeline/tests/repair-contract.test.mjs",
+      "status": "modified",
+      "sha256": "d6ae9f5a9a63e62b562e21ae4dd5f45b08f54e4ab25aa0a9c4e10a2352b1c3b9",
+      "bytes": 6775
+    },
+    {
+      "path": "scripts/pipeline/tests/trusted-source-gate.test.mjs",
+      "status": "modified",
+      "sha256": "d51e950f6485963dbb17ea5664148694010121d94fd23711f3eb024c7fb2a379",
+      "bytes": 3532
+    },
+    {
+      "path": "scripts/pipeline/upload-supabase-video.mjs",
+      "status": "modified",
+      "sha256": "baed935f95f24d6be531a8bdea568ba911b1be39de0986e605e21c2f16d1454f",
+      "bytes": 8763
+    },
+    {
+      "path": "supabase/migrations/20261116000000_enhanced_video_policy.sql",
+      "status": "added",
+      "sha256": "6e746850c64c2cc928c39f59602f6c3e9753a566ea1619e02e36b3d591bd618c",
+      "bytes": 17174
+    },
+    {
+      "path": "supabase/migrations/20261116001000_video_experiments.sql",
+      "status": "added",
+      "sha256": "bf8daf3b51119ddaf0fb64e407823fb9a6361b8afc13c882ac19c0c7a180feaa",
+      "bytes": 5874
+    },
+    {
+      "path": "supabase/rollbacks/20261116000000_enhanced_video_policy.sql",
+      "status": "added",
+      "sha256": "1ae091c9425f6b4e968e6d4887e2bb757176ab20d72b9d7b44d1be0da8e64230",
+      "bytes": 3948
+    },
+    {
+      "path": "verification/enhanced/all-pipeline-tests.txt",
+      "status": "added",
+      "sha256": "72bcc62529d46037acaef09b4eefe70e8175b5449ea7017ffe55c5c521ac755b",
+      "bytes": 41038
+    },
+    {
+      "path": "verification/enhanced/all-pipeline.txt",
+      "status": "added",
+      "sha256": "38158d5559007d9b59fa6cccd11e9a5685d65a191dd6d400194b395252f5b82a",
+      "bytes": 41378
+    },
+    {
+      "path": "verification/enhanced/caption-tests.txt",
+      "status": "added",
+      "sha256": "27e305bab025a99175be45a07736e8a2568a33dac7419854d801b5ce78ec528d",
+      "bytes": 228
+    },
+    {
+      "path": "verification/enhanced/database-tests.txt",
+      "status": "added",
+      "sha256": "a0d39fa9d1ac3bdaff7f51ccd7d586a186eeebd3c9c7f5bdec03d815ff2402a5",
+      "bytes": 2529
+    },
+    {
+      "path": "verification/enhanced/dependency-audit-frontend.json",
+      "status": "added",
+      "sha256": "9e63a99f5ffaba37fc1896229b7f92b30bd5a41237d8d848d88a1566d4c9790b",
+      "bytes": 367
+    },
+    {
+      "path": "verification/enhanced/dependency-audit-root.json",
+      "status": "added",
+      "sha256": "f7bc09f50979ff1b8003c15ad6f6d87302f8d4b37cd9cc5c8d289875d12de8f9",
+      "bytes": 360
+    },
+    {
+      "path": "verification/enhanced/dependency-audit-worker.json",
+      "status": "added",
+      "sha256": "835835df558ce5540863b4a2493da06c8e3923811c0fe9b1da0c70622eebae5a",
+      "bytes": 363
+    },
+    {
+      "path": "verification/enhanced/deployment-readiness.txt",
+      "status": "added",
+      "sha256": "300c411f3f179b4af2a257445e728531801ab975564ccc474e3344505bb47464",
+      "bytes": 309
+    },
+    {
+      "path": "verification/enhanced/final-render-e2e.txt",
+      "status": "added",
+      "sha256": "46c6066e58312386deff837679a84765fbbc136c8372adc6d8874acac8d3823c",
+      "bytes": 1040
+    },
+    {
+      "path": "verification/enhanced/frontend-build.txt",
+      "status": "added",
+      "sha256": "29e15394f5da2125db26732f70e03ff0f78abea36d217f39f28be738d6ec340e",
+      "bytes": 9809
+    },
+    {
+      "path": "verification/enhanced/frontend-dependency-audit.json",
+      "status": "added",
+      "sha256": "9e63a99f5ffaba37fc1896229b7f92b30bd5a41237d8d848d88a1566d4c9790b",
+      "bytes": 367
+    },
+    {
+      "path": "verification/enhanced/frontend-enhanced-tests.txt",
+      "status": "added",
+      "sha256": "39febb2bcdd61b4a54d912845b5ba20f013f7c4994b0eac6b311c581ad6e53c3",
+      "bytes": 920
+    },
+    {
+      "path": "verification/enhanced/frontend-tests.txt",
+      "status": "added",
+      "sha256": "eb47dc8d660eb79d6e2f8483b0123de289b0ca91c122f7dde634284ce42e9643",
+      "bytes": 6185
+    },
+    {
+      "path": "verification/enhanced/frontend-typecheck.txt",
+      "status": "added",
+      "sha256": "cf698f4ffcdfddc23304bf1dcd947af3384ff8b0bf16cca363a0e3fddd92fa83",
+      "bytes": 58
+    },
+    {
+      "path": "verification/enhanced/github-access.txt",
+      "status": "added",
+      "sha256": "bd1d077c035f0e52aea05874fee7f7c74a161c2a06efaa1bd7174ca1e94b9afe",
+      "bytes": 72
+    },
+    {
+      "path": "verification/enhanced/legacy-database-tests.txt",
+      "status": "added",
+      "sha256": "c21f169f1b24ccd09ebe44373b4c3fc8f64c7981585dbd5f4fb71bd910426175",
+      "bytes": 2072
+    },
+    {
+      "path": "verification/enhanced/master-repair-e2e.txt",
+      "status": "added",
+      "sha256": "5fa54862a7f2e73f6bc50d0436adb9622a66fdae0f674c7ae607ee3fdf446e7e",
+      "bytes": 289
+    },
+    {
+      "path": "verification/enhanced/pipeline-tests.txt",
+      "status": "added",
+      "sha256": "135ccadfd2db017bda68aa882f87936368ff71e418d5f98b5f248761af3d1222",
+      "bytes": 36303
+    },
+    {
+      "path": "verification/enhanced/quality-repair-e2e.txt",
+      "status": "added",
+      "sha256": "5fa54862a7f2e73f6bc50d0436adb9622a66fdae0f674c7ae607ee3fdf446e7e",
+      "bytes": 289
+    },
+    {
+      "path": "verification/enhanced/release-security.json",
+      "status": "added",
+      "sha256": "9452c6df86a14547317c8f47d8463a52f4ffaadf29171178fa4dbd9072981f37",
+      "bytes": 910
+    },
+    {
+      "path": "verification/enhanced/render-e2e.txt",
+      "status": "added",
+      "sha256": "0993c1995e6b43b849165c373f1b4f2352b5d1d899b4293960c3b4595aed015c",
+      "bytes": 1040
+    },
+    {
+      "path": "verification/enhanced/repair-integration.txt",
+      "status": "added",
+      "sha256": "1f05de6bb810f11ce58473281a9f0f6ce3c721fdce4984efe771c8be16b09ba8",
+      "bytes": 187
+    },
+    {
+      "path": "verification/enhanced/root-dependency-audit.json",
+      "status": "added",
+      "sha256": "f7bc09f50979ff1b8003c15ad6f6d87302f8d4b37cd9cc5c8d289875d12de8f9",
+      "bytes": 360
+    },
+    {
+      "path": "verification/enhanced/worker-dependency-audit.json",
+      "status": "added",
+      "sha256": "835835df558ce5540863b4a2493da06c8e3923811c0fe9b1da0c70622eebae5a",
+      "bytes": 363
+    },
+    {
+      "path": "verification/enhanced/worker-tests.txt",
+      "status": "added",
+      "sha256": "67476323eca1f0d70a1419b0c8ce67dad97684fd13ed99e088d7539df4537784",
+      "bytes": 3639
+    },
+    {
+      "path": "verification/enhanced/worker-typecheck.txt",
+      "status": "added",
+      "sha256": "4ab7135dbc96a0968cf8f572eb7d6311cfa37cc96948ee4d9c85bd6276b7dba6",
+      "bytes": 56
+    }
+  ],
+  "original_entries_not_packaged": [],
+  "entrypoint": "START_HERE_ENHANCED_BN.txt",
+  "security_scan": "Limited patterns only; no recognizable credential candidates; not an exhaustive audit.",
+  "preserved_untouched_files": "All eligible uploaded source files retained byte-for-byte."
+}

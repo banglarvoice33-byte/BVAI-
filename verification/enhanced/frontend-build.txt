@@ -1,0 +1,139 @@
+
+> banglar-voice-frontend@1.0.0 build
+> next build
+
+   ▲ Next.js 15.5.29
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 8.6s
+   Linting and checking validity of types ...
+
+./app/admin/pending/page.tsx
+51:38  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/epaper/EPaperViewer.tsx
+14:35  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+22:29  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/32) ...
+   Generating static pages (8/32) 
+   Generating static pages (16/32) 
+   Generating static pages (24/32) 
+SITEMAP_ARTICLE_LOAD_FAILED { message: 'fetch failed' }
+ ✓ Generating static pages (32/32)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                          Size  First Load JS  Revalidate  Expire
+┌ ƒ /                                             5.52 kB         125 kB
+├ ƒ /_not-found                                     320 B         103 kB
+├ ○ /about                                          320 B         103 kB
+├ ƒ /admin/analytics                              1.02 kB         104 kB
+├ ƒ /admin/api-keys                               3.27 kB         106 kB
+├ ƒ /admin/comments                                 178 B         107 kB
+├ ƒ /admin/control                                 3.7 kB         107 kB
+├ ƒ /admin/pending                                1.48 kB         105 kB
+├ ƒ /admin/verification                             178 B         107 kB
+├ ƒ /admin/verification/[id]                      1.59 kB         108 kB
+├ ƒ /admin/video-pipeline                         1.52 kB         105 kB
+├ ƒ /admin/video-quality                          1.97 kB         105 kB
+├ ƒ /ai-policy                                      178 B         107 kB
+├ ƒ /api/admin/api-keys                             320 B         103 kB
+├ ƒ /api/admin/api-keys/[id]                        320 B         103 kB
+├ ƒ /api/admin/api-keys/[id]/test                   320 B         103 kB
+├ ƒ /api/admin/approve                              320 B         103 kB
+├ ƒ /api/admin/breaking                             320 B         103 kB
+├ ƒ /api/admin/control/audit                        320 B         103 kB
+├ ƒ /api/admin/control/cron                         320 B         103 kB
+├ ƒ /api/admin/control/pipeline                     320 B         103 kB
+├ ƒ /api/admin/control/secrets                      320 B         103 kB
+├ ƒ /api/admin/control/secrets/[id]                 320 B         103 kB
+├ ƒ /api/admin/control/secrets/[id]/test            320 B         103 kB
+├ ƒ /api/admin/control/stats                        320 B         103 kB
+├ ƒ /api/admin/control/users                        320 B         103 kB
+├ ƒ /api/admin/control/users/[id]                   320 B         103 kB
+├ ƒ /api/admin/control/users/[id]/reset-password    320 B         103 kB
+├ ƒ /api/admin/health                               320 B         103 kB
+├ ƒ /api/admin/pending                              320 B         103 kB
+├ ƒ /api/admin/reject                               320 B         103 kB
+├ ƒ /api/admin/reporters                            320 B         103 kB
+├ ƒ /api/admin/stats                                320 B         103 kB
+├ ƒ /api/admin/verification/[id]                    320 B         103 kB
+├ ƒ /api/admin/verification/[id]/approve            320 B         103 kB
+├ ƒ /api/admin/verification/[id]/reject             320 B         103 kB
+├ ƒ /api/admin/verification/[id]/run                320 B         103 kB
+├ ƒ /api/admin/verification/queue                   320 B         103 kB
+├ ƒ /api/admin/video-pipeline                       320 B         103 kB
+├ ƒ /api/admin/video-quality                        320 B         103 kB
+├ ƒ /api/bkash                                      320 B         103 kB
+├ ƒ /api/brand-card                                 320 B         103 kB
+├ ƒ /api/checkout                                   320 B         103 kB
+├ ƒ /api/cron/epaper                                320 B         103 kB
+├ ƒ /api/cron/youtube-sync                          320 B         103 kB
+├ ƒ /api/download/reader                            320 B         103 kB
+├ ƒ /api/health                                     320 B         103 kB
+├ ƒ /api/indexnow/key                               320 B         103 kB
+├ ƒ /api/learning-hub                               320 B         103 kB
+├ ƒ /api/newsletter/subscribe                       320 B         103 kB
+├ ƒ /api/newsroom/cron-trigger                      320 B         103 kB
+├ ƒ /api/newsroom/epaper                            320 B         103 kB
+├ ƒ /api/newsroom/ingest                            320 B         103 kB
+├ ƒ /api/newsroom/revalidate                        320 B         103 kB
+├ ƒ /api/public/channels.json                       320 B         103 kB
+├ ƒ /api/public/epaper/[date]                       320 B         103 kB
+├ ƒ /api/public/epaper/[date]/print                 320 B         103 kB
+├ ƒ /api/public/epaper/archive                      320 B         103 kB
+├ ƒ /api/public/epaper/latest                       320 B         103 kB
+├ ƒ /api/public/feed.json                           320 B         103 kB
+├ ƒ /api/public/live.json                           320 B         103 kB
+├ ○ /api/public/schedule.json                       320 B         103 kB          5m      1y
+├ ○ /api/public/stream.json                         320 B         103 kB         30s      1y
+├ ƒ /api/public/videos                              320 B         103 kB
+├ ƒ /api/public/videos.json                         320 B         103 kB
+├ ƒ /api/reporter/live/end                          320 B         103 kB
+├ ƒ /api/reporter/live/start                        320 B         103 kB
+├ ƒ /api/reporter/live/stats                        320 B         103 kB
+├ ƒ /api/set-locale                                 320 B         103 kB
+├ ƒ /api/social-card/[id]                           320 B         103 kB
+├ ƒ /api/social/connection-health                   320 B         103 kB
+├ ƒ /api/social/dispatch                            320 B         103 kB
+├ ƒ /api/social/manager                             320 B         103 kB
+├ ƒ /api/tts                                        320 B         103 kB
+├ ƒ /api/youtube/live                               320 B         103 kB
+├ ƒ /api/youtube/oauth-callback                     320 B         103 kB
+├ ƒ /api/youtube/oauth-start                        320 B         103 kB
+├ ƒ /article/[slug]                               14.9 kB         196 kB
+├ ƒ /category/[slug]                                178 B         114 kB
+├ ƒ /checkout                                     1.85 kB         105 kB
+├ ○ /contact                                        320 B         103 kB
+├ ○ /cookies                                        320 B         103 kB
+├ ○ /copyright                                      320 B         103 kB
+├ ○ /correction                                     320 B         103 kB
+├ ○ /disclaimer                                     320 B         103 kB
+├ ƒ /download                                       178 B         107 kB
+├ ƒ /epaper                                       1.38 kB         104 kB
+├ ○ /icon.svg                                         0 B            0 B
+├ ƒ /login                                        2.09 kB         174 kB
+├ ƒ /news-sitemap.xml                               320 B         103 kB
+├ ƒ /pricing                                      2.34 kB         105 kB
+├ ○ /privacy                                        320 B         103 kB
+├ ƒ /rajniti                                        320 B         103 kB
+├ ƒ /reset-password                               2.36 kB         175 kB
+├ ○ /robots.txt                                     320 B         103 kB
+├ ○ /rss.xml                                        320 B         103 kB          1m      1y
+├ ƒ /search                                         178 B         114 kB
+├ ○ /sitemap.xml                                    320 B         103 kB          1m      1y
+└ ○ /terms                                          320 B         103 kB
++ First Load JS shared by all                      103 kB
+  ├ chunks/1255-b84741b894bb9354.js               46.6 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js           54.2 kB
+  └ other shared chunks (total)                   2.22 kB
+
+
+ƒ Middleware                                      93.3 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

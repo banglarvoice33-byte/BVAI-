@@ -1,0 +1,171 @@
+BVAI ENHANCED VIDEO PIPELINE — বাস্তবায়ন ও চালুর নির্দেশনা
+রিলিজ: 2026-11-16 | নীতি: 2026-11-16.v2
+
+প্রথমে এটি পড়ুন। পুরোনো START_HERE_POLISH_BN.txt ও পূর্ববর্তী রিপোর্টগুলো ইতিহাস;
+এই রিলিজে পরিবর্তিত নীতির ক্ষেত্রে এই নির্দেশনা ও নতুন মাইগ্রেশন প্রযোজ্য।
+
+যা সরবরাহ করা হয়েছে
+আপনার BVAI-POLISHED-SOURCE.zip-এর ওপর বাস্তব সোর্স পরিবর্তন, নতুন মাইগ্রেশন,
+অ্যাডমিন ইন্টারফেস, পরীক্ষা, ডিপ্লয়মেন্ট কনফিগারেশন ও প্রত্যাবর্তনের ব্যবস্থা।
+এটি live-deployed বা broadcaster-certified বলে দাবি করা হচ্ছে না।
+
+১. সম্পাদকীয় নীতির দুটি স্পষ্ট পথ
+ক. enabled এবং kill-switch বন্ধ থাকা curated সংবাদ উৎস থেকে আগে প্রকাশিত সংবাদ:
+source name, canonical source link, publication time ও সংগ্রহের প্রমাণ অক্ষুণ্ণ থাকে।
+আগের আপডেটের blanket human approval / প্রতি দাবিতে primary+দুই স্বাধীন উৎসের
+শর্ত এই স্বয়ংক্রিয় পথে বাধ্যতামূলক নয়। কারিগরি QC পাস হলে website/distribute mode-এ
+স্বয়ংক্রিয় প্রকাশ সম্ভব। source freshness, attribution, rights ও integrity বহাল।
+খ. Reporter / field report / manual / original সংবাদ, ছবি ও ভিডিও:
+অ্যাডমিন/স্টুডিওর server-verified editor session ছাড়া article অনুমোদন করা যায় না।
+প্রমাণিত নির্দেশের আগে video production claim পাওয়া যায় না। final ভিডিওর hash ও
+spoken-script hash-এর সঙ্গে বাঁধা পৃথক মানবীয় অনুমোদন ছাড়া ভিডিও প্রকাশ হয় না।
+ফর্মে প্রতিটি quality checkbox, explicit editorial authorization ও সিদ্ধান্তের নোট লাগে।
+বাইরের তিন সংবাদমাধ্যমের লিংক দিয়ে নিজস্ব রিপোর্টের মানব অনুমোদন প্রতিস্থাপন নয়।
+অনুমোদনের মেয়াদ ২৪ ঘণ্টা; media/script বদলালে পূর্ব অনুমোদন অকার্যকর।
+
+২. আটটি সক্ষমতার বাস্তব অবস্থা
+AI Video Engine: বিদ্যমান queue, slot/quota, story reservation, claim-token fencing,
+heartbeat ও outbox অক্ষুণ্ণ; নতুন নীতির সঙ্গে render/upload/delivery সমন্বিত।
+Multi-model Script: OpenAI, Anthropic, Gemini adapter; free-form factual invention নয়,
+সরবরাহকৃত বাংলা সংবাদের sentence IDs থেকে নির্বাচন। ভুল output/timeout/provider
+failure হলে extractive fallback। VIDEO_SCRIPT_AI_ENABLED=false ডিফল্ট; কোনো paid
+model এখানে চালানো হয়নি। নির্দিষ্ট compatible model ID ও server-side key প্রয়োজন।
+Media Synthesis: বিদ্যমান TTS routing, Bengali normalization, actual-audio captions,
+scene composition ও loudness normalization-এর সঙ্গে নতুন QC report যুক্ত। নতুন
+avatar/voice-cloning provider বা পূর্ণ NLE timeline editor তৈরি হয়েছে এমন দাবি নয়।
+Intelligent B-roll: বাংলা topic থেকে ইংরেজি metadata/query bridge, অধিকার-সংক্রান্ত
+metadata, scene match, duplicate reservation ও এক asset একবার ব্যবহার। unrelated
+footage বাদ দিয়ে নিজস্ব labelled graphics। এটি CV semantic/event verification নয়।
+Automated QC: master format, full decode, captions, loudness, source credit, rights
+metadata ও script binding। loudness repair / re-encode শেষে একই inspector আবার চলে।
+সর্বোচ্চ তিন inspection, অর্থাৎ দুই repair। সীমা শেষ হলে escalation event ও পরের
+যোগ্য সংবাদে চেষ্টা; infrastructure/lease/auth failure-এ নিরাপদে থামে।
+Multi-platform: বিদ্যমান YouTube/Facebook/Instagram/TikTok outbox adapters বহাল,
+নতুন remote upload-এর আগে authoritative DB policy recheck। provider checkpoint/
+reconciliation বজায়; receipt মানেই independent public-visibility proof নয়।
+Monitoring: /admin/video-pipeline ও editor-only /api/admin/video-pipeline;
+১০ সেকেন্ড polling, গত ২৪ ঘণ্টার job status, pending delivery, reconciliation,
+stale queue এবং recent events। সীমিত query হলে coverage warning। এটি websocket
+stream বা externally managed alert delivery নয়।
+A/B Framework: stable hashed allocation, weighted variants, server-side event adapter,
+idempotent exposure/click/complete, exposure-before-conversion, immutable exposed
+definition ও Wilson confidence intervals। draft/stop controls; কোনো live reader
+experiment চালু করা হয়নি। নির্দিষ্ট presentation surface থেকে recordExperiment
+adapter কল করলেই সেই পরীক্ষার event আসে; facts বা approval gates পরীক্ষা করা নিষেধ।
+
+৩. মান ও ধারাবাহিকতা
+Target master: 1080x1920, 30fps, H.264/yuv420p, square pixels, limited-range BT.709,
+AAC 48kHz stereo, 40–120s; -14 LUFS ±2, true peak <= -1dBTP।
+কম মানের ভিডিওকে জোর করে publish করা হয়নি। repair -> recheck -> bounded fallback /
+পরের যোগ্য গল্প -> editor escalation ব্যবহৃত। নেটওয়ার্ক/provider outage, কোনো
+যোগ্য গল্প না থাকা বা অনুমোদন না পাওয়া অবস্থাতেও প্রকাশের ১০০% নিশ্চয়তা বাস্তব নয়।
+BBC বাংলা / DW-এর সমমানের ভাষা, উচ্চারণ, taste এবং editorial storytelling প্রমাণের
+জন্য বাস্তব বাংলা কণ্ঠসহ সম্পাদক-পর্যালোচিত pilot প্রয়োজন। automated format checks
+সেই perceptual acceptance-এর বিকল্প নয়। কোনো broadcaster endorsement নেই।
+
+৪. বিদ্যমান প্রজেক্টে নিরাপদ deployment ক্রম
+প্রথমে database backup এবং একই schema-র staging clone নিন। production-এ render /
+delivery বিরতি দিন। archive-এর পুরোনো সব SQL বা enable-schedule scripts চালাবেন না।
+শুধু আপনার schema-তে ইতিমধ্যে প্রয়োগ না হওয়া এই দুটি নতুন migration পরীক্ষা করুন:
+ supabase/migrations/20261116000000_enhanced_video_policy.sql
+ supabase/migrations/20261116001000_video_experiments.sql
+এগুলো audit/experiment tables, auth-bound approval RPC, deferred publication guards
+এবং legacy finalizer wrapper যোগ করে। কোনো পূর্ববর্তী ভিডিও প্রকাশ করে না।
+Hosted schema-তে drift থাকতে পারে: representative local fixture-এর সাফল্য hosted
+migration replay-এর প্রমাণ নয়। Supabase CLI/dashboard-এ সঠিক project নির্বাচন,
+dry-run ও staging pilot শেষে কেবল সংশ্লিষ্ট migration production-এ নিন।
+
+Existing .env মুছবেন/overwrite করবেন না; .env.video.example থেকে প্রয়োজনীয় নতুন
+key মেলান। secret কখনো NEXT_PUBLIC_ key-এ রাখবেন না। প্রয়োজন:
+ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SITE_URL
+frontend: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+ SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SITE_URL; BVAI_DEMO_MODE=false
+TTS: AZURE_SPEECH_KEY+AZURE_SPEECH_REGION অথবা TTS_ELEVENLABS_1+
+ ELEVENLABS_VOICE_ID অথবা TTS_SARVAM_1; caption provider-এর জন্য
+ GROQ_API_KEY / CAPTION_OPENAI_API_KEY। TTS provider-এর নিজস্ব সীমা প্রযোজ্য।
+Scripts-এর LLM ও TTS/caption key আলাদা purpose-এর; শুধু নাম মিলিয়ে key বসাবেন না।
+
+Root-এ npm ci; worker/frontend-এ পৃথক npm ci ব্যবহার করুন।
+ npm run test:all-pipeline
+ npm run check:imports
+ npm run check:publish-gate
+ npm run check:review-gate
+ npm run test:render-e2e
+ npm run test:quality-repair
+ worker: npm run typecheck && npm test
+ frontend: npm run typecheck && npm test && npm run build
+ bash run-bvai.sh --setup  (শুধু নিজস্ব Linux/Termux-এ dependencies প্রয়োজন হলে)
+ node --env-file=.env scripts/pipeline/readiness.mjs
+ VIDEO_PUBLISH_MODE=review bash run-bvai.sh
+সম্পাদকের pilot শেষে trusted-source auto website publication চাইলে environment-এ
+VIDEO_PUBLISH_MODE=website দিন। distribute mode-এ explicit platform account IDs
+ও OAuth permissions দরকার; একাধিক independent publisher চালাবেন না।
+Reporter video প্রথমে review mode-এ private asset হিসেবে upload করুন;
+/admin/video-quality-এ actual-video approval দিন; তারপর:
+ node --env-file=.env scripts/pipeline/publish-review.mjs JOB_UUID --approve-website
+অথবা explicit --approve-distribute এবং platform credentials/account IDs।
+ডেলিভারি আলাদা worker: bash run-bvai.sh --deliver-only; প্রয়োজনীয় OAuth/permissions,
+VIDEO_DELIVERY_ENABLED ও target config পরীক্ষা না করে চালাবেন না।
+Pending upload থাকলে আগে bash run-bvai.sh --upload-only দিয়ে recover করুন।
+
+৫. hosting-এর দায়িত্ব আলাদা
+Vercel: frontend directory-কে project root; Next.js build, admin APIs ও UI।
+Cloudflare: DNS/TLS/WAF ও বিদ্যমান lightweight edge automation; নতুন FFmpeg
+worker Cloudflare Workers-এর ভিতরে চালানোর ব্যবস্থা করা হয়নি।
+Supabase: auth, DB/RLS, source registry, leases/outbox এবং private reels storage।
+Linux container/runner: actual FFmpeg rendering ও caption/voice provider requests।
+নতুন deploy/video-renderer.Dockerfile + deploy/compose.video.yml দেওয়া আছে।
+ deploy/.env-এ private runtime config মেলানোর পরে:
+ docker compose --env-file deploy/.env -f deploy/compose.video.yml build
+ docker compose --env-file deploy/.env -f deploy/compose.video.yml run --rm video-renderer
+এক shared workspace-এ একটি renderer। Compose YAML parse পরীক্ষা হয়েছে, এই পরিবেশে
+Docker daemon না থাকায় image build/run যাচাই হয়নি। Named volumes-এ unfinished
+state বজায় থাকে; recovery ছাড়া নতুন render দিয়ে তা overwrite করবেন না।
+
+GitHub: .github/workflows/enhanced-ci.yml credentials ছাড়া checks/build চালায়।
+video-manual.yml workflow_dispatch-only, default review; video-staging/video-production protected
+environment এবং নিজের Secrets/Variables configure করুন। GH-এর environment reviewers
+আলাদাভাবে সেট করতে হবে; YAML নিজে reviewer protection সক্রিয় করতে পারে না।
+Recovery key base64-encoded random 32 bytes; কেবল encrypted recovery.bvai.enc
+artifact সংরক্ষিত হয়। এই workflow distribution queues তৈরি করতে পারে, কিন্তু
+VIDEO_DELIVERY_ENABLED=false থাকায় provider posting আলাদা controlled step।
+এই নতুন files কোনো cron schedule চালু করে না; বিদ্যমান dispatcher নিজের current
+settings অনুসরণ করতে পারে। rollout চলাকালে পুরোনো dispatcher-ও pause রাখুন।
+
+৬. rollback
+অটোমেশন pause করে আগের matching application source ফিরিয়ে দিন এবং staging-এ
+পরীক্ষিত supabase/rollbacks/20261116000000_enhanced_video_policy.sql ব্যবহার করুন।
+এতে legacy review-first functions ফেরে; audit/experiment data নষ্ট হয় না।
+Rollback এবং migration reapply isolated PostgreSQL fixture-এ পরীক্ষা হয়েছে।
+Hosted backup restore/rollback procedure আলাদাভাবে staging-এ rehearse করুন।
+
+৭. প্রমাণ ও সীমা
+verification/enhanced/ folder-এ raw test/build/security output এবং
+TEST_RESULTS_ENHANCED.json-এ সংক্ষিপ্ত ফল। Synthetic render-এ আসল audio ভাষা বা
+বাস্তব সংবাদ নেই; mocked provider responses কোনো live integration certificate নয়।
+এই পরিবেশে GitHub login নেই; Supabase URL/key/site config নেই। তাই বাস্তব
+GitHub push, hosted migration, Vercel/Cloudflare deploy, paid speech/script call,
+public video post বা live audience A/B test চালানো হয়নি। প্রয়োজনীয় secrets
+চ্যাটে নয়, নিজস্ব platform secret store-এ configure করুন।
+Dependency audit-এ checked production dependencies-তে reported vulnerabilities 0;
+এটি external penetration test বা সামগ্রিক security guarantee নয়। Pattern scan-এ
+কোনো supported secret candidate পাওয়া যায়নি; এটিও exhaustive secret audit নয়।
+
+Official deployment references consulted:
+https://vercel.com/docs/functions/limitations
+https://developers.cloudflare.com/workers/platform/limits/
+https://supabase.com/docs/guides/database/postgres/row-level-security
+
+এই প্যাকেজের চূড়ান্ত পরীক্ষার সংখ্যা (স্বয়ংক্রিয়ভাবে raw logs থেকে নেয়া):
+{
+  "pipeline_js": 171,
+  "frontend": 185,
+  "worker": 67,
+  "python_captions": 12,
+  "enhanced_postgres": 41,
+  "legacy_postgres": [
+    21,
+    18
+  ]
+}
+Next.js production build এবং TypeScript পাস; তিনটি synthetic FFmpeg integration পাস।

@@ -44,7 +44,7 @@ export function isNewsUrl(raw) {
 }
 /**
  * JS mirror of public.video_gate_basis(): which policy lets this article reach public video?
- *   'editorial'      - an editor approved it (human_verified && verification_status='verified'), any origin.
+ *   'editorial'      - reporter/manual/original content explicitly approved by an editor.
  *   'trusted_source' - curated aggregated news with a credited source and a source timestamp, auto-verified.
  *   null             - reporter/field/manual/original or incomplete content: human approval REQUIRED.
  * This is only a fast pre-check. The database function is authoritative: it additionally requires the
@@ -52,8 +52,7 @@ export function isNewsUrl(raw) {
  */
 export function videoGateBasis(article) {
   if (!article || article.status !== 'published') return null;
-  if (article.human_verified === true && article.verification_status === 'verified') return 'editorial';
-  if (article.field_report_id || article.origin !== 'aggregated') return null;
+  if (article.field_report_id || article.origin !== 'aggregated') return article.human_verified === true && article.verification_status === 'verified' ? 'editorial' : null;
   const credited = String(article.source_name || '').trim() !== '';
   const urlOk = /^https?:\/\/[^ ]+$/i.test(String(article.source_url || ''));
   const verified = article.verification_status === 'auto_verified' || article.verification_status === 'verified';
@@ -68,10 +67,10 @@ export function assertEditorial(article, mode) {
     const basis=videoGateBasis(article);
     if (!basis) throw new Error('Human verification and verified status required before public delivery (reporter/field/original content), or a credited trusted aggregated source');
     const hosts=new Set(sourceUrls(article).filter(isNewsUrl).map(s=>new URL(s).hostname.replace(/^www\./,'')));
-    const need=basis==='trusted_source'?1:2;
+    const need=basis==='trusted_source'?1:0;
     if (hosts.size<need) throw new Error(need===1?'At least one news source domain required':'At least two source domains required; editor must separately confirm independent ownership and claims');
     const published=Date.parse(article.source_published_at || '');
-    if (!Number.isFinite(published) || published>Date.now()+300000 || Date.now()-published>24*3600000) throw new Error('Missing/stale primary source publication timestamp; review required');
+    if (basis==='trusted_source' && (!Number.isFinite(published) || published>Date.now()+300000 || Date.now()-published>24*3600000)) throw new Error('Missing/stale primary source publication timestamp; review required');
   }
 }
 export async function refreshEvidence(article, mode, { feedUrl = null, fetcher = boundedFetch } = {}) {
@@ -79,12 +78,12 @@ export async function refreshEvidence(article, mode, { feedUrl = null, fetcher =
   for (const url of sourceUrls(article).filter(isNewsUrl).slice(0,6)) {
     try {
       const result=await fetcher(url);
-      sources.push({url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:videoGateBasis(article)==='trusted_source'?'automated_article_gate':'editorial_article_gate'});
+      sources.push({url,resolved_url:result.url,fetched_at:new Date().toISOString(),http_status:200,etag:result.headers.get('etag'),last_modified:result.headers.get('last-modified'),sha256:createHash('sha256').update(result.bytes).digest('hex'),role:'news_source',claim_verification:videoGateBasis(article)==='trusted_source'?'automated_article_gate':'editorial_article_gate'});
     } catch(e) { sources.push({url,error:e.message,role:'news_source'}); }
   }
   // Many publishers block bots on article pages. For credited trusted-source news only, a live fetch of the publisher's OWN
   // feed that still lists this exact item (link or title) is accepted as fresh evidence. It is recorded as such, never as a page fetch.
-  const need=videoGateBasis(article)==='trusted_source'?1:2;
+  const need=videoGateBasis(article)==='trusted_source'?1:0;
   const fetchedHosts=()=>new Set(sources.filter(x=>x.sha256).map(x=>new URL(x.url).hostname.replace(/^www\./,'')));
   if (mode !== 'review' && need===1 && !fetchedHosts().size && feedUrl && /^https:\/\//.test(feedUrl)) {
     try {

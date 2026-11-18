@@ -24,10 +24,10 @@ test('reporter / field-report / manual / original content stays human-gated', ()
   }
 });
 
-test('approved reporter content passes only with BOTH human_verified and verified, and needs two domains', () => {
+test('approved reporter content passes only with BOTH human_verified and verified, without a second external news-source quota', () => {
   const approved = { ...trusted, origin: 'manual', field_report_id: 'fr-1', human_verified: true, verification_status: 'verified' };
   assert.equal(videoGateBasis(approved), 'editorial');
-  assert.throws(() => assertEditorial(approved, 'distribute'), /two source/);
+  assert.doesNotThrow(() => assertEditorial(approved, 'distribute'));
   assert.doesNotThrow(() => assertEditorial({ ...approved, fact_sources: ['https://other.example/story'] }, 'distribute'));
   assert.equal(videoGateBasis({ ...approved, verification_status: 'pending' }), null);
   assert.equal(videoGateBasis({ ...approved, human_verified: false }), null);

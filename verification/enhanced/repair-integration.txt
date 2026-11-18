@@ -1,0 +1,1 @@
+{"test":"real_ffmpeg_audio_repair","passed":true,"repairs":1,"measured_lufs":-14.05,"measured_peak_dbtp":-12.64,"scope":"synthetic tone; no perceptual or language-quality certification"}

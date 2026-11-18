@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "scope": "synthetic FFmpeg fixture, not real Bengali speech",
+  "repaired_from": "720x1280/24fps/44.1kHz/mono",
+  "repaired_to": "1080x1920/30fps/48kHz/stereo/H264/BT709",
+  "attempts": 2,
+  "duration": 41,
+  "integrated_lufs": "-14.05",
+  "true_peak_dbtp": "-12.98"
+}

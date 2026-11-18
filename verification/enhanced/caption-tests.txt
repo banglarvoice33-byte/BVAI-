@@ -1,0 +1,9 @@
+
+> banglarvoice-scripts@1.0.0 test:captions
+> python3 -m unittest discover -s scripts/pipeline/tests -p 'test_*.py'
+
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.004s
+
+OK

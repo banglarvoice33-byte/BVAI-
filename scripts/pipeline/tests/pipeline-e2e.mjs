@@ -27,7 +27,7 @@ const article = {
 };
 const calls = []; let attemptedDuplicate = false;
 const db = {
-  from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: article, error: null }) }) }) }),
+  from: () => ({ insert: async()=>({error:null}), select: () => ({ eq: () => ({ single: async () => ({ data: article, error: null }) }) }) }),
   rpc: async (name, args) => {
     calls.push(name);
     if (name === 'reserve_video_broll' && !attemptedDuplicate) { attemptedDuplicate = true; return { data: null, error: { message: 'broll_already_used' } }; }
@@ -41,9 +41,9 @@ ff('-f', 'lavfi', '-i', 'mandelbrot=s=640x360:r=30', '-t', '4', '-c:v', 'libx264
 let n = 0;
 const fakeMedia = {
   async *candidates() {
-    yield { provider: 'pixabay', kind: 'video', url: 'https://cdn.example/dup.mp4', source_url: 'https://pixabay.com/v/1', title: 'dup', author: 'A', license: 'Pixabay Content License', license_url: 'x', query: 'q' };
-    yield { provider: 'wikimedia-commons', kind: 'image', url: 'https://upload.example/a.jpg', source_url: 'https://commons.wikimedia.org/wiki/File:a.jpg', title: 'a.jpg', author: 'Example Author', license: 'CC BY 4.0', license_url: 'https://creativecommons.org/licenses/by/4.0/', query: 'q' };
-    yield { provider: 'pexels', kind: 'video', url: 'https://videos.example/b.mp4', source_url: 'https://pexels.com/v/2', title: 'b', author: 'B', license: 'Pexels License', license_url: 'x', query: 'q' };
+    yield { provider: 'pixabay', kind: 'video', url: 'https://cdn.example/dup.mp4', source_url: 'https://pixabay.com/v/1', title: 'monsoon rain street', author: 'A', license: 'Pixabay Content License', license_url: 'https://license.example/terms', query: 'q' };
+    yield { provider: 'wikimedia-commons', kind: 'image', url: 'https://upload.example/a.jpg', source_url: 'https://commons.wikimedia.org/wiki/File:a.jpg', title: 'monsoon rain street', author: 'Example Author', license: 'CC BY 4.0', license_url: 'https://creativecommons.org/licenses/by/4.0/', query: 'q' };
+    yield { provider: 'pexels', kind: 'video', url: 'https://videos.example/b.mp4', source_url: 'https://pexels.com/v/2', title: 'highway traffic road', author: 'B', license: 'Pexels License', license_url: 'https://license.example/terms', query: 'q' };
   },
   async download(candidate, file) {
     n++; const src = path.join(work, candidate.kind === 'video' ? 'c.mp4' : 's.jpg');
@@ -51,9 +51,9 @@ const fakeMedia = {
     return { bytes: bytes.length, sha256: createHash('sha256').update(bytes).update(String(n)).digest('hex') };
   },
 };
-// Fake TTS: tone whose length tracks script length (~14 chars/s) + evenly timed word captions, like a real aligner would produce.
+// Synthetic offline fixture ONLY: tone + test timestamps. This is NOT real alignment or Bengali voice quality proof.
 async function fakeTts(script, audioPath, subPath) {
-  const seconds = Math.max(5, script.length / 14);
+  const seconds = Math.max(40, script.length / 24); // minimum-duration fixture; delivery master remains full 1080×1920/30fps
   ff('-f', 'lavfi', '-i', `sine=frequency=200:duration=${seconds.toFixed(2)}`, '-af', 'volume=0.6', '-c:a', 'libmp3lame', audioPath);
   const words = script.split(/\s+/); const per = (seconds - 0.3) / words.length;
   const f = (x) => { const ms = Math.round(x * 1000); return `00:${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`; };
@@ -64,14 +64,19 @@ async function fakeTts(script, audioPath, subPath) {
 try {
   const manifest = await renderClaim(db, claim, { synthesizeVoice: fakeTts, media: fakeMedia });
   assert.equal(manifest.article_id, claim.article_id);
-  assert.equal(manifest.script_hash, scriptHash(fs.readFileSync(path.join(tmp, claim.job_id, 'script.txt'), 'utf8')));
+  assert.equal(manifest.technical_qc.checks.decode,true);
+  assert.equal(manifest.technical_qc.checks.script_binding,true);
+  assert.equal(manifest.technical_qc.policy_version,'2026-11-16.v2');
+  assert.equal(manifest.spoken_script_hash, scriptHash(fs.readFileSync(path.join(tmp, claim.job_id, 'script.txt'), 'utf8')));
+  assert.equal(manifest.production_plan.status, 'needs_review');
+  assert.ok(manifest.production_plan.scenes.length > 0);
   assert.equal(manifest.content_key, contentKey(article));
   assert.ok(manifest.audio_duration >= 34 && manifest.render_duration >= 40 && manifest.render_duration <= 120);
   assert.ok(calls.includes('reserve_video_story') && calls.includes('reserve_video_visual') && calls.includes('reserve_video_broll'));
   assert.equal(manifest.media.length, 2, 'duplicate asset was skipped, two fresh assets used');
   assert.ok(manifest.media.every((m) => m.license && m.source_url && m.author));
   const left = fs.readdirSync(path.join(tmp, claim.job_id)).sort();
-  assert.deepEqual(left, ['final_output.mp4', 'script.txt', 'voice.vtt'], 'downloads and intermediates must be deleted after confirmed render');
+  assert.deepEqual(left, ['final_output.mp4', 'production-plan.json', 'script.txt', 'voice.vtt'], 'downloads and intermediates must be deleted after confirmed render');
   assert.ok(fs.existsSync(path.join(tmp, 'manifest.json')));
   console.log(`PASS e2e: ${manifest.render_duration.toFixed(1)} s video, ${manifest.media.length} licensed assets, leftovers = ${left.join(', ')}`);
 } finally {

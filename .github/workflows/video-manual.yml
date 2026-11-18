@@ -1,0 +1,73 @@
+name: Manual controlled video run
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [video-staging, video-production]
+        default: video-staging
+        required: true
+      publish_mode:
+        type: choice
+        options: [review, website, distribute]
+        default: review
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: bvai-video-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 40
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      VIDEO_RECOVERY_KEY: ${{ secrets.VIDEO_RECOVERY_KEY }}
+      VIDEO_PUBLISH_MODE: ${{ inputs.publish_mode }}
+      VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
+      VIDEO_SCRIPT_AI_ENABLED: 'false'
+      VIDEO_TTS_PROVIDER_ORDER: azure,elevenLabs,sarvam
+      AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+      AZURE_SPEECH_REGION: ${{ vars.AZURE_SPEECH_REGION }}
+      TTS_ELEVENLABS_1: ${{ secrets.TTS_ELEVENLABS_1 }}
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
+      TTS_SARVAM_1: ${{ secrets.TTS_SARVAM_1 }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
+      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
+      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID }}
+      TIKTOK_PRIVACY: SELF_ONLY
+      FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION }}
+      BVAI_USER_AGENT: ${{ vars.BVAI_USER_AGENT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core python3 util-linux
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate recovery protection before claiming work
+        run: node scripts/pipeline/protect-recovery.mjs --check-key
+      - name: Read-only deployment preflight
+        run: npm run preflight
+      - name: Render and transactionally finalize
+        run: bash run-bvai.sh
+      - name: Encrypt unfinished work
+        if: always()
+        run: node scripts/pipeline/protect-recovery.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-recovery-${{ github.run_id }}
+          path: recovery.bvai.enc
+          if-no-files-found: ignore
+          retention-days: 7
+# No cron, push deploy, automatic DB migration or experiment activation.
+# Configure required reviewers on video-production and keep Supabase credentials environment-specific.

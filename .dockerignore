@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/.git
+**/.venv
+**/__pycache__
+**/*.pyc
+**/temp_assets
+**/logs
+**/verification
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+*.zip
+*.pdf
+*.enc

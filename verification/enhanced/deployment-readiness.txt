@@ -1,0 +1,20 @@
+{
+  "ok": false,
+  "checks": [
+    {
+      "name": "SUPABASE_URL",
+      "ok": false,
+      "detail": "missing"
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "ok": false,
+      "detail": "missing"
+    },
+    {
+      "name": "SITE_URL",
+      "ok": false,
+      "detail": "missing"
+    }
+  ]
+}

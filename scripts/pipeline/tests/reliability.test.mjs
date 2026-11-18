@@ -28,12 +28,12 @@ test('Normalizer rejects invalid dates grouping empty text and preserves display
   assert.throws(()=>normalizeBanglaForTts('৩১/০২/২০২৪'),/date/);assert.throws(()=>normalizeBanglaForTts('৳1,2,34'),/grouping/);assert.throws(()=>normalizeBanglaForTts(''));
   assert.equal(normalizeBanglaForTts('বিদ্যালয় ও শিক্ষক'), 'বিদ্যালয় ও শিক্ষক');
 });
-test('Editorial gate blocks unverified English stale or single-domain public news',()=>{
+test('Editorial gate blocks unverified or English content; approved reporter work has no external source quota',()=>{
   assert.doesNotThrow(()=>assertEditorial(verified,'distribute'));
   assert.throws(()=>assertEditorial({...verified,human_verified:false},'website'),/Human/);
   assert.throws(()=>assertEditorial({...verified,content_bn:'English content only'},'review'),/Bengali/);
-  assert.throws(()=>assertEditorial({...verified,fact_sources:[]},'distribute'),/two source/);
-  assert.throws(()=>assertEditorial({...verified,source_published_at:'2020-01-01'},'website'),/stale/);
+  assert.doesNotThrow(()=>assertEditorial({...verified,fact_sources:[]},'distribute'));
+  assert.doesNotThrow(()=>assertEditorial({...verified,source_published_at:'2020-01-01'},'website'));
   assert.doesNotThrow(()=>assertEditorial({...verified,human_verified:false},'review'));
   assert.equal(sourceUrls(verified).length,2);
 });

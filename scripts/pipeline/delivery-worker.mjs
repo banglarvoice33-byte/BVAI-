@@ -2,6 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {assertPublicationPolicy} from './enhanced/policy.mjs';
 import {assertEditorial,refreshEvidence} from './source-evidence.mjs';
 import {deliverYoutube,deliverFacebook,deliverInstagram,deliverTiktok,youtubeToken,DeliveryError} from './delivery-providers.mjs';
 export function deliveryTargets(env=process.env) {
@@ -66,7 +67,14 @@ export async function runDelivery() {
         const {data:article,error:articleError}=await db.from('articles').select('*').eq('id',video.article_id).single();
         if(articleError)throw new Error('Source article recheck failed');
         try{assertEditorial(article,'distribute');}catch{throw new DeliveryError('Article editorial/freshness gate changed; no new provider upload',{permanent:true});}
-        await refreshEvidence(article,'distribute');
+        const {data:basis,error:basisError}=await db.rpc('video_gate_basis',{p_article_id:video.article_id});
+        if(basisError)throw new Error('Authoritative publication policy unavailable');
+        let approval=null;
+        if(basis==='editorial'){const review=await db.from('video_quality_approvals').select('video_sha256,script_sha256,expires_at').eq('job_id',asset.job_id).maybeSingle();if(review.error)throw new Error('Editorial approval unavailable');approval=review.data;}
+        assertPublicationPolicy({basis,manifest:asset.manifest,videoHash:asset.sha256,approval});
+        let feedUrl=null;
+        if(article.source_id){const source=await db.from('news_sources').select('feed_url').eq('id',article.source_id).maybeSingle();feedUrl=source.data?.feed_url || null;}
+        await refreshEvidence(article,'distribute',{feedUrl});
       }
       const {data:signed,error:signError}=await db.storage.from('reels').createSignedUrl(generation.render_path,21600);
       if(signError)throw new Error('Media signing failed');

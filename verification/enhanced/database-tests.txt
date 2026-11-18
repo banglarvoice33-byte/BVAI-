@@ -1,0 +1,42 @@
+PASS enhanced migrations apply and replay transactionally
+PASS trusted source publishes WITHOUT human attestation or three independent sources
+PASS idempotent repeat does not create duplicate delivery targets
+PASS service runner cannot bypass human approval RPC
+PASS old finalizer is no longer a directly callable bypass
+PASS missing report blocks public publication
+PASS changed video hash blocks public publication
+PASS changed script hash blocks public publication
+PASS failed captions blocks public publication
+PASS missing rights blocks public publication
+PASS stale report blocks public publication
+PASS future report blocks public publication
+PASS bad loudness blocks public publication
+PASS bad peak blocks public publication
+PASS wrong credited evidence blocks public publication
+PASS stale source capture blocks public publication
+PASS changing a published asset outside finalizer is blocked at commit
+PASS deleting the binding of a published asset is blocked
+PASS kill-switched source cannot use automatic route
+PASS stale source publication is distinct from fresh technical inspection
+PASS reporter data cannot enter automatic source route
+PASS reporter article and photo publication is held without explicit human approval
+PASS unauthenticated editorial instruction fails
+PASS an automation writer cannot manufacture a human-approved reporter flag
+PASS automation cannot disguise a field report as an aggregated source
+PASS authenticated editor can approve article with audit trail
+PASS approved reporter article still requires approval of the actual video
+PASS forged editor ID cannot approve a video
+PASS missing explicit editorial decision cannot approve a video
+PASS human video approval does not need three external sources
+PASS expired human video approval is not reusable
+PASS review mode cannot accidentally enqueue public targets
+PASS experiment RPC is not writable by public or signed-in clients
+PASS invalid experiment weights are rejected by PostgreSQL
+PASS click requires a real earlier exposure
+PASS exposures deduplicate across repeated event keys
+PASS exposed experiment definitions are immutable
+PASS subject cannot silently switch experiment variant
+PASS stopped experiment rejects new telemetry
+PASS coordinated rollback restores legacy functions while retaining audit data
+PASS enhanced migrations can be reapplied after rollback
+Enhanced PostgreSQL checks passed: 41. Scope: isolated representative tables + all three actual supplied finalizers; not full hosted schema, network or real storage.

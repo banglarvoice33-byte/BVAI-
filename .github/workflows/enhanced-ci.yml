@@ -1,0 +1,48 @@
+name: Enhanced video verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core python3
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run test:all-pipeline
+      - run: npm run check:imports && npm run check:review-gate && npm run check:publish-gate
+      - run: npm run test:render-e2e && npm run test:quality-repair
+      - run: npm run test:quality-repair
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        app: [frontend, worker]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm test
+      - if: matrix.app == 'frontend'
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          BVAI_DEMO_MODE: 'true'
+          NEXT_PUBLIC_SITE_URL: https://example.test
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: fixture-public-not-a-secret

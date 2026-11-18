@@ -8,7 +8,7 @@ export async function readiness(env=process.env) {
   for(const key of ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SITE_URL'])add(key,Boolean(env[key]),env[key]?'configured (value hidden)':'missing');
   if(!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY)return {ok:false,checks};
   const db=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-  for(const [table,column] of [['articles','id'],['video_generation_jobs','id'],['video_delivery_assets','video_id'],['video_delivery_outbox','id'],['video_story_reservations','job_id'],['video_broll_reservations','job_id'],['social_posts','claim_token'],['social_dispatch_readiness_v2','platform']]) {
+  for(const [table,column] of [['video_pipeline_events','id'],['video_experiments','id'],['video_experiment_events','id'],['articles','id'],['video_generation_jobs','id'],['video_quality_approvals','job_id'],['video_delivery_assets','video_id'],['video_delivery_outbox','id'],['video_story_reservations','job_id'],['video_broll_reservations','job_id'],['social_posts','claim_token'],['social_dispatch_readiness_v2','platform']]) {
     const {error}=await db.from(table).select(column).limit(0);
     add(table,!error,error?'contract unavailable':'readable');
   }

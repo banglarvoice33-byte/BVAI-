@@ -3,6 +3,14 @@ const hex=/^[a-f0-9]{64}$/;
 const date=x=>typeof x==='string' && Number.isFinite(Date.parse(x));
 export const digest=x=>createHash('sha256').update(x).digest('hex');
 export function assertReview(r,{now=Date.now(),maxAgeMs=86400000}={}) {
+  if(r?.version===2) {
+    if(!hex.test(r.video_sha256||'')||!hex.test(r.script_sha256||'')||!Number.isFinite(r.duration_sec)||r.duration_sec<40||r.duration_sec>120)throw Error('Asset/script binding and master duration required');
+    if(!date(r.reviewed_at)||Date.parse(r.reviewed_at)>now||now-Date.parse(r.reviewed_at)>maxAgeMs||!r.reviewer_id?.trim())throw Error('Fresh named human review required');
+    if(r.editorial_authorized!==true||typeof r.editorial_note!=='string'||r.editorial_note.trim().length<10||r.editorial_note.length>4000)throw Error('Explicit editorial authorization and note required');
+    for(const gate of ['names_numbers_dates','pronunciation','scene_relevance','caption_spelling','safe_zones','rights','human_perceptual_qc'])if(r.qc?.[gate]!==true)throw Error('Human QC missing: '+gate);
+    if(r.facebook_edit)throw Error('Separate platform edit requires its own reviewed job');
+    return true;
+  }
   if(!r || r.version!==1 || !hex.test(r.video_sha256||'') || !hex.test(r.script_sha256||''))throw Error('Asset/script binding required');
   if(!Number.isFinite(r.duration_sec)||r.duration_sec<40||r.duration_sec>120)throw Error('Master duration 40–120 required');
   if(!date(r.reviewed_at)||Date.parse(r.reviewed_at)>now||now-Date.parse(r.reviewed_at)>maxAgeMs||!r.reviewer_id?.trim())throw Error('Fresh named human review required');
