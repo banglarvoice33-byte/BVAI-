@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Locale } from '@/lib/i18n';
 
 export function NewsletterCta({ locale = 'bn' }: { locale?: Locale }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,7 +60,8 @@ export function NewsletterCta({ locale = 'bn' }: { locale?: Locale }) {
         ) : (
           <form className="flex flex-col gap-2 sm:flex-row" onSubmit={subscribe}>
             <label htmlFor="nl-email" className="sr-only">{en ? 'Email address' : 'ইমেইল ঠিকানা'}</label>
-            <input
+            <input name="name" placeholder="Apnar nam" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />
+          <input
               id="nl-email"
               type="email"
               required

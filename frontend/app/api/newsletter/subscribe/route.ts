@@ -24,6 +24,9 @@ export async function POST(request: Request) {
     ? (body as { email?: unknown }).email
     : undefined;
   const parsed = emailSchema.safeParse(rawEmail);
+  const rawName = typeof body === 'object' && body !== null && 'name' in body ? (body as { name?: unknown }).name : undefined;
+  const cleanName = typeof rawName === 'string' ? rawName.trim().slice(0, 100) : null;
+  const finalName = cleanName && cleanName.length > 0 ? cleanName : null;
   if (!parsed.success) {
     return NextResponse.json({ success: false, error: 'invalid_email' }, { status: 400 });
   }
