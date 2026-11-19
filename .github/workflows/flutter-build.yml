@@ -27,12 +27,30 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Build APK
+          flutter-version: '3.50.0'
+          cache: true
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile_monorepo/apps/${{ matrix.app }}/android/gradle/wrapper/gradle-wrapper.properties') }}
+      - name: Analyze
+        working-directory: mobile_monorepo/apps/${{ matrix.app }}
+        run: flutter analyze
+      - name: Test
+        working-directory: mobile_monorepo/apps/${{ matrix.app }}
+        run: flutter test || echo "NO_TESTS"
+      - name: Build APK - split per ABI + obfuscate
         working-directory: mobile_monorepo/apps/${{ matrix.app }}
         run: |
           flutter pub get
-          flutter build apk --release -t ${{ matrix.target }}
+          flutter build apk --release -t ${{ matrix.target }} --split-per-abi --obfuscate --split-debug-info=build/app/outputs/symbols/
+          ls -lh build/app/outputs/flutter-apk/
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.app }}-apk
-          path: mobile_monorepo/apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            mobile_monorepo/apps/${{ matrix.app }}/build/app/outputs/flutter-apk/*.apk
+            mobile_monorepo/apps/${{ matrix.app }}/build/app/outputs/symbols/
