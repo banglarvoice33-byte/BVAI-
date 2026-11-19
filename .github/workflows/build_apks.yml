@@ -110,7 +110,7 @@ jobs:
           echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
-          echo "storeFile=app/keystore/banglar-voice-release.jks" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
+          echo "storeFile=keystore/banglar-voice-release.jks" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
 
       - name: Verify keystore exists
         run: |
