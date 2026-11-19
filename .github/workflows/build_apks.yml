@@ -24,9 +24,10 @@ jobs:
             target: lib/main_tv.dart
 
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
       GRADLE_OPTS: >-
-        -Dorg.gradle.internal.repository.max.retries=6
-        -Dorg.gradle.internal.repository.initial.backoff=5000
+        -Dorg.gradle.internal.repository.max.retries=5
+        -Dorg.gradle.internal.repository.initial.backoff=1000
 
     steps:
       - uses: actions/checkout@v5
