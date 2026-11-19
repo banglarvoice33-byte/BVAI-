@@ -1,0 +1,27 @@
+name: Build APK
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [reader_app, admin_app, reporter_app, studio_app, tv_app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Build APK
+        working-directory: mobile_monorepo/apps/${{ matrix.app }}
+        run: |
+          flutter pub get
+          flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-apk
+          path: mobile_monorepo/apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-release.apk
