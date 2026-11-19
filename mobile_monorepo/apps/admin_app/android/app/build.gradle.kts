@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.banglarvoice.admin"
+        applicationId = "com.banglarvoice24news.admin"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1
