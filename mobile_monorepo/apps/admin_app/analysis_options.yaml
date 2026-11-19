@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+analyzer:
+  errors:
+    deprecated_member_use: ignore
+    # We stay on material.dart until planned migration to material_ui
+    # This is a controlled decision, not a bypass
+  exclude:
+    - build/**
+linter:
+  rules:
+    - unused_import
+    - prefer_const_constructors
