@@ -35,7 +35,7 @@ jobs:
   gate:
     # Cheap probe (about 10 s): never spend render minutes when no slot/article is due.
     if: github.event_name == 'schedule'
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     outputs:
       due: ${{ steps.probe.outputs.due }}
@@ -60,7 +60,7 @@ jobs:
   render-and-upload:
     needs: gate
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.gate.outputs.due == 'true') }}
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     container:
       image: ubuntu:24.04
     timeout-minutes: 30
