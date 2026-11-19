@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths: ['mobile_monorepo/**']
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -21,17 +22,49 @@ jobs:
             target: lib/main_studio.dart
           - app: tv_app
             target: lib/main_tv.dart
+
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.internal.repository.max.retries=6
+        -Dorg.gradle.internal.repository.initial.backoff=5000
+
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.50.0'
           channel: stable
           cache: true
+
+      - name: Redirect Maven Central to Google mirror
+        run: |
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/google-maven-mirror.gradle.kts" << 'EOF'
+          val mirror = "https://maven-central.storage-download.googleapis.com/maven2/"
+          fun RepositoryHandler.useMirror() {
+              val central = filterIsInstance<MavenArtifactRepository>()
+                  .filter { it.url.host == "repo.maven.apache.org" || it.url.host == "repo1.maven.org" }
+              if (none { it is MavenArtifactRepository && it.url.toString() == mirror }) {
+                  maven(mirror) { name = "GoogleMavenCentralMirror" }
+              }
+              removeAll(central.toSet())
+          }
+          settingsEvaluated {
+              pluginManagement.repositories.useMirror()
+              dependencyResolutionManagement.repositories.useMirror()
+          }
+          allprojects {
+              buildscript.repositories.useMirror()
+              afterEvaluate { repositories.useMirror() }
+          }
+          EOF
+
       - name: Decode Banglar Voice keystore
         run: |
           mkdir -p mobile_monorepo/apps/${{ matrix.app }}/android/app/keystore
@@ -40,13 +73,16 @@ jobs:
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
           echo "storeFile=app/keystore/banglar-voice-release.jks" >> mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
+
       - name: Verify keystore exists
         run: |
           ls -l mobile_monorepo/apps/${{ matrix.app }}/android/app/keystore/
           ls -l mobile_monorepo/apps/${{ matrix.app }}/android/key.properties
+
       - name: Build APK - ${{ matrix.app }}
         working-directory: mobile_monorepo/apps/${{ matrix.app }}
         run: flutter build apk --release --split-per-abi --target=${{ matrix.target }}
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
