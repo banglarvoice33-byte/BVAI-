@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:rtmp_broadcaster/rtmp_broadcaster.dart';
+import 'package:rtmp_broadcaster/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class LiveStreamScreen extends StatefulWidget {
