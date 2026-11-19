@@ -8,6 +8,24 @@ import { FALLBACK_TICKER_TEXT, resolveBreakingTicker } from '@/lib/breaking-tick
 /** Editorial ticker with article fallbacks and realtime refresh. */
 export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }) {
   const [texts, setTexts] = useState<string[]>([FALLBACK_TICKER_TEXT[locale]]);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('bv-ticker-paused');
+      if (v === '1') setPaused(true);
+    } catch {}
+  }, []);
+
+  const togglePaused = () => {
+    setPaused((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('bv-ticker-paused', next ? '1' : '0');
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     let sb: ReturnType<typeof createClient>;
@@ -36,6 +54,7 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
             .select('title_bn, title_en')
             .eq('status', 'published')
             .eq('is_breaking', true)
+            .gte('published_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
             .order('published_at', { ascending: false })
             .limit(5);
           return { data, error };
@@ -45,6 +64,7 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
             .from('articles')
             .select('title_bn, title_en')
             .eq('status', 'published')
+            .gte('published_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
             .order('published_at', { ascending: false })
             .limit(5);
           return { data, error };
@@ -54,6 +74,7 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
     };
 
     void load();
+    const poll = setInterval(load, 60000);
     const channel = sb
       .channel('breaking_ticker')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'breaking_ticker' }, load)
@@ -62,6 +83,7 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
 
     return () => {
       disposed = true;
+      clearInterval(poll);
       void sb.removeChannel(channel);
     };
   }, [locale]);
@@ -85,9 +107,12 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
         role="region"
         aria-label={t(locale, 'marquee_aria')}
       >
-        <p className="sr-only">{texts[0]}</p>
+        <p className="sr-only">{loopTexts.join(' • ')}</p>
         <div className="absolute inset-0 flex items-center">
-          <div className="marquee-track flex items-center whitespace-nowrap will-change-transform animate-[marquee_30s_linear_infinite]">
+          <div
+            className="marquee-track flex items-center whitespace-nowrap will-change-transform animate-[marquee_30s_linear_infinite]"
+            style={{ animationPlayState: paused ? 'paused' : 'running' }}
+          >
             {[0, 1].map((copy) => (
               <span key={copy} className="flex items-center whitespace-nowrap text-sm font-medium text-white" aria-hidden>
                 {loopTexts.map((text, index) => (
@@ -101,6 +126,15 @@ export function BreakingMarquee({ locale = 'bn' as Locale }: { locale?: Locale }
           </div>
         </div>
       </div>
+      <button
+        type="button"
+        aria-pressed={paused}
+        aria-label={paused ? 'চালু করুন' : 'থামান'}
+        onClick={togglePaused}
+        className="z-20 flex h-full shrink-0 items-center bg-black px-3 text-xs font-bold text-white"
+      >
+        {paused ? '▶' : '❚❚'}
+      </button>
     </div>
   );
 }

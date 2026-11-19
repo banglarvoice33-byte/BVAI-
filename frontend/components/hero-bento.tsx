@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { t, translateCategory, type Locale } from '@/lib/i18n';
 
 export type Article = {
@@ -12,7 +12,6 @@ export type Article = {
   image_url?: string;
   image_credit?: string;
   read_time?: number;
-  bias_index?: number;
   published_at?: string;
   author?: string;
   source_name?: string;
@@ -20,7 +19,6 @@ export type Article = {
   image_is_representational?: boolean;
   origin?: 'aggregated' | 'original';
 };
-
 
 const fmtNum = (s: string | number, locale: Locale): string =>
   locale === 'bn'
@@ -38,46 +36,18 @@ function timeAgo(iso: string | undefined, locale: Locale): string {
   return `${fmtNum(Math.round(hrs / 24), locale)} ${t(locale, 'time_ago_days')}`;
 }
 
-/** Renders "X minutes ago" only after client mount, to avoid hydration mismatch
- *  when Date.now() differs between server render and client hydration. */
 function ClientTimeAgo({ iso, locale, className }: { iso?: string; locale: Locale; className?: string }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     setTick(1);
-    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    const id = setInterval(() => setTick((v) => v + 1), 60_000);
     return () => clearInterval(id);
   }, []);
   if (tick === 0) return <span className={className} aria-hidden>···</span>;
   return <span className={className}>{timeAgo(iso, locale)}</span>;
 }
 
-function biasBadge(bias: number | undefined, locale: Locale) {
-  if (bias === undefined || bias === null) return null;
-  const v = Math.max(0, Math.min(100, bias));
-  const tone =
-    v < 35 ? t(locale, 'bias_unbiased')
-    : v < 65 ? t(locale, 'bias_balanced')
-    : t(locale, 'bias_risk');
-  const cls =
-    v < 35
-      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-      : v < 65
-        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-        : 'bg-[#CC0000]/10 text-[#CC0000] dark:bg-[#CC0000]/25 dark:text-[#CC0000]';
-  const score = fmtNum(v, locale);
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}
-      title={`${t(locale, 'bias_tooltip_prefix')}: ${score}/100`}
-    >
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />
-      {tone} {score}
-    </span>
-  );
-}
-
 function placeholderGradient(seed = ''): string {
-  // Deterministic subtle gradient from any seed — no external images, no CLS.
   const palettes = [
     'from-[#E5E2DE] via-[#F5F2ED] to-[#C5A880]/30',
     'from-sky-100 via-indigo-50 to-blue-100',
@@ -92,8 +62,6 @@ function placeholderGradient(seed = ''): string {
 }
 
 function ZeroClsImg({ src, alt, className }: { src?: string; alt: string; className?: string }) {
-  // Zero-CLS image: fixed aspect container + object-cover.
-  // No src (or load error) => deterministic gradient art + category glyph stays.
   const grad = placeholderGradient(alt);
   return (
     <div
@@ -121,22 +89,16 @@ function ZeroClsImg({ src, alt, className }: { src?: string; alt: string; classN
   );
 }
 
-/** Big lead card for the bento grid (featured article). */
 export function LeadCard({ article, href, locale }: { article: Article; href: string; locale: Locale }) {
   return (
     <a
       href={href}
       className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition-shadow hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <ZeroClsImg
-        src={article.image_url}
-        alt={article.title}
-        className="aspect-[16/10] w-full"
-      />
+      <ZeroClsImg src={article.image_url} alt={article.title} className="aspect-[16/10] w-full" />
       <div className="flex flex-1 flex-col p-5">
         <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-primary">
           <span>{translateCategory(locale, article.category || 'সর্বশেষ')}</span>
-          {biasBadge(article.bias_index, locale)}
         </div>
         <h3 className="font-serifbn text-2xl font-extrabold leading-snug text-ink group-hover:text-primary dark:text-paper md:text-3xl">
           {article.title}
@@ -164,7 +126,6 @@ export function LeadCard({ article, href, locale }: { article: Article; href: st
   );
 }
 
-/** Compact card used in the secondary grid. */
 export function ArticleCard({ article, href, locale }: { article: Article; href: string; locale: Locale }) {
   return (
     <a
@@ -177,7 +138,6 @@ export function ArticleCard({ article, href, locale }: { article: Article; href:
           <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
             {translateCategory(locale, article.category || 'সর্বশেষ')}
           </span>
-          {biasBadge(article.bias_index, locale)}
         </div>
         <h3 className="font-serifbn text-lg font-bold leading-snug text-ink group-hover:text-primary dark:text-paper">
           {article.title}
@@ -201,7 +161,6 @@ export function ArticleCard({ article, href, locale }: { article: Article; href:
   );
 }
 
-/** Ranked list item for the "ট্রেন্ডিং" column. */
 export function TrendingItem({ rank, article, href, locale }: { rank?: number; article: Article; href: string; locale: Locale }) {
   return (
     <a
@@ -227,13 +186,7 @@ export function TrendingItem({ rank, article, href, locale }: { rank?: number; a
   );
 }
 
-/**
- * HeroBentoGrid — 1 large lead + 2 secondary + trending column.
- * Reads articles from the same server-side data the page already fetched
- * (passed as props) so ISR caching applies once.
- */
 export function HeroBentoGrid({ articles, locale }: { articles: Article[]; locale: Locale }) {
-  // Tabbed right rail: latest stories vs the current client-side ranked list.
   const [tab, setTab] = useState<'latest' | 'trending'>('latest');
   const lead = articles[0];
   const secondary = articles.slice(1, 3);
@@ -244,9 +197,7 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
   });
   const railItems =
     tab === 'trending'
-      ? [...articles]
-          .sort((a, b) => (b.bias_index ?? 50) - (a.bias_index ?? 50))
-          .slice(3, 9)
+      ? sortedByTime.slice(3, 9)
       : sortedByTime.slice(1, 7);
 
   if (!lead) {
@@ -259,11 +210,9 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
 
   return (
     <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      {/* Large lead */}
       <div className="lg:col-span-2">
         <LeadCard article={lead} locale={locale} href={`/article/${lead.slug ?? lead.id ?? ''}`} />
       </div>
-      {/* Right rail: 2 secondary stacked + trending */}
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           {secondary.map((a) => (
@@ -310,6 +259,11 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
                 href={`/article/${a.slug ?? a.id ?? ''}`}
               />
             ))}
+          </div>
+          <div className="mt-4 border-t border-border pt-3 text-center">
+            <a href="/latest" className="text-sm font-bold text-primary hover:underline">
+              আরও সংবাদ দেখুন →
+            </a>
           </div>
         </div>
       </div>

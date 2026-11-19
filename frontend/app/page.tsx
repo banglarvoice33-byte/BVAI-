@@ -45,7 +45,7 @@ const toBento = (a: FeedArticle, locale: Locale) => ({
 export default async function HomePage() {
   const cookieStore = await cookies();
   const locale = getLocaleFromCookie(cookieStore.get(LOCALE_COOKIE)?.value);
-  const enable3dVisuals = cookieStore.get('ff_3d_visuals')?.value !== '0';
+  const enable3dVisuals = cookieStore.get('ff_3d_visuals')?.value === '1';
   let items: FeedArticle[] = [];
   let error = '';
   let liveEntries: LiveEntry[] = [];
@@ -72,7 +72,7 @@ export default async function HomePage() {
   }
 
   // Demo data is local-development only; production must never show mock news.
-  const demoMode = process.env.NODE_ENV !== 'production';
+  const demoMode = process.env.BVAI_DEMO_MODE === 'true';
 
   const feed: FeedArticle[] =
     items.length > 0 ? items : (demoMode ? mockFeedItems : []);
@@ -110,7 +110,7 @@ export default async function HomePage() {
       : null;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 pb-28">
+    <div className="mx-auto max-w-6xl px-4 py-8 pb-28">
       {videoJsonLd && (
         <script
           type="application/ld+json"
@@ -161,6 +161,13 @@ export default async function HomePage() {
       {/* 60% lead + stacked secondary + tabbed right rail (সর্বশেষ/ট্রেন্ডিং) */}
       <HeroBentoGrid articles={feed.map((a) => toBento(a, locale))} locale={locale} />
 
+{feed.length > 3 && (
+        <section id="latest" className="mt-14 scroll-mt-24" aria-labelledby="latest-heading">
+          <LatestGrid articles={feed.map((a) => toBento(a, locale))} locale={locale} />
+        </section>
+      )}
+
+      
       <section
         aria-label="ই-পেপার"
         className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-paper to-paper p-5 shadow-sm sm:flex-row sm:items-center sm:p-6 dark:from-primary/20 dark:via-neutral-900 dark:to-neutral-900"
@@ -207,12 +214,6 @@ export default async function HomePage() {
         </a>
       </section>
 
-      {feed.length > 3 && (
-        <section id="latest" className="mt-14 scroll-mt-24" aria-labelledby="latest-heading">
-          <LatestGrid articles={feed.map((a) => toBento(a, locale))} locale={locale} />
-        </section>
-      )}
-
       {feed.length >= 6 && <CategoryModules articles={feed.map((a) => toBento(a, locale))} locale={locale} />}
 
       {items.length === 0 && !error && (
@@ -244,6 +245,6 @@ export default async function HomePage() {
       {feed.length > 0 ? (
         <AudioPlayerWidget text={feed.map((a) => `${a.title_bn}। ${a.dek_bn || ''}`).join(' ')} title={t(locale, 'audio_today_headlines')} locale={locale} />
       ) : null}
-    </main>
+    </div>
   );
 }
