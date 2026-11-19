@@ -17,13 +17,11 @@ backend/bv-pocketbase
 *.db
 *.db-shm
 *.db-wal
-
 # --- Frontend ---
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/dist/
-
 # --- Flutter / Dart ---
 mobile_monorepo/**/build/
 mobile_monorepo/**/.dart_tool/
@@ -33,12 +31,10 @@ mobile_monorepo/**/.pub-cache/
 mobile_monorepo/**/android/.gradle/
 mobile_monorepo/**/android/local.properties
 *.iml
-
 # --- Android build output ---
 *.apk
 *.aab
 *.ap_
-
 # --- 🚨 SECRETS: NEVER COMMIT (use GitHub Secrets instead) ---
 # keystore, key.properties & google-services.json কখনো Git-এ যাবে না।
 # সাইনিং কী GitHub Secrets-এ রাখা হয়:
@@ -53,29 +49,20 @@ key.properties
 **/keystore/
 **/google-services.json
 !**/google-services.json.template
-
 # --- Editor ---
 .idea/
 .vscode/
 *.swp
-
 # --- TS build cache ---
 *.tsbuildinfo
-
 # Backup files
 *.bak
-
 # Android signing local secrets
 mobile_monorepo/keystores/
-*.jks
-*.keystore
 frontend/.env.local
-.env.local
-
 # Vercel local config
 .vercel/
 /node_modules/
-
 # ── Dev utility scripts (one-time helpers) ──
 frontend/*.js
 !frontend/next.config.js
@@ -85,42 +72,30 @@ frontend/*.js
 frontend/*.bak*
 frontend/*-backup-*.json
 frontend/articles-backup-*.json
-
 # ── Supabase function backups ──
 supabase/functions/news-pipeline/*.bak*
 supabase/functions/news-pipeline/fix-sensitive.js
-
 # ── Deploy helper ──
 deploy-function.js
 frontend/lib/*.bak*
 frontend/**/*.bak*
-frontend/lib/*.bak*
-frontend/**/*.bak*
-frontend/lib/*.bak*
-frontend/**/*.bak*
 frontend/_sentry_disabled/
-
 # Dev helpers — do not commit
 deploy-v2.js
 frontend/deploy-*.js
-
 # Allow video seeding script (one-time setup, needed for new deploys)
 !frontend/seed-videos.js
-
 # Allow specific helper scripts (git add -f needed otherwise)
 frontend/sync-youtube-videos.js
 frontend/seed-videos.js
 scripts/pipeline/tmp/
 scripts/pipeline/output/
-
 # Python/script backup files
 *.pre-*
 *.pre-fix
 *.pre-verify
-
 *.before-fix
 frontend/supa-*.mjs
-
 # Local diagnostics, temporary pages, and manual pipeline backups
 frontend/page-*.html
 frontend/.env.local*
@@ -128,63 +103,34 @@ supabase/functions/news-pipeline/index.ts.before-*
 archive/local-audit-artifacts/
 archive/pipeline-backups/
 backups/
-
 # Local-only audit and backup artifacts
 .local-backups/
 audit-output/
-backups/
 logs/
-frontend/.next/
-frontend/page-*.html
-supabase/functions/news-pipeline/index.ts.before-*
-
-# Local-only diagnostic and generated files
-deno.lock
-docs/newsroom/audit/
-
 # Local-only diagnostic and generated files
 deno.lock
 docs/newsroom/audit/
 # Secrets
-.env
-.env.*
-!.env.example
-
 # Worker runtime
 worker/node_modules/
 worker/.env
 worker/dist/
-
 # Mobile build outputs
-mobile_monorepo/**/build/
-mobile_monorepo/**/.dart_tool/
-mobile_monorepo/**/.flutter-plugins*
-
 # OS / Editor
-.DS_Store
-*.swp
-
 # Compiled binaries
 archive/**/bv-pocketbase
 *.exe
 *.bin
-
 fix-emails.sh
-.env
 temp_assets/
 .vercel
 .env*
 *.mp3
 *.mp4
 *.vtt
-
 # Website renderer state; claims contain sensitive lease tokens
 .bvaivideo.lock
-temp_assets/
-logs/
-
 .bvai-backups/
-
 # Reviewed media patch: public template only; keep recovery/session secrets out of Git.
 !.env.video.example
 recovery.bvai.enc
@@ -199,3 +145,5 @@ backup/
 backup_*.dump
 backup_*.sql
 migration_before.txt
+banglarvoice24news-release.keystore
+bv-pass.txt
