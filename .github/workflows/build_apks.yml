@@ -43,26 +43,63 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Redirect Maven Central to Google mirror
+      - name: Mirror Maven Central (keep Gradle Plugin Portal)
         run: |
           mkdir -p "$HOME/.gradle/init.d"
-          cat > "$HOME/.gradle/init.d/google-maven-mirror.gradle.kts" << 'EOF'
-          val mirror = "https://maven-central.storage-download.googleapis.com/maven2/"
-          fun RepositoryHandler.useMirror() {
-              val central = filterIsInstance<MavenArtifactRepository>()
-                  .filter { it.url.host == "repo.maven.apache.org" || it.url.host == "repo1.maven.org" }
-              if (none { it is MavenArtifactRepository && it.url.toString() == mirror }) {
-                  maven(mirror) { name = "GoogleMavenCentralMirror" }
+          cat > "$HOME/.gradle/init.d/maven-central-mirror.gradle" << 'EOF'
+          def central = ~/^https:\/\/(repo\.maven\.apache\.org|repo1\.maven\.org)\/maven2\/?/
+          def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+          def fallback = 'mavenCentralBehindMirror'
+
+          def addFallback = { RepositoryHandler repositories ->
+              repositories.maven {
+                  name = fallback
+                  url = 'https://repo.maven.apache.org/maven2/'
               }
-              removeAll(central.toSet())
           }
-          settingsEvaluated {
-              pluginManagement.repositories.useMirror()
-              dependencyResolutionManagement.repositories.useMirror()
+
+          def toMirror = { RepositoryHandler repositories ->
+              def hasFallback = false
+              repositories.all { repository ->
+                  if (repository.name == fallback) { return }
+                  if (repository instanceof MavenArtifactRepository) {
+                      def url = repository.url.toString()
+                      if (url =~ central) {
+                          repository.url = url.replaceFirst(central, mirror)
+                          if (!hasFallback) {
+                              hasFallback = true
+                              addFallback(repositories)
+                              return
+                          }
+                      }
+                  }
+              }
+              def last = repositories.findByName(fallback)
+              if (hasFallback && !repositories.last().is(last)) {
+                  repositories.remove(last)
+                  repositories.add(last)
+              }
           }
-          allprojects {
-              buildscript.repositories.useMirror()
-              afterEvaluate { repositories.useMirror() }
+
+          beforeSettings { settings ->
+              toMirror(settings.buildscript.repositories)
+              toMirror(settings.pluginManagement.repositories)
+              toMirror(settings.dependencyResolutionManagement.repositories)
+          }
+
+          settingsEvaluated { settings ->
+              if (settings.pluginManagement.repositories.isEmpty()) {
+                  settings.pluginManagement.repositories { repositories ->
+                      maven { url = mirror }
+                      addFallback(repositories)
+                      gradlePluginPortal()
+                  }
+              }
+          }
+
+          allprojects { project ->
+              toMirror(project.buildscript.repositories)
+              toMirror(project.repositories)
           }
           EOF
 
