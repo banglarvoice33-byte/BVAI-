@@ -147,3 +147,4 @@ backup_*.sql
 migration_before.txt
 banglarvoice24news-release.keystore
 bv-pass.txt
+setup-bv-signing.sh

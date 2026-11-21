@@ -14,7 +14,7 @@
 
 4. Structure: Hook (0-3s) = main news in 1 sentence.
    Body = 1 sentence = 1 fact.
-   End (last 5s) = source credit, e.g. "সূত্র: আল জাজিরা"
+   End (last 5s) = source credit, e.g. "Source: Al Jazeera"
 
 5. If scene relevance < 70%, replace that scene, do not keep it.
    No stock beauty shots. No footage older than 7 days unless marked [archive].
