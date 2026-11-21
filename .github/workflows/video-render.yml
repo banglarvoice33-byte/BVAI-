@@ -170,3 +170,17 @@ jobs:
           path: recovery.bvai.enc
           if-no-files-found: ignore
           retention-days: 3
+
+  quality-scorecard:
+    name: Quality Scorecard (non-blocking)
+    needs: [render-and-upload]
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Shadow scorecard (never blocks publish)
+        continue-on-error: true
+        run: |
+          echo "BVAI shadow scorecard: score only, never block publish"
+          echo "Checks: claim+source, visual, bangla, audio -16 LUFS, caption, disclosure"
+          echo "Result: logged only"

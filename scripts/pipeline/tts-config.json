@@ -1,0 +1,14 @@
+{
+  "engine": "bv-tts",
+  "language": "bn",
+  "speed": 0.92,
+  "words_per_min_target": "130-140",
+  "pause_after_sentence_sec": 0.4,
+  "pause_before_number_name_sec": 0.2,
+  "voice_lufs": -16,
+  "music_db_below_voice": -15,
+  "tone": "classic-news-anchor-calm-low-slow",
+  "no_shouting": true,
+  "no_drama": true,
+  "no_emotional_music": true
+}
