@@ -22,6 +22,12 @@ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id ||
     const {data:basis,error:basisError}=await db.rpc('video_gate_basis',{p_article_id:job.article_id});
     if(basisError || (basis==='editorial' && approvalError))throw new Error('Editorial policy/approval unavailable');
     assertPublicationPolicy({basis,manifest:asset.manifest,videoHash:asset.sha256,approval});
+    // Claim-by-claim human review (phase 2): mandatory for editorial/reporter content, opt-in for trusted-source news.
+    if(basis==='editorial' || process.env.BVAI_REQUIRE_CLAIM_REVIEW==='true') {
+      const {data:gate,error:gateError}=await db.rpc('media_review_gate',{p_job_id:id});
+      if(gateError)throw new Error('Claim-review gate unavailable; apply the phase-2 migration first');
+      if(gate?.ok!==true)throw new Error('Claim-by-claim review incomplete: '+JSON.stringify((gate?.blockers||[]).slice(0,5)));
+    }
     assertEditorial(article,distribute?'distribute':'website');
     let feedUrl=null;
     if(article.source_id){const source=await db.from('news_sources').select('feed_url').eq('id',article.source_id).maybeSingle();feedUrl=source.data?.feed_url || null;}

@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {assertPublicationPolicy} from './enhanced/policy.mjs';
 import {assertEditorial,refreshEvidence} from './source-evidence.mjs';
+import {facebookVariant} from './facebook-variant.mjs';
 import {deliverYoutube,deliverFacebook,deliverInstagram,deliverTiktok,youtubeToken,DeliveryError} from './delivery-providers.mjs';
 export function deliveryTargets(env=process.env) {
   const platforms=[...new Set((env.VIDEO_DELIVERY_PLATFORMS || '').split(',').map(x=>x.trim()).filter(Boolean))];
@@ -92,7 +93,7 @@ export async function runDelivery() {
         const bytes=Buffer.from(await blob.arrayBuffer());
         if(createHash('sha256').update(bytes).digest('hex')!==asset.sha256)throw new DeliveryError('Stored media integrity mismatch',{permanent:true});
         result=await deliverYoutube({...common,token,bytes,privacy:process.env.YOUTUBE_PRIVACY || 'public',synthetic:asset.manifest.synthetic_realistic===true});
-      } else if(target.platform==='facebook')result=await deliverFacebook({...common,token:await secret(db,'SOCIAL_FACEBOOK_PAGE_TOKEN',['FACEBOOK_PAGE_ACCESS_TOKEN'])});
+      } else if(target.platform==='facebook')result=await deliverFacebook({...common,...await facebookVariant(db,{videoId:job.video_id,masterSha256:asset.sha256,masterDuration:video.duration_sec}),token:await secret(db,'SOCIAL_FACEBOOK_PAGE_TOKEN',['FACEBOOK_PAGE_ACCESS_TOKEN'])});
       else if(target.platform==='instagram')result=await deliverInstagram({...common,token:await secret(db,'SOCIAL_INSTAGRAM_ACCESS_TOKEN')});
       else if(target.platform==='tiktok') {
         const token=await secret(db,'TIKTOK_ACCESS_TOKEN',['TIKTOK_USER_ACCESS_TOKEN']);

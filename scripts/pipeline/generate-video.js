@@ -11,6 +11,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { loadVaultEnv } from './load-vault-env.mjs';
+import { guardVideoClip } from './perceptual-video.mjs';
+import { captionGuard } from './caption-qc.mjs';
 import { synthesizeVoice, audioDuration, scrubSecrets } from './voice-captions.js';
 import { buildNarration, contentKey, scriptHash, sourceNameBn, CTA } from './video-script.mjs';
 import { normalizeBanglaForTts } from './bangla-normalize.mjs';
@@ -106,6 +108,8 @@ async function gatherMedia(db, claim, article, jobDir, need, beat, source = { ca
       try {
         const info = await source.download(candidate, file, fs);
         if (!usableMedia(file, candidate.kind)) throw new Error('unusable_media');
+        // Near-duplicate (re-encoded / rescaled / trimmed) clips are skipped like exact-hash reuse; see perceptual-video.mjs for limits.
+        if (candidate.kind === 'video') await (source.guardVideoClip || guardVideoClip)({ db, claim, file, sha256: info.sha256, sourceUrl: candidate.source_url, log });
         const { error } = await db.rpc(candidate.kind === 'video' ? 'reserve_video_broll' : 'reserve_video_visual',
           { p_job_id: claim.job_id, p_claim_token: claim.claim_token, p_sha256: info.sha256, p_source_url: candidate.source_url });
         if (error) throw new Error(error.message); // already used elsewhere -> never reuse
@@ -114,11 +118,11 @@ async function gatherMedia(db, claim, article, jobDir, need, beat, source = { ca
         await beat();
       } catch (error) {
         fs.rmSync(file, { force: true });
-        if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual)_claim/.test(error.message)) throw error; // lease lost: stop
+        if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual|perceptual)_claim/.test(error.message)) throw error; // lease lost: stop
       }
     }
   } catch (error) {
-    if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual)_claim/.test(error.message)) throw error;
+    if (error.code === 'RENDER_LEASE_LOST' || /invalid_(broll|visual|perceptual)_claim/.test(error.message)) throw error;
     log('   ⚠️ media search interrupted:', error.message);
   }
   return picked;
@@ -189,6 +193,8 @@ export async function renderClaim(db, claim, deps = {}) {
     renderHeadlineSmall(png('head_small.png'), article.title_bn, env);
     renderEndCard(png('end.png'), { host }, env);
     execFileSync(process.env.PYTHON || 'python3', [path.join(HERE, 'vtt-to-karaoke.py'), voice.subPath, png('voice.ass'), FONT_FAMILY], { timeout: 60000, stdio: 'pipe' });
+    // Grapheme/safe-zone check of the burned-in captions: BVAI_CAPTION_QC=shadow (default, log + record) | enforce | off.
+    plan.caption_qc = captionGuard(fs.readFileSync(png('voice.ass'), 'utf8'), { log });
 
     const segments = [];
     for (let i = 0; i < count; i++) {

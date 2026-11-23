@@ -1,0 +1,30 @@
+name: BVAI Media Metrics (manual)
+# Read-only report from the phase-2 views. MANUAL ONLY by default; uncomment `schedule` to enable hourly (GitHub cron is
+# best-effort and may be delayed or skipped — pg_cron/ops_alerts remain the primary watchdog).
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '17 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: bvai-media-metrics
+  cancel-in-progress: true
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BVAI_ALERT_WEBHOOK_URL: ${{ secrets.BVAI_ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12'
+      - run: npm install --no-audit --no-fund --omit=dev @supabase/supabase-js
+      - name: Report (exit 1 = warning, 2 = critical, 3 = unreadable)
+        run: node scripts/pipeline/metrics-report.mjs
