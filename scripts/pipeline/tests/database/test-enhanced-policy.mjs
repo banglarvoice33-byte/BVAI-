@@ -20,6 +20,7 @@ CREATE TABLE video_generation_jobs(id uuid PRIMARY KEY,article_id uuid,claim_tok
 CREATE TABLE videos(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),article_id uuid,status text,description_bn text,updated_at timestamptz,title_bn text,title_en text,category_key text,thumbnail_url text,video_url text,source_url text,duration_sec integer,duration_seconds integer);
 CREATE TABLE video_generation_assets(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,kind text,provider text,external_id text,url text,license text,metadata jsonb);
 CREATE TABLE video_delivery_assets(video_id uuid PRIMARY KEY,job_id uuid UNIQUE,sha256 text,manifest jsonb);
+CREATE TABLE video_quality_approvals(job_id uuid PRIMARY KEY,video_sha256 text,script_sha256 text,reviewer_id uuid,review jsonb,reviewed_at timestamptz,expires_at timestamptz);
 CREATE TABLE video_story_reservations(job_id uuid,script_hash text,content_key text);
 CREATE TABLE video_delivery_outbox(video_id uuid,platform text,account_id text,CONSTRAINT video_delivery_outbox_video_id_platform_account_id_key UNIQUE(video_id,platform,account_id));
 INSERT INTO news_sources VALUES('${source}',true,false);
@@ -31,7 +32,6 @@ const base=read('20261108012807_harden_video_pipeline_transactions.sql');
 await db.exec(base.slice(base.indexOf('CREATE OR REPLACE FUNCTION public.finalize_video_generation_job('),base.indexOf('CREATE OR REPLACE FUNCTION public.fail_video_generation_job(')));
 const website=read('20261109060000_website_only_video_delivery.sql');
 await db.exec(website.slice(website.indexOf('CREATE OR REPLACE FUNCTION public.finalize_website_video('),website.indexOf('REVOKE ALL ON FUNCTION public.finalize_website_video(')));
-await db.exec(read('20261115000000_asset_bound_video_review.sql'));
 const legacy=read('20261110000000_media_delivery_reliability.sql');
 await db.exec(legacy.slice(legacy.indexOf('CREATE OR REPLACE FUNCTION public.finalize_media_delivery('),legacy.indexOf('CREATE OR REPLACE FUNCTION public.claim_media_delivery(')));
 await check('enhanced migrations apply and replay transactionally',async()=>{for(let i=0;i<2;i++){await db.exec(read('20261116000000_enhanced_video_policy.sql'));await db.exec(read('20261116001000_video_experiments.sql'));}});

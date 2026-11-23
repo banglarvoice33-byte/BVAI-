@@ -15,7 +15,7 @@
     "check:imports": "node scripts/pipeline/check-imports.mjs",
     "check:publish-gate": "cmp -s worker/src/lib/publish-gate.ts frontend/lib/publish-gate.ts",
     "preflight": "node scripts/pipeline/readiness.mjs",
-    "test:review-db": "node scripts/pipeline/tests/database/test-video-review.mjs && node scripts/pipeline/tests/database/test-quality-approval.mjs",
+    "test:review-db": "node scripts/pipeline/tests/database/test-database.mjs",
     "test:render-e2e": "node scripts/pipeline/tests/pipeline-e2e.mjs",
     "check:review-gate": "cmp -s scripts/pipeline/quality-v3/review-contract.mjs frontend/lib/video-review.mjs",
     "test:enhanced-db": "node scripts/pipeline/tests/database/test-enhanced-policy.mjs",
