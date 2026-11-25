@@ -1,251 +1,84 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import type { Locale } from '@/lib/i18n';
 
-/**
- * বাংলার ভয়েস লার্নিং হাব — server-backed research assistant.
- *
- * The browser never receives an AI key. Questions go to /api/learning-hub,
- * where the server combines Banglar Voice articles and current web results
- * before calling the configured server-side AI provider.
- */
-
-type ChatMessage = { role: 'user' | 'bot'; text: string; sources?: { title: string; url: string }[] };
-
-const SUGGESTIONS: Record<Locale, string[]> = {
-  bn: ['বাংলার ভয়েস কী?', 'সংবাদ কীভাবে যাচাই করা হয়?', 'AI অ্যাংকর কী?', 'কীভাবে রিপোর্ট পাঠাবো?', 'ই-পেপার কোথায় পাবো?'],
-  en: ['What is Banglar Voice?', 'How are reports verified?', 'What is the AI anchor?', 'How can I submit a report?', 'Where can I find the e-paper?'],
-};
-
-/** Deterministic Bengali answer engine — instant, offline, no API key needed. */
-export function answer(question: string): string {
-  const q = question.toLowerCase();
-
-  if (/^(hi|hello|hey|সালাম|আসসালামু আলাইকুম|আসসালামু আলাইকুম ভাই|কেমন আছেন)[!,.?\s।]*$/i.test(q)) {
-    return 'ওয়ালাইকুম আসসালাম! আমি বাংলার ভয়েস AI সহকারী। আজ আপনাকে কীভাবে সাহায্য করতে পারি? সর্বশেষ সংবাদ জানতে কোনো বিষয় লিখে অনুসন্ধান করুন।';
-  }
-
-  if (/(বাংলার ভয়েস|banglar voice|পরিচয়|about)/.test(q) && /(কী|কি|about|পরিচয়|কেমন|কেন)/.test(q)) {
-    return (
-      'বাংলার ভয়েস একটি স্বাধীন, নিরপেক্ষ ও দায়িত্বশীল অনলাইন সংবাদমাধ্যম। ' +
-      'আমরা ২৪/৭ AI-চালিত নিউজরুমে দেশ-বিদেশের খবর সংগ্রহ, যাচাই ও প্রকাশ করি — ' +
-      'সত্যের সন্ধানে, নিরপেক্ষ সংবাদ।'
-    );
-  }
-  if (/(যাচাই|fact|সত্য|নিরপেক্ষ|বিশ্বাস)/.test(q)) {
-    return (
-      'প্রতিটি সংবাদ ৩-স্তরের যাচাইয়ের মধ্য দিয়ে যায়: (১) উৎসের বিশ্বাসযোগ্যতা স্কোর, ' +
-      '(২) একাধিক নির্ভরযোগ্য সোর্সের সাথে cross-reference, (৩) AI ফ্যাক্ট-চেক (ai_score 0–100)। ' +
-      'ai_score ৮০+ হলে অটো-প্রকাশ, ৫০–৭৯ হলে এডিটর রিভিউ, ৫০-এর নিচে প্রত্যাখ্যান।'
-    );
-  }
-  if (/(ai|অ্যাংকর|anchor|ভয়েস|voice|পডকাস্ট)/.test(q)) {
-    return (
-      'AI নিউজ অ্যাংকর একটি ভার্চুয়াল প্রেজেন্টার যা বাংলায় প্রকাশিত সংবাদ পড়ে শোনায়। ' +
-      'হোমপেজের "AI নিউজ অ্যাংকর" সেকশনে প্লে/পজ/গতি নিয়ন্ত্রণসহ শুনতে পাবেন।'
-    );
-  }
-  if (/(রিপোর্ট|report|পাঠান|submit|নাগরিক|সাংবাদিক)/.test(q)) {
-    return (
-      'আপনি নাগরিক রিপোর্টার হিসেবে ছবি/ভিডিও/লেখা পাঠাতে পারেন। ' +
-      'রিপোর্ট জমা দিলে তা field_reports টেবিলে যায়, এডিটর বোর্ডে লাইভ আপডেট হয়, ' +
-      'এবং অনুমোদিত হলে ব্রেকিং/লাইভ সেকশনে চলে আসে।'
-    );
-  }
-  if (/(ই-পেপার|epaper|e-paper|পেপার|সংবাদপত্র)/.test(q)) {
-    return (
-      'প্রতিদিন রাত ১১টা–১২টার মধ্যে দিনের সেরা সংবাদ থেকে স্বয়ংক্রিয়ভাবে ই-পেপার (PDF) তৈরি হয় ' +
-      'এবং নিজের আর্কাইভে যুক্ত হয়। "ই-পেপার" পেজ থেকে আজকের ও আগের সব সংস্করণ পড়তে পারবেন।'
-    );
-  }
-  if (/(অ্যাপ|app|ডাউনলোড|android|apk)/.test(q)) {
-    return (
-      'আমাদের পাঠক অ্যাপটি /download পেজ থেকে ডাউনলোড করতে পারবেন — ' +
-      'সেখানে শুধু পাঠক APK ও ইনস্টল ধাপ দেওয়া আছে।'
-    );
-  }
-  if (/(নিউজলেটার|সাবস্ক্রাইব|subscribe|ইমেইল)/.test(q)) {
-    return (
-      'হোমপেজের নিউজলেটার ফর্মে ইমেইল দিলে প্রতিদিনের গুরুত্বপূর্ণ সংবাদ আপনার ইনবক্সে পাবেন।'
-    );
-  }
-  if (/(রাজস্ব|বিজ্ঞাপন|ad|স্পনসর|মেম্বার|টাকা)/.test(q)) {
-    return (
-      'বাংলার ভয়েসের আয়ের উৎস: বিজ্ঞাপন, স্পনসরড কনটেন্ট ও নিউজলেটার।'
-    );
-  }
-  if (/(লাইভ|live|ব্রেকিং|breaking)/.test(q)) {
-    return (
-      'ব্রেকিং নিউজ হেডারের উপরে লাল টিকার মতো চলতে থাকে, আর লাইভ সেকশনে রিয়েল-টাইম আপডেট + ভিডিও স্ট্রিম দেখতে পাবেন।'
-    );
-  }
-  if (/(ধন্যবাদ|thanks|thank)/.test(q)) {
-    return 'আপনাকে ধন্যবাদ! আরও কিছু জানতে চাইলে লিখুন।';
-  }
-  return (
-    'দুঃখিত, এই প্রশ্নের উত্তর আমার কাছে নেই। ' +
-    'আমি জানি: বাংলার ভয়েস পরিচয়, সংবাদ যাচাই, AI অ্যাংকর, রিপোর্ট পাঠানো, ই-পেপার, অ্যাপ, নিউজলেটার ও রাজস্ব। ' +
-    'অন্য প্রশ্নে "সাহায্য" লিখুন।'
-  );
-}
+type Message = { role: 'user' | 'assistant'; content: string; sources?: { title: string; url: string }[] };
 
 export function LearningHub({ locale = 'bn' }: { locale?: Locale }) {
   const en = locale === 'en';
+  const l = (bn: string, english: string) => en ? english : bn;
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    { role: 'bot', text: en
-      ? 'Hello! I am the Banglar Voice assistant. Ask me about news, verification, the AI anchor, or the e-paper.'
-      : 'সালাম! আমি বাংলার ভয়েসের সহকারী। সংবাদ, যাচাই, AI অ্যাংকর, ই-পেপার — যেকোনো বিষয়ে জিজ্ঞাসা করুন।' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [busy, setBusy] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const pending = useRef(false);
+  const launcher = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const log = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [messages, busy, open]);
 
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, open]);
-
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || busy) return;
-    setMessages((m) => [...m, { role: 'user', text: trimmed }]);
+  async function send() {
+    const question = input.trim();
+    if (question.length < 2 || question.length > 1200 || pending.current) return;
+    pending.current = true;
+    setMessages(old => [...old, { role: 'user', content: question }]);
     setInput('');
     setBusy(true);
-
-    // Keep deterministic product/help FAQs authoritative. Archive search can
-    // return a weakly related article for short Bengali questions (for example
-    // “ই-পেপার কোথায় পাবো?”), which must not override the canonical answer.
-    const localAnswer = en ? '' : answer(trimmed);
-    if (!en && !localAnswer.startsWith('দুঃখিত')) {
-      setMessages((m) => [...m, { role: 'bot', text: localAnswer }]);
-      setBusy(false);
-      return;
-    }
-
+    const add = (content: string, sources?: Message['sources']) => setMessages(old => [...old, { role: 'assistant', content, sources }]);
+    const unavailable = l('সহকারী সাময়িকভাবে অনুপলব্ধ।', 'The assistant is temporarily unavailable.');
     try {
       const res = await fetch('/api/learning-hub', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(15_000),
-        body: JSON.stringify({ question: trimmed, locale, history: messages.slice(-6).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text.slice(0, 600) })) }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(46_000),
+        body: JSON.stringify({ question, locale, history: messages.slice(-6).map(m => ({ role: m.role, content: m.content.slice(0, 600) })) }),
       });
-      const data = await res.json().catch(() => ({}));
-      const safeAnswer = typeof data?.answer === 'string' && data.answer.trim()
-        ? data.answer
-        : (en
-          ? 'No reliable source was found for this question. Try rephrasing it or search the latest news.'
-          : 'এই প্রশ্নের নির্ভরযোগ্য সূত্র এখন পাওয়া যায়নি। অন্যভাবে প্রশ্নটি লিখে চেষ্টা করুন অথবা সর্বশেষ সংবাদ অনুসন্ধান করুন।');
-      setMessages((m) => [...m, { role: 'bot', text: safeAnswer, sources: Array.isArray(data?.sources) ? data.sources : [] }]);
+      const data = await res.json();
+      if (typeof data.remaining === 'number') setRemaining(data.remaining);
+      setNeedsLogin(res.status === 401);
+      if (res.status === 401) add(l('প্রশ্ন পাঠাতে লগইন করুন।', 'Sign in to send a question.'));
+      else if (res.status === 429) add(l('আজকের ১০টি প্রশ্ন শেষ। ঢাকা সময় রাত ১২টার পর আবার চেষ্টা করুন।', 'Daily limit reached. Try again after midnight in Dhaka.'));
+      else if (!res.ok) add(unavailable);
+      else add(data.answer || l('প্রকাশিত সংবাদে এই প্রশ্নের যথেষ্ট তথ্য পাওয়া যায়নি।', 'The published archive did not contain enough information.'), data.sources);
     } catch {
-      setMessages((m) => [...m, { role: 'bot', text: en ? 'The assistant is temporarily unavailable. Please try again shortly.' : 'সহকারী সাময়িকভাবে সংযোগ করতে পারছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।' }]);
+      add(unavailable);
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
 
-  return (
-    <>
-      {/* Floating launcher */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? (en ? 'Close Banglar Voice assistant' : 'বাংলার ভয়েস লার্নিং হাব বন্ধ করুন') : (en ? 'Open Banglar Voice assistant' : 'বাংলার ভয়েস লার্নিং হাব খুলুন')}
-        className="fixed bottom-5 right-5 z-50 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-card transition-transform hover:scale-105 dark:bg-primary"
-      >
-        {open ? (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-        ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-        )}
-      </button>
-
-      {open && (
-        <div
-          role="dialog"
-          aria-label={en ? 'Banglar Voice Learning Hub' : 'বাংলার ভয়েস লার্নিং হাব'}
-          className="fixed bottom-24 right-4 z-50 flex h-[520px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-paper shadow-card dark:border-white/10 dark:bg-ink"
-        >
-          {/* Header */}
-          <div className="flex items-center gap-3 border-b border-border bg-primary px-4 py-3 text-white dark:border-white/10">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-sm font-bold">ব</div>
-            <div>
-              <div className="text-sm font-bold">{en ? 'Banglar Voice Learning Hub' : 'বাংলার ভয়েস লার্নিং হাব'}</div>
-              <div className="text-[11px] text-white/80">{en ? 'Web research AI assistant' : 'ওয়েব গবেষণা AI সহকারী'}</div>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                    m.role === 'user'
-                      ? 'rounded-br-sm bg-primary text-white'
-                      : 'rounded-bl-sm bg-muted text-ink dark:bg-white/10 dark:text-white'
-                  }`}
-                  >
-                  {m.text}
-                  {m.sources && m.sources.length > 0 && (
-                    <div className="mt-2 border-t border-current/20 pt-2 text-[11px] opacity-80">
-                      {m.sources.slice(0, 4).map((source, sourceIndex) => (
-                        <a key={`${source.url}-${sourceIndex}`} href={source.url} target="_blank" rel="noreferrer" className="block underline">[{sourceIndex + 1}] {source.title}</a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {busy && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-sm bg-muted px-3.5 py-2.5 text-[13px] text-ink/60 dark:bg-white/10 dark:text-white/60">
-                  {en ? 'Thinking…' : 'লিখছি…'}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Suggestions */}
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2">
-            {SUGGESTIONS[locale].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => send(s)}
-                className="rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] text-ink/70 transition-colors hover:bg-primary hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-white/70"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-
-          {/* Input */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send(input);
-            }}
-            className="flex items-center gap-2 border-t border-border p-3 dark:border-white/10"
-          >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={en ? 'Ask a question…' : 'প্রশ্ন লিখুন…'}
-              aria-label={en ? 'Question' : 'প্রশ্ন'}
-              className="flex-1 rounded-full border border-border bg-muted px-4 py-2.5 text-[13px] text-ink outline-none focus:border-primary dark:border-white/10 dark:bg-white/5 dark:text-white"
-            />
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white transition-opacity disabled:opacity-40"
-              aria-label={en ? 'Send' : 'পাঠান'}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>
-            </button>
-          </form>
-        </div>
-      )}
-    </>
-  );
+  const label = l('এআই সংবাদ সহকারী', 'AI News Assistant');
+  return <>
+    <button type="button" ref={launcher} aria-expanded={open} aria-label={label} onClick={() => setOpen(v => !v)}
+      className="fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-primary font-bold text-white shadow-xl">
+      {open ? 'X' : '?'}
+    </button>
+    {open && <section role="dialog" aria-label={label} onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); launcher.current?.focus(); } }}
+      className="fixed bottom-24 right-4 z-50 flex h-[min(520px,calc(100dvh-7rem))] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-paper text-ink shadow-2xl dark:border-white/15 dark:bg-ink dark:text-white">
+      <header className="bg-[#12251f] p-4 text-white">
+        <h2 className="font-serifbn text-lg font-bold">{label}</h2>
+        <p className="text-xs text-emerald-100">{l('প্রকাশিত সংবাদ · দিনে ১০টি প্রশ্ন', 'Published news · 10 questions per day')}</p>
+      </header>
+      <div ref={log} role="log" aria-live="polite" className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
+        {!messages.length && <p>{l('বাংলার ভয়েসের প্রকাশিত কোনো সংবাদ বা বিষয় নিয়ে প্রশ্ন লিখুন।', 'Ask about a topic covered by Banglar Voice.')}</p>}
+        {messages.map((m, i) => <div key={i} className={`max-w-[92%] whitespace-pre-wrap break-words rounded-xl p-3 ${m.role === 'user' ? 'ml-auto bg-primary text-white' : 'bg-muted dark:bg-white/10'}`}>
+          {m.content}
+          {m.sources?.slice(0, 5).map((s, index) => <a key={`${s.url}-${index}`} href={s.url} className="block underline">[{index + 1}] {s.title}</a>)}
+        </div>)}
+        {busy && <p>{l('উত্তর প্রস্তুত হচ্ছে…', 'Preparing an answer…')}</p>}
+      </div>
+      {(needsLogin || remaining !== null) && <p className="px-4 pb-1 text-xs" aria-live="polite">
+        {needsLogin ? <Link href="/login" className="font-bold underline">{l('লগইন', 'Sign in')}</Link> : l(`আজ বাকি: ${remaining?.toLocaleString('bn-BD')}`, `Remaining today: ${remaining}`)}
+      </p>}
+      <form onSubmit={event => { event.preventDefault(); void send(); }} className="flex gap-2 border-t border-border p-3 dark:border-white/15">
+        <input ref={inputRef} maxLength={1200} value={input} onChange={event => setInput(event.target.value)} aria-label={l('প্রশ্ন', 'Question')}
+          placeholder={l('প্রশ্ন লিখুন…', 'Type your question…')} className="min-w-0 flex-1 rounded-xl bg-muted p-2.5 text-sm dark:bg-white/10" />
+        <button type="submit" disabled={busy || input.trim().length < 2} className="rounded-xl bg-primary px-3 text-sm font-bold text-white disabled:opacity-50">{l('পাঠান', 'Send')}</button>
+      </form>
+    </section>}
+  </>;
 }
