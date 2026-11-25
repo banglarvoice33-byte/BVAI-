@@ -1,13 +1,102 @@
-// findTopics: [id, বাংলা নাম, English নাম, শ্রেণি, খেলার বিষয় কি না, keyword keys]
+/**
+ * Visual topic lexicon for content-aware B-roll.
+ *
+ * Rules (production):
+ * - "বৃষ্টি" / rain ≠ flood. Flood needs strong inundation language.
+ * - Sport is the primary topic when present; weather is a modifier (wet pitch, umbrellas),
+ *   not a second story about disaster footage.
+ * - Ambiguous "বিশ্বকাপ" without a sport keyword must not invent cricket or football
+ *   (handled in media-sources buildQueries).
+ */
+
+// [id, bnLabel, enLabel, class, isSport, keys[]]
 const TOPICS = [
-  ['football', 'ফুটবল', 'football', 'sports', true, ['ফুটবল', 'চ্যাম্পিয়ন্স লিগ', 'চ্যাম্পিয়নস লিগ', 'football', 'soccer', 'champions league', 'আর্সেনাল', 'ডর্টমুন্ড', 'arsenal', 'dortmund', 'প্রিমিয়ার লীগ', 'premier league', 'লা লিগা', 'laliga', 'মেসি', 'রোনালদো']],
-  ['cricket', 'ক্রিকেট', 'cricket', 'sports', true, ['ক্রিকেট', 'cricket', 'wicket', 'উইকেট', 'টি-টোয়েন্টি', 't20', 'ওডিআই', 'odi', 'টেস্ট ম্যাচ', 'বিসিবি', 'bcb', 'আইপিএল', 'ipl', 'ব্যাটসম্যান', 'বোলার']],
-  ['flood', 'বন্যা', 'flood', 'weather', false, ['জলাবদ্ধতা', 'বন্যা', 'বৃষ্টি', 'flood', 'flooded', 'rain', 'monsoon', 'বৃষ্টি', 'জলোচ্ছ্বাস']],
-  ['train', 'ট্রেন', 'train', 'transport', false, ['ট্রেন', 'train', 'railway', 'রেল', 'স্টেশন', 'station']],
-  ['ship', 'জাহাজ', 'ship', 'transport', false, ['জাহাজ', 'ship', 'নৌকা', 'boat', 'বন্দর', 'port']],
-  ['politics', 'রাজনীতি', 'politics', 'politics', false, ['সংসদ', 'সংসদে', 'নির্বাচন', 'মন্ত্রী', 'প্রধানমন্ত্রী', 'election', 'parliament', 'minister']],
-  ['health', 'স্বাস্থ্য', 'health', 'health', false, ['হাসপাতাল', 'চিকিৎসা', 'ডাক্তার', 'টিকা', 'hospital', 'vaccine', 'covid', 'রোগ']],
-  ['economy', 'অর্থনীতি', 'economy', 'economy', false, ['মূল্যস্ফীতি', 'শেয়ার', 'বাজার', 'inflation', 'stock', 'gdp', 'বাজেট', 'budget']],
+  [
+    'football',
+    'ফুটবল',
+    'football',
+    'sports',
+    true,
+    [
+      'ফুটবল', 'চ্যাম্পিয়ন্স লিগ', 'চ্যাম্পিয়নস লিগ', 'football', 'soccer',
+      'champions league', 'আর্সেনাল', 'ডর্টমুন্ড', 'arsenal', 'dortmund',
+      'প্রিমিয়ার লীগ', 'premier league', 'লা লিগা', 'laliga', 'মেসি', 'রোনালদো',
+    ],
+  ],
+  [
+    'cricket',
+    'ক্রিকেট',
+    'cricket',
+    'sports',
+    true,
+    [
+      'ক্রিকেট', 'cricket', 'wicket', 'উইকেট', 'টি-টোয়েন্টি', 't20',
+      'ওডিআই', 'odi', 'টেস্ট ম্যাচ', 'বিসিবি', 'bcb', 'আইপিএল', 'ipl',
+      'ব্যাটসম্যান', 'বোলার',
+    ],
+  ],
+  // Rain / wet weather — NOT flood. Used for wet stadium, umbrellas, drizzle B-roll.
+  [
+    'rain',
+    'বৃষ্টি',
+    'rain',
+    'weather',
+    false,
+    ['বৃষ্টি', 'rain', 'raining', 'drizzle', 'monsoon', 'ঝড়ো বৃষ্টি', 'বর্ষা'],
+  ],
+  // Flood / waterlogging — requires inundation language, never plain "বৃষ্টি".
+  [
+    'flood',
+    'বন্যা',
+    'flood',
+    'weather',
+    false,
+    [
+      'বন্যা', 'জলাবদ্ধতা', 'প্লাবিত', 'flood', 'flooded', 'waterlogging',
+      'জলোচ্ছ্বাস', 'তলিয়ে', 'ডুবে গেছে', 'পানি ঢুকে',
+      'ঘরে পানি', 'রাস্তা ডুবে', 'inundat',
+    ],
+  ],
+  [
+    'train',
+    'ট্রেন',
+    'train',
+    'transport',
+    false,
+    ['ট্রেন', 'train', 'railway', 'রেলপথ', 'রেলওয়ে'],
+  ],
+  [
+    'ship',
+    'জাহাজ',
+    'ship',
+    'transport',
+    false,
+    ['জাহাজ', 'ship', 'cargo ship', 'বন্দর', 'seaport'],
+  ],
+  [
+    'politics',
+    'রাজনীতি',
+    'politics',
+    'politics',
+    false,
+    ['সংসদ', 'নির্বাচন', 'মন্ত্রী', 'প্রধানমন্ত্রী', 'election', 'parliament', 'minister'],
+  ],
+  [
+    'health',
+    'স্বাস্থ্য',
+    'health',
+    'health',
+    false,
+    ['হাসপাতাল', 'চিকিৎসা', 'ডাক্তার', 'টিকা', 'hospital', 'vaccine', 'covid'],
+  ],
+  [
+    'economy',
+    'অর্থনীতি',
+    'economy',
+    'economy',
+    false,
+    ['মূল্যস্ফীতি', 'শেয়ারবাজার', 'inflation', 'stock market', 'gdp', 'বাজেট', 'budget'],
+  ],
 ];
 
 const CATEGORY_MAP = {
@@ -21,20 +110,53 @@ const CATEGORY_MAP = {
   entertainment: 'entertainment', বিনোদন: 'entertainment',
 };
 
+/**
+ * Raw keyword hits (no ranking). Prefer findPrimaryTopics for media search.
+ */
 export function findTopics(text = '') {
   const t = String(text || '').toLowerCase();
   if (!t.trim()) return [];
-  return TOPICS.filter(([, , , , , keys]) => keys.some((k) => t.includes(String(k).toLowerCase())));
+  return TOPICS.filter(([, , , , , keys]) =>
+    keys.some((k) => t.includes(String(k).toLowerCase())),
+  );
+}
+
+/**
+ * Ranked topics for B-roll:
+ * 1. Sport topics always kept when present.
+ * 2. Flood only if strong flood keywords matched (never via rain alone).
+ * 3. Rain is a secondary modifier (wet pitch / umbrellas), not a disaster story.
+ * 4. When a sport is primary, rain may accompany; flood only with inundation words.
+ */
+export function findPrimaryTopics(text = '') {
+  const raw = findTopics(text);
+  if (!raw.length) return [];
+
+  const sports = raw.filter((t) => t[4] === true);
+  const flood = raw.filter((t) => t[0] === 'flood');
+  const rain = raw.filter((t) => t[0] === 'rain');
+  const other = raw.filter((t) => t[4] !== true && t[0] !== 'flood' && t[0] !== 'rain');
+
+  if (sports.length) {
+    return [...sports, ...rain, ...flood];
+  }
+
+  return [...flood, ...rain, ...other];
 }
 
 export function financialOrSensitive(text = '') {
   const t = String(text || '').toLowerCase();
-  return ['হামলা', 'attack', 'নিহত', 'killed', 'ধর্ষণ', 'rape', 'দুর্নীতি', 'fraud', 'হত্যা', 'murder', 'বিস্ফোরণ', 'explosion', 'আত্মঘাতী', 'suicide', 'সন্ত্রাস', 'terror'].some((k) => t.includes(k));
+  return [
+    'হামলা', 'attack', 'নিহত', 'killed', 'ধর্ষণ', 'rape', 'দুর্নীতি', 'fraud',
+    'হত্যা', 'murder', 'বিস্ফোরণ', 'explosion', 'আত্মঘাতী', 'suicide', 'সন্ত্রাস', 'terror',
+  ].some((k) => t.includes(k));
 }
 
 export function sportDetail(text = '') {
   const t = String(text || '').toLowerCase();
-  if (t.includes('চ্যাম্পিয়ন্স') || t.includes('চ্যাম্পিয়নস') || t.includes('champions league')) return 'চ্যাম্পিয়ন্স লিগ';
+  if (t.includes('চ্যাম্পিয়ন্স') || t.includes('চ্যাম্পিয়নস') || t.includes('champions league')) {
+    return 'চ্যাম্পিয়ন্স লিগ';
+  }
   if (t.includes('বিশ্বকাপ') || t.includes('world cup')) return 'বিশ্বকাপ';
   if (t.includes('আইপিএল') || t.includes('ipl')) return 'আইপিএল';
   if (t.includes('প্রিমিয়ার') || t.includes('premier league')) return 'প্রিমিয়ার লীগ';
@@ -47,10 +169,12 @@ export function normalizeCategory(categoryKey = '') {
   return CATEGORY_MAP[key] || CATEGORY_MAP[categoryKey] || 'national';
 }
 
+/** English B-roll phrases — rain ≠ flooded streets. */
 export const TOPIC_QUERIES = {
   football: ['football stadium', 'football match crowd', 'soccer field'],
   cricket: ['cricket stadium', 'cricket match', 'cricket pitch'],
-  flood: ['monsoon rain street', 'flooded street', 'heavy rain city'],
+  rain: ['monsoon rain street', 'rain umbrella city', 'wet stadium seats'],
+  flood: ['flooded street', 'flood water village', 'waterlogging city'],
   train: ['railway train station', 'passenger train'],
   ship: ['cargo ship ocean', 'harbor port'],
   politics: ['parliament building', 'government building'],
