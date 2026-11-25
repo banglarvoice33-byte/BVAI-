@@ -25,14 +25,23 @@ jobs:
           ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED != 'false' && vars.VIDEO_DELIVERY_PLATFORMS != '' }}
         run: |
           set -euo pipefail
-          if [ "$ENABLED" != "true" ]; then echo "due=false" >> "$GITHUB_OUTPUT"; echo "Delivery disabled or VIDEO_DELIVERY_PLATFORMS empty."; exit 0; fi
-          now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if [ "$ENABLED" != "true" ]; then
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Delivery gate closed: set repo Variable VIDEO_DELIVERY_PLATFORMS=youtube (and VIDEO_DELIVERY_ENABLED!=false)."
+            exit 0
+          fi
           rows=$(curl -fsS --max-time 20 -G "$SUPABASE_URL/rest/v1/video_delivery_outbox" \
-            --data-urlencode "select=id" --data-urlencode "status=in.(queued,retrying,processing)" \
-            --data-urlencode "limit=1" \
+            --data-urlencode "select=id,platform,status" --data-urlencode "status=in.(queued,retrying,processing)" \
+            --data-urlencode "limit=5" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
           echo "outbox_probe=$rows"
-          if [ "$rows" = "[]" ]; then echo "due=false" >> "$GITHUB_OUTPUT"; else echo "due=true" >> "$GITHUB_OUTPUT"; fi
+          if [ "$rows" = "[]" ]; then
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Outbox empty — nothing to deliver. Render with VIDEO_PUBLISH_MODE=distribute so finalize_media_delivery enqueues youtube targets."
+          else
+            echo "due=true" >> "$GITHUB_OUTPUT"
+            echo "Outbox has work; deliver job will run."
+          fi
   deliver:
     needs: gate
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.gate.outputs.due == 'true') }}
