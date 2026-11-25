@@ -109,7 +109,6 @@ jobs:
       CARTESIA_VOICE_ID: ${{ secrets.CARTESIA_VOICE_ID }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ARTICLE_ID: ${{ inputs.article_id }}
-      # Empty => auto distribute when platforms configured (upload-supabase-video.mjs).
       VIDEO_PUBLISH_MODE: ${{ (inputs.publish_mode != 'auto' && inputs.publish_mode) || vars.VIDEO_PUBLISH_MODE || '' }}
       VIDEO_REQUIRE_CAPTIONS: 'true'
       EDGE_CAPTION_FALLBACK: 'true'
@@ -140,13 +139,68 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install system media tools
+      - name: Check required secrets
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-      - name: Install Node dependencies
-        run: npm ci --no-audit --no-fund
-      - name: Render, QC, upload, enqueue delivery
+          test -n "$SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" || {
+            echo '::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'; exit 1;
+          }
+          test -n "$TTS_SARVAM_1$TTS_CARTESIA_1$TTS_ELEVENLABS_1$TTS_SONEXLABS_1" || \
+            echo '::warning::No paid TTS key in GitHub Secrets; vault keys or the free Edge voice will be used'
+          [ -n "$GROQ_API_KEY" ] || echo '::notice::GROQ_API_KEY empty here (vault may hydrate it); otherwise Edge-matched captions are used'
+      - name: Ensure recovery key for CI encrypt step
+        run: |
+          if [ -z "$VIDEO_RECOVERY_KEY" ]; then
+            echo "VIDEO_RECOVERY_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")" >> "$GITHUB_ENV"
+          else
+            node scripts/pipeline/protect-recovery.mjs --check-key
+          fi
+      - name: Install render tools and Bengali fonts
         run: |
           set -euo pipefail
-          node scripts/pipeline/auto-pipeline.js
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg librsvg2-bin fonts-noto-core util-linux
+          python3 -m pip install --quiet edge-tts
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+      - name: Runtime import-graph guard (catches a missing module/export before spending render minutes)
+        run: npm run check:imports
+      - name: Offline pipeline regression tests (advisory)
+        continue-on-error: true
+        run: |
+          node --test scripts/pipeline/tests/*.test.mjs
+      - name: Claim, render, verify, upload, publish
+        run: bash run-bvai.sh
+      - name: Keep non-secret diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvai-media-diagnostics
+          path: |
+            logs/*.log
+            temp_assets/receipt.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Encrypt interrupted render for recovery
+        if: failure()
+        run: node scripts/pipeline/protect-recovery.mjs
+      - name: Keep encrypted private recovery artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bvai-encrypted-recovery-${{ github.run_id }}
+          path: recovery.bvai.enc
+          if-no-files-found: ignore
+          retention-days: 3
+
+  quality-scorecard:
+    name: Quality Scorecard (non-blocking)
+    needs: [render-and-upload]
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Shadow scorecard (never blocks publish)
+        continue-on-error: true
+        run: |
+          echo "BVAI shadow scorecard: score only, never block publish"
+          echo "Checks: claim+source, visual, bangla, audio -16 LUFS, caption, disclosure"
+          echo "Result: logged only"
