@@ -47,32 +47,43 @@ function ClientTimeAgo({ iso, locale, className }: { iso?: string; locale: Local
   return <span className={className}>{timeAgo(iso, locale)}</span>;
 }
 
+/** Refined placeholder gradients — warm editorial tones */
 function placeholderGradient(seed = ''): string {
   const palettes = [
-    'from-[#E5E2DE] via-[#F5F2ED] to-[#C5A880]/30',
-    'from-sky-100 via-indigo-50 to-blue-100',
-    'from-emerald-100 via-teal-50 to-lime-100',
-    'from-violet-100 via-purple-50 to-fuchsia-100',
-    'from-amber-100 via-yellow-50 to-orange-100',
-    'from-cyan-100 via-sky-50 to-blue-100',
+    'from-[#E8E2D8] via-[#F5F0E8] to-[#C5A880]/40',
+    'from-slate-200 via-slate-100 to-indigo-100/60',
+    'from-emerald-100 via-teal-50 to-lime-100/70',
+    'from-violet-100 via-purple-50 to-fuchsia-100/50',
+    'from-amber-100 via-orange-50 to-rose-100/50',
+    'from-cyan-100 via-sky-50 to-blue-100/60',
   ];
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   return palettes[h % palettes.length];
 }
 
-function ZeroClsImg({ src, alt, className }: { src?: string; alt: string; className?: string }) {
+function ZeroClsImg({
+  src,
+  alt,
+  className,
+  overlay = false,
+}: {
+  src?: string;
+  alt: string;
+  className?: string;
+  overlay?: boolean;
+}) {
   const grad = placeholderGradient(alt);
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br ${grad} dark:from-neutral-800 dark:via-neutral-800 dark:to-neutral-700 ${className ?? 'aspect-[16/9] w-full'}`}
+      className={`relative overflow-hidden bg-gradient-to-br ${grad} dark:from-neutral-800 dark:via-neutral-850 dark:to-neutral-900 ${className ?? 'aspect-[16/9] w-full'}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src || undefined}
         alt={alt}
         loading="lazy"
-        className={`relative z-10 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${src ? 'opacity-100' : 'opacity-0'}`}
+        className={`img-zoom relative z-10 h-full w-full object-cover ${src ? 'opacity-100' : 'opacity-0'}`}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.display = 'none';
         }}
@@ -80,105 +91,148 @@ function ZeroClsImg({ src, alt, className }: { src?: string; alt: string; classN
       {!src && (
         <span
           aria-hidden
-          className="absolute inset-0 grid select-none place-items-center font-serifbn text-4xl font-extrabold text-black/20 dark:text-white/15"
+          className="absolute inset-0 z-0 grid select-none place-items-center font-serifbn text-5xl font-extrabold text-black/15 dark:text-white/10"
         >
           {(alt || 'বাংলার ভয়েস').slice(0, 1)}
         </span>
       )}
+      {overlay && <div className="card-image-overlay z-20" />}
     </div>
   );
 }
 
+/** Lead story — large editorial treatment with gradient overlay on image */
 export function LeadCard({ article, href, locale }: { article: Article; href: string; locale: Locale }) {
   return (
     <a
       href={href}
-      className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition-shadow hover:shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+      className="card-premium group relative flex h-full flex-col"
     >
-      <ZeroClsImg src={article.image_url} alt={article.title} className="aspect-[16/10] w-full" />
-      <div className="flex flex-1 flex-col p-5">
-        <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-primary">
-          <span>{translateCategory(locale, article.category || 'সর্বশেষ')}</span>
+      <ZeroClsImg
+        src={article.image_url}
+        alt={article.title}
+        className="aspect-[16/10] w-full sm:aspect-[16/9]"
+        overlay
+      />
+      {/* Content sits below image with refined spacing */}
+      <div className="relative z-10 flex flex-1 flex-col p-5 sm:p-6">
+        <div className="mb-2.5 flex flex-wrap items-center gap-2">
+          <span className="badge-category">
+            {translateCategory(locale, article.category || 'সর্বশেষ')}
+          </span>
+          {article.origin === 'original' && (
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+              {locale === 'bn' ? 'মূল' : 'Original'}
+            </span>
+          )}
         </div>
-        <h3 className="font-serifbn text-2xl font-extrabold leading-snug text-ink group-hover:text-primary dark:text-paper md:text-3xl">
+        <h3 className="font-serifbn text-[1.65rem] font-extrabold leading-[1.3] tracking-tight text-ink transition-colors group-hover:text-primary dark:text-paper md:text-[1.85rem]">
           {article.title}
         </h3>
         {article.summary && (
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
+          <p className="mt-2.5 line-clamp-2 text-[0.95rem] leading-relaxed text-neutral-600 dark:text-neutral-300">
             {article.summary}
           </p>
         )}
-        <div className="mt-auto flex flex-wrap items-center gap-3 pt-4 text-xs text-neutral-500 dark:text-neutral-400">
-          <span className="rounded-full border border-border px-2 py-0.5 font-semibold text-ink dark:border-white/15 dark:text-paper">
+        <div className="mt-auto flex flex-wrap items-center gap-2.5 pt-5 text-xs text-neutral-500 dark:text-neutral-400">
+          <span className="source-chip">
             {article.source_name || article.author || t(locale, 'source_label')}
           </span>
-          {article.read_time ? <span>• {fmtNum(article.read_time, locale)} {t(locale, 'min_read')}</span> : null}
-          <span>• <ClientTimeAgo iso={article.published_at} locale={locale} /></span>
+          {article.read_time ? (
+            <span className="opacity-80">
+              {fmtNum(article.read_time, locale)} {t(locale, 'min_read')}
+            </span>
+          ) : null}
+          <span className="opacity-60">·</span>
+          <ClientTimeAgo iso={article.published_at} locale={locale} className="opacity-80" />
         </div>
-        {article.image_is_representational ? (
-          <p className="pt-2 text-[10px] font-semibold text-neutral-500">{t(locale, 'representative_image')}</p>
-        ) : null}
-        {article.image_credit ? (
-          <p className="pt-2 text-[10px] text-neutral-400">{t(locale, 'image_credit')}: {article.image_credit}</p>
-        ) : null}
+        {article.image_is_representational && (
+          <p className="pt-2 text-[10px] font-medium text-neutral-400">
+            {t(locale, 'representative_image')}
+          </p>
+        )}
+        {article.image_credit && (
+          <p className="pt-1 text-[10px] text-neutral-400">
+            {t(locale, 'image_credit')}: {article.image_credit}
+          </p>
+        )}
       </div>
     </a>
   );
 }
 
+/** Secondary / grid cards */
 export function ArticleCard({ article, href, locale }: { article: Article; href: string; locale: Locale }) {
   return (
     <a
       href={href}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white transition-shadow hover:shadow-lg dark:border-neutral-800 dark:bg-neutral-900"
+      className="card-premium group flex h-full flex-col"
     >
-      <ZeroClsImg src={article.image_url} alt={article.title} className="aspect-[16/9] w-full" />
+      <ZeroClsImg
+        src={article.image_url}
+        alt={article.title}
+        className="aspect-[16/9] w-full"
+      />
       <div className="flex flex-1 flex-col p-4">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="badge-category">
             {translateCategory(locale, article.category || 'সর্বশেষ')}
           </span>
         </div>
-        <h3 className="font-serifbn text-lg font-bold leading-snug text-ink group-hover:text-primary dark:text-paper">
+        <h3 className="font-serifbn text-[1.05rem] font-bold leading-snug text-ink transition-colors group-hover:text-primary dark:text-paper sm:text-lg">
           {article.title}
         </h3>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-3 text-[11px] text-neutral-500 dark:text-neutral-400">
-          <span className="rounded-full border border-border px-2 py-0.5 font-semibold text-ink dark:border-white/15 dark:text-paper">
+          <span className="source-chip">
             {article.source_name || article.author || t(locale, 'source_label')}
           </span>
-          {article.read_time ? <span>{fmtNum(article.read_time, locale)} {t(locale, 'min_short')}</span> : null}
-          <span>•</span>
-          <span><ClientTimeAgo iso={article.published_at} locale={locale} /></span>
+          {article.read_time ? (
+            <span>{fmtNum(article.read_time, locale)} {t(locale, 'min_short')}</span>
+          ) : null}
+          <span className="opacity-50">·</span>
+          <ClientTimeAgo iso={article.published_at} locale={locale} />
         </div>
-        {article.image_is_representational ? (
-          <p className="pt-2 text-[10px] font-semibold text-neutral-500">{t(locale, 'representative_image')}</p>
-        ) : null}
-        {article.image_credit ? (
-          <p className="pt-2 text-[10px] text-neutral-400">{t(locale, 'image_credit')}: {article.image_credit}</p>
-        ) : null}
+        {article.image_is_representational && (
+          <p className="pt-2 text-[10px] font-medium text-neutral-400">
+            {t(locale, 'representative_image')}
+          </p>
+        )}
       </div>
     </a>
   );
 }
 
-export function TrendingItem({ rank, article, href, locale }: { rank?: number; article: Article; href: string; locale: Locale }) {
+/** Compact ranked list item for side rail */
+export function TrendingItem({
+  rank,
+  article,
+  href,
+  locale,
+}: {
+  rank?: number;
+  article: Article;
+  href: string;
+  locale: Locale;
+}) {
   return (
     <a
       href={href}
-      className="group flex items-start gap-3 rounded-xl p-2 transition-colors hover:bg-muted dark:hover:bg-neutral-800"
+      className="group flex items-start gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-muted/80 dark:hover:bg-white/5"
     >
       {rank !== undefined && (
-        <span className="font-serifbn text-2xl font-extrabold leading-none text-neutral-300 dark:text-neutral-600">
+        <span className="mt-0.5 font-serifbn text-xl font-extrabold leading-none tabular-nums text-neutral-300 dark:text-neutral-600">
           {String(rank).padStart(2, '0')}
         </span>
       )}
-      <div className="min-w-0">
-        <h4 className="line-clamp-2 text-sm font-bold leading-snug text-ink group-hover:text-primary dark:text-paper">
+      <div className="min-w-0 flex-1">
+        <h4 className="line-clamp-2 text-[0.875rem] font-bold leading-snug text-ink transition-colors group-hover:text-primary dark:text-paper">
           {article.title}
         </h4>
-        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-neutral-500">
-          <span className="font-semibold text-ink dark:text-paper">{article.source_name || article.author || t(locale, 'source_label')}</span>
-          <span>•</span>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+          <span className="font-semibold text-ink/70 dark:text-paper/70">
+            {article.source_name || article.author || t(locale, 'source_label')}
+          </span>
+          <span className="opacity-40">·</span>
           <ClientTimeAgo iso={article.published_at} locale={locale} />
         </div>
       </div>
@@ -196,37 +250,55 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
     return tb - ta;
   });
   const railItems =
-    tab === 'trending'
-      ? sortedByTime.slice(3, 9)
-      : sortedByTime.slice(1, 7);
+    tab === 'trending' ? sortedByTime.slice(3, 9) : sortedByTime.slice(1, 7);
 
   if (!lead) {
     return (
-      <div className="rounded-3xl border border-dashed border-border p-10 text-center text-neutral-500">
-        {t(locale, 'no_published_stories')}
+      <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-12 text-center dark:bg-white/5">
+        <p className="font-serifbn text-lg font-semibold text-neutral-500 dark:text-neutral-400">
+          {t(locale, 'no_published_stories')}
+        </p>
+        <p className="mt-2 text-sm text-neutral-400">
+          {locale === 'bn' ? 'শীঘ্রই নতুন সংবাদ প্রকাশিত হবে' : 'New stories coming soon'}
+        </p>
       </div>
     );
   }
 
   return (
-    <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <LeadCard article={lead} locale={locale} href={`/article/${lead.slug ?? lead.id ?? ''}`} />
+    <section className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+      {/* Lead story — 2/3 width */}
+      <div className="lg:col-span-2 animate-fade-up">
+        <LeadCard
+          article={lead}
+          locale={locale}
+          href={`/article/${lead.slug ?? lead.id ?? ''}`}
+        />
       </div>
-      <div className="flex flex-col gap-4">
+
+      {/* Right column: secondary + rail */}
+      <div className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          {secondary.map((a) => (
-            <ArticleCard locale={locale} key={a.id ?? a.slug ?? a.title} article={a} href={`/article/${a.slug ?? a.id ?? ''}`} />
+          {secondary.map((a, idx) => (
+            <div key={a.id ?? a.slug ?? a.title} className="animate-fade-up" style={{ animationDelay: `${(idx + 1) * 80}ms` }}>
+              <ArticleCard
+                locale={locale}
+                article={a}
+                href={`/article/${a.slug ?? a.id ?? ''}`}
+              />
+            </div>
           ))}
         </div>
+
+        {/* Side rail — latest / trending tabs */}
         <div
           id="trending"
-          className="scroll-mt-24 rounded-2xl border border-border bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+          className="scroll-mt-24 overflow-hidden rounded-2.5xl border border-border bg-white shadow-card dark:border-white/10 dark:bg-neutral-900"
         >
           <div
             role="tablist"
             aria-label={t(locale, 'side_column')}
-            className="mb-2 flex gap-1 rounded-full bg-muted p-1 dark:bg-neutral-800"
+            className="flex gap-1 border-b border-border/70 bg-muted/50 p-1.5 dark:border-white/8 dark:bg-white/5"
           >
             {(
               [
@@ -240,19 +312,21 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
                 role="tab"
                 aria-selected={tab === key}
                 onClick={() => setTab(key)}
-                className={`flex-1 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                className={`flex-1 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
                   tab === key
-                    ? 'bg-white text-ink shadow-sm dark:bg-neutral-900 dark:text-paper'
-                    : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                    ? 'bg-white text-ink shadow-sm dark:bg-neutral-800 dark:text-paper'
+                    : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
                 }`}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex flex-col gap-1">
+
+          <div className="flex flex-col gap-0.5 p-2">
             {railItems.map((a, i) => (
-              <TrendingItem locale={locale}
+              <TrendingItem
+                locale={locale}
                 key={a.id ?? a.slug ?? a.title}
                 rank={tab === 'trending' ? i + 1 : undefined}
                 article={a}
@@ -260,9 +334,13 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
               />
             ))}
           </div>
-          <div className="mt-4 border-t border-border pt-3 text-center">
-            <a href="/latest" className="text-sm font-bold text-primary hover:underline">
-              আরও সংবাদ দেখুন →
+
+          <div className="border-t border-border/70 px-4 py-3 text-center dark:border-white/8">
+            <a
+              href="/#latest"
+              className="text-sm font-bold text-primary transition-colors hover:text-crimson"
+            >
+              {locale === 'bn' ? 'আরও সংবাদ দেখুন →' : 'More stories →'}
             </a>
           </div>
         </div>
