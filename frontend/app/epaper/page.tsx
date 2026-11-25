@@ -71,22 +71,17 @@ export default async function EpaperPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea]">
+    <div className="min-h-screen bg-[#f4f1ea] text-[#1a1a1a]">
       <div className="mx-auto max-w-5xl px-4 pt-3">
-        <div className="h-[3px] bg-[#1a1a1a]" />
-        <div className="flex justify-between py-1.5 text-[10px] font-mono uppercase">
-          <span>{isEnglish ? 'Dhaka' : 'ঢাকা'} | {editionLabel}</span>
-          <span>{copy.live} • {rows.length}</span>
-          <span>your-site.example</span>
-        </div>
-        <div className="border-y-[3px] border-double bg-white py-3 text-center">
-          <h1 className="font-serifbn text-[32px] font-black md:text-[48px]">বাংলার ভয়েস | 24NEWS</h1>
+        <div className="h-[3px] bg-gradient-to-r from-[#C41E1E] via-[#1a1a1a] to-[#C41E1E]" />
+        <div className="flex items-center justify-between py-2 text-[10px] font-mono uppercase tracking-wide">
+          <span className="font-semibold">{isEnglish ? 'Dhaka' : 'ঢাকা'} · {editionLabel}</span>
+          <span className="rounded-full bg-[#C41E1E] px-2 py-0.5 font-bold text-white">{copy.live} · {rows.length}</span>
+          <span className="text-neutral-600">bvai-chi.vercel.app</span>
         </div>
       </div>
-      <main className="mx-auto max-w-5xl px-4 py-6">
-        {archive && <PdfArchiveViewer url={archive.url} label={archive.label} locale={locale} />}
-        <EPaperViewer edition={edition as any} />
-      </main>
+      <EPaperViewer edition={edition} />
+      {archive ? <PdfArchiveViewer url={archive.url} label={archive.label} /> : null}
     </div>
   );
 }

@@ -7,15 +7,8 @@ import { t, translateCategory, type Locale } from '@/lib/i18n';
 import { categorySlug } from '@/lib/category';
 
 /**
- * CategoryModules — DW/AJ-inspired data-driven "বিভাগ অনুযায়ী" rows.
- *
- * Each distinct category present in the server-fetched (ISR-cached) feed
- * becomes its own <section aria-labelledby="..."> with a kicker heading and
- * a responsive grid of ArticleCards — mirroring how DW builds separate
- * region/topic modules on its homepage and AJ renders category collections.
- *
- * Categories are shown in an editorial priority order (national first), and
- * modules with fewer than 2 items are skipped so no empty row is rendered.
+ * CategoryModules — denser DW/AJ-inspired topic rows.
+ * Up to 6 modules × 12 cards with a "view all" link per category.
  */
 
 const PRIORITY: string[] = [
@@ -35,7 +28,6 @@ export { categorySlug } from '@/lib/category';
 
 export function CategoryModules({ articles, locale = 'bn' as Locale }: { articles: Article[]; locale?: Locale }) {
   const modules = useMemo(() => {
-    // Group by category, preserving editorial priority order.
     const buckets = new Map<string, Article[]>();
     for (const a of articles) {
       const c = (a.category || '').trim();
@@ -49,9 +41,7 @@ export function CategoryModules({ articles, locale = 'bn' as Locale }: { article
       const yi = PRIORITY.indexOf(y[0]);
       return (xi === -1 ? PRIORITY.length : xi) - (yi === -1 ? PRIORITY.length : yi);
     });
-    // Skip the first bucket if it is the hero lead's own category? No — the
-    // lead is a single story; a full module still adds value. Just cap rows.
-    return ranked.filter(([, list]) => list.length >= 2).slice(0, 4);
+    return ranked.filter(([, list]) => list.length >= 2).slice(0, 6);
   }, [articles]);
 
   if (modules.length === 0) return null;
@@ -61,8 +51,7 @@ export function CategoryModules({ articles, locale = 'bn' as Locale }: { article
       {modules.map(([category, list], mi) => {
         const slug = categorySlug(category);
         const headingId = `h-${slug}`;
-        // In-category ad divider after every 6 items (only when row has >6).
-        const items = list.slice(0, 8);
+        const items = list.slice(0, 12);
         const cells: (Article | 'ad')[] = [];
         items.forEach((a, i) => {
           cells.push(a);
@@ -70,14 +59,22 @@ export function CategoryModules({ articles, locale = 'bn' as Locale }: { article
         });
         return (
           <section key={slug} id={`cat-${slug}`} aria-labelledby={headingId} className="scroll-mt-24">
-            <div className="mb-5 flex items-center gap-3 border-b border-border pb-3 dark:border-neutral-800">
-              <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />
-              <h2
-                id={headingId}
-                className="font-serifbn text-2xl font-extrabold leading-snug text-ink dark:text-paper"
+            <div className="mb-5 flex items-end justify-between gap-3 border-b border-border pb-3 dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <span className="h-4 w-1 rounded-full bg-primary" aria-hidden />
+                <h2
+                  id={headingId}
+                  className="font-serifbn text-2xl font-extrabold leading-snug text-ink dark:text-paper"
+                >
+                  {translateCategory(locale, category)}
+                </h2>
+              </div>
+              <a
+                href={`/category/${slug}`}
+                className="shrink-0 text-sm font-bold text-primary transition-colors hover:text-crimson"
               >
-                {translateCategory(locale, category)}
-              </h2>
+                {locale === 'bn' ? 'সব দেখুন →' : 'View all →'}
+              </a>
             </div>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {cells.map((a, i) =>
