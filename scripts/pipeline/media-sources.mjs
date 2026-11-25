@@ -63,8 +63,18 @@ export function buildQueries({ title_bn = '', content_bn = '', category_key = ''
     queries.push(cleaned);
   };
 
+  const topicIds = new Set(topics.map((t) => t[0]));
   for (const [id] of topics) {
     for (const phrase of TOPIC_QUERIES[id] || []) push(phrase);
+  }
+  // Sport + rain: prefer wet-pitch / rain-delay imagery over generic city rain.
+  if (topicIds.has('rain') && topicIds.has('cricket')) {
+    push('wet cricket pitch');
+    push('cricket rain delay stadium');
+  }
+  if (topicIds.has('rain') && topicIds.has('football')) {
+    push('wet football pitch');
+    push('rain football stadium');
   }
 
   if (!queries.length) {
