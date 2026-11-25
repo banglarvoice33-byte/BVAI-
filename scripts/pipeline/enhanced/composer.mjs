@@ -245,9 +245,9 @@ export function assignVisuals(scenes, assets, options = {}) {
     const pick = row.choices.find((c) => !used.has(c.index));
     if (pick) {
       used.add(pick.index);
-      byScene.set(row.index, { asset: assets[pick.index], rank: pick });
+      byScene.set(row.index, { asset: assets[pick.index], rank: pick, selection: pick });
     } else {
-      byScene.set(row.index, { asset: null, rank: null });
+      byScene.set(row.index, { asset: null, rank: null, selection: null });
     }
   }
   return scenes.map((_, index) => byScene.get(index));
