@@ -24,6 +24,14 @@ export function LearningHub({ locale = 'bn' }: { locale?: Locale }) {
 
   async function send() {
     const question = input.trim();
+    const userTurns = messages.filter((m) => m.role === 'user').length;
+    if (userTurns >= 10) {
+      setMessages((old) => [...old, {
+        role: 'assistant',
+        content: l('এই আলাপে সর্বোচ্চ ১০টি প্রশ্ন শেষ। নতুন আলাপ শুরু করতে পেজ রিফ্রেশ করুন।', 'This chat allows 10 questions. Refresh the page to start a new conversation.'),
+      }]);
+      return;
+    }
     if (question.length < 2 || question.length > 1200 || pending.current) return;
     pending.current = true;
     setMessages(old => [...old, { role: 'user', content: question }]);
@@ -34,7 +42,7 @@ export function LearningHub({ locale = 'bn' }: { locale?: Locale }) {
     try {
       const res = await fetch('/api/learning-hub', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(46_000),
-        body: JSON.stringify({ question, locale, history: messages.slice(-6).map(m => ({ role: m.role, content: m.content.slice(0, 600) })) }),
+        body: JSON.stringify({ question, locale, history: messages.slice(-18).map(m => ({ role: m.role, content: m.content.slice(0, 600) })) }),
       });
       const data = await res.json();
       if (typeof data.remaining === 'number') setRemaining(data.remaining);
@@ -54,11 +62,11 @@ export function LearningHub({ locale = 'bn' }: { locale?: Locale }) {
   const label = l('এআই সংবাদ সহকারী', 'AI News Assistant');
   return <>
     <button type="button" ref={launcher} aria-expanded={open} aria-label={label} onClick={() => setOpen(v => !v)}
-      className="fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-primary font-bold text-white shadow-xl">
+      className="fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-primary font-bold text-white shadow-elevated ring-2 ring-primary/20 transition hover:scale-105">
       {open ? 'X' : '?'}
     </button>
     {open && <section role="dialog" aria-label={label} onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); launcher.current?.focus(); } }}
-      className="fixed bottom-24 right-4 z-50 flex h-[min(520px,calc(100dvh-7rem))] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-paper text-ink shadow-2xl dark:border-white/15 dark:bg-ink dark:text-white">
+      className="fixed bottom-24 right-4 z-50 flex h-[min(560px,calc(100dvh-7rem))] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-[1.25rem] border border-border bg-paper text-ink shadow-elevated dark:border-white/15 dark:bg-ink dark:text-white">
       <header className="bg-[#12251f] p-4 text-white">
         <h2 className="font-serifbn text-lg font-bold">{label}</h2>
         <p className="text-xs text-emerald-100">{l('প্রকাশিত সংবাদ · দিনে ১০টি প্রশ্ন', 'Published news · 10 questions per day')}</p>
@@ -75,9 +83,10 @@ export function LearningHub({ locale = 'bn' }: { locale?: Locale }) {
         {needsLogin ? <Link href="/login" className="font-bold underline">{l('লগইন', 'Sign in')}</Link> : l(`আজ বাকি: ${remaining?.toLocaleString('bn-BD')}`, `Remaining today: ${remaining}`)}
       </p>}
       <form onSubmit={event => { event.preventDefault(); void send(); }} className="flex gap-2 border-t border-border p-3 dark:border-white/15">
-        <input ref={inputRef} maxLength={1200} value={input} onChange={event => setInput(event.target.value)} aria-label={l('প্রশ্ন', 'Question')}
-          placeholder={l('প্রশ্ন লিখুন…', 'Type your question…')} className="min-w-0 flex-1 rounded-xl bg-muted p-2.5 text-sm dark:bg-white/10" />
-        <button type="submit" disabled={busy || input.trim().length < 2} className="rounded-xl bg-primary px-3 text-sm font-bold text-white disabled:opacity-50">{l('পাঠান', 'Send')}</button>
+        <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} maxLength={1200} disabled={busy}
+          placeholder={l('প্রশ্ন লিখুন…', 'Ask a question…')}
+          className="flex-1 rounded-xl border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-primary dark:border-white/15" />
+        <button type="submit" disabled={busy} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{l('পাঠান', 'Send')}</button>
       </form>
     </section>}
   </>;

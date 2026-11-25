@@ -17,12 +17,26 @@ export async function POST(req: Request) {
   if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
-  let body: { question?: unknown; locale?: unknown } = {};
+  let body: { question?: unknown; locale?: unknown; history?: unknown } = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'bad_json' }, { status: 400 }); }
   const question = typeof body.question === 'string' ? body.question.trim() : '';
   const locale = body.locale === 'en' ? 'en' : 'bn';
   if (!question || question.length > 1200) {
     return NextResponse.json({ error: 'invalid_length' }, { status: 413 });
+  }
+
+  // Conversation history: at most 9 prior user turns + this question = 10 user questions per session.
+  const rawHistory = Array.isArray(body.history) ? body.history : [];
+  const history = rawHistory
+    .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: String(m.content).slice(0, 600) }))
+    .slice(-18);
+  const priorUserTurns = history.filter((m) => m.role === 'user').length;
+  if (priorUserTurns >= 10) {
+    return NextResponse.json(
+      { error: 'session_limit', remaining: 0, answer: '' },
+      { status: 429, headers: { 'cache-control': 'private, no-store' } },
+    );
   }
 
   const service = createServiceClient(
@@ -31,8 +45,6 @@ export async function POST(req: Request) {
     { auth: { persistSession: false } }
   );
 
-  // ১. সার্ভারের লগইন চেষ্টা। learning-hub.test.ts এখানেই ব্যবহারকারী দেয়।
-  // ২. cookies() ভেঙে গেলে rag পরীক্ষার অবস্থা ধরে এগিয়ে যাওয়া।
   let user: { id: string } | null = null;
   let serverChecked = false;
   try {
@@ -45,7 +57,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'login_required' }, { status: 401 });
   }
 
-  // কোটা: শুধু সংখ্যা পেলেই কোটা মানা হবে।
   let remaining = 0;
   if (user) {
     const quota: any = await callRpc(service, 'consume_learning_hub_question', { p_user_id: user.id });
@@ -63,7 +74,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ answer: 'ওয়ালাইকুম আসসালাম। বাংলার ভয়েসের প্রকাশিত সংবাদ নিয়ে প্রশ্ন করুন।', remaining, intent: 'greeting', sources: [] }, { status: 200, headers });
   }
 
-  // এমবেডিং: rag পরীক্ষা fetch কে নকল করে।
   let embeddingText: string | undefined;
   try {
     const endpoint = process.env.NEWS_EMBEDDING_ENDPOINT || '';
@@ -79,7 +89,6 @@ export async function POST(req: Request) {
     }
   } catch { embeddingText = undefined; }
 
-  // হাইব্রিড খোঁজ।
   let rows: any[] = [];
   try {
     const hybrid: any = await callRpc(service, 'hybrid_search_articles', {
@@ -90,7 +99,6 @@ export async function POST(req: Request) {
     if (Array.isArray(hybrid?.data)) rows = hybrid.data;
   } catch { rows = []; }
 
-  // মূল প্রতিবেদন থেকে snippet নেওয়া।
   let contents: any[] = [];
   try {
     const ids = rows.map((r: any) => r.id).filter(Boolean);
@@ -108,10 +116,19 @@ export async function POST(req: Request) {
     return { title: String(title), snippet: String(snippet), url: String(url) };
   }).filter((s) => s.title);
 
+  const systemPrompt = [
+    'You are বাংলার ভয়েস AI news assistant.',
+    'Answer ONLY from the published sources below. If sources are insufficient, say so in the user locale.',
+    'Do not invent facts, quotes, scores, or casualty numbers.',
+    `Locale: ${locale}.`,
+    'Sources:',
+    sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}\n${(s.snippet || '').slice(0, 400)}`).join('\n') || '(none)',
+  ].join('\n');
   const out = await callAiGateway({
     task: 'learning-hub',
     messages: [
-      { role: 'system', content: `Use only these published sources. Locale: ${locale}. Sources: ${sources.map((s, i) => `[${i + 1}] ${s.title} ${s.url}`).join('\n')}` },
+      { role: 'system', content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: question },
     ],
   });
