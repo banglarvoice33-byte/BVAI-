@@ -22,12 +22,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED != 'false' && vars.VIDEO_DELIVERY_PLATFORMS != '' }}
+          # Prefer Variables; fall back to Secrets (some installs stored config as secrets only).
+          ENABLED: ${{ (vars.VIDEO_DELIVERY_ENABLED || secrets.VIDEO_DELIVERY_ENABLED || 'true') != 'false' && (vars.VIDEO_DELIVERY_PLATFORMS || secrets.VIDEO_DELIVERY_PLATFORMS) != '' }}
         run: |
           set -euo pipefail
           if [ "$ENABLED" != "true" ]; then
             echo "due=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Delivery gate closed: set repo Variable VIDEO_DELIVERY_PLATFORMS=youtube (and VIDEO_DELIVERY_ENABLED!=false)."
+            echo "::warning::Delivery gate closed: set VIDEO_DELIVERY_PLATFORMS=youtube as a Variable OR Secret (and VIDEO_DELIVERY_ENABLED!=false)."
             exit 0
           fi
           rows=$(curl -fsS --max-time 20 -G "$SUPABASE_URL/rest/v1/video_delivery_outbox" \
@@ -50,19 +51,19 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'true' }}
+      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || secrets.VIDEO_DELIVERY_ENABLED || 'true' }}
       VIDEO_DISTRIBUTION_WORKER_ENABLED: 'false'
-      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
-      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
-      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
-      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
-      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID }}
-      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || 'SELF_ONLY' }}
+      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS || secrets.VIDEO_DELIVERY_PLATFORMS }}
+      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID || secrets.YOUTUBE_CHANNEL_ID }}
+      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID || secrets.SOCIAL_FACEBOOK_PAGE_ID }}
+      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID || secrets.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID || secrets.TIKTOK_OPEN_ID }}
+      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || secrets.TIKTOK_PRIVACY || 'SELF_ONLY' }}
       FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION || 'v21.0' }}
-      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
+      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || secrets.YOUTUBE_PRIVACY || 'public' }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN || secrets.GOOGLE_REFRESH_TOKEN || secrets.GMAIL_REFRESH_TOKEN }}
       SOCIAL_FACEBOOK_PAGE_TOKEN: ${{ secrets.SOCIAL_FACEBOOK_PAGE_TOKEN }}
       SOCIAL_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.SOCIAL_INSTAGRAM_ACCESS_TOKEN }}
       TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
