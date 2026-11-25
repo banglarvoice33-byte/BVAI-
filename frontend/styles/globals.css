@@ -51,7 +51,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ── Seamless breaking-news ticker ── */
 @keyframes marquee {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
@@ -82,7 +81,6 @@ body {
   border-radius: 4px;
 }
 
-/* ── Typography utilities ── */
 .font-serifbn {
   font-family: var(--font-serif-bn), 'Noto Serif Bengali', 'Noto Sans Bengali', serif;
   line-height: 1.65;
@@ -104,7 +102,6 @@ body {
   overflow: hidden;
 }
 
-/* ── Premium card system ── */
 @layer components {
   .card-premium {
     @apply relative overflow-hidden rounded-[1.25rem] border border-border bg-white
@@ -145,19 +142,16 @@ body {
            dark:border-white/15 dark:text-paper;
   }
 
-  /* Glass header surface */
   .glass-header {
     @apply backdrop-blur-xl bg-paper/85 dark:bg-navy/90
-           border-b border-border/60 dark:border-white/8;
+           border-b border-border/60 dark:border-white/10;
   }
 
-  /* Subtle section divider */
   .section-rule {
     @apply h-px w-full bg-gradient-to-r from-transparent via-border to-transparent
            dark:via-white/10;
   }
 
-  /* Premium button */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-full
            bg-primary px-5 py-2.5 text-sm font-bold text-white
@@ -173,7 +167,6 @@ body {
   }
 }
 
-/* ── Image zoom on card hover ── */
 .img-zoom {
   @apply transition-transform duration-700 ease-out;
 }
@@ -182,7 +175,6 @@ body {
   transform: scale(1.06);
 }
 
-/* ── Skeleton shimmer (premium loading) ── */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -210,7 +202,6 @@ body {
   background-size: 200% 100%;
 }
 
-/* ── Live pulse indicator ── */
 @keyframes live-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.5; transform: scale(0.85); }
@@ -221,7 +212,6 @@ body {
   animation: live-pulse 1.8s ease-in-out infinite;
 }
 
-/* ── Smooth page transitions ── */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }

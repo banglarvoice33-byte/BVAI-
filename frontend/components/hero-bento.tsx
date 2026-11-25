@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { t, translateCategory, type Locale } from '@/lib/i18n';
 
 export type Article = {
@@ -76,7 +77,7 @@ function ZeroClsImg({
   const grad = placeholderGradient(alt);
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br ${grad} dark:from-neutral-800 dark:via-neutral-850 dark:to-neutral-900 ${className ?? 'aspect-[16/9] w-full'}`}
+      className={`relative overflow-hidden bg-gradient-to-br ${grad} dark:from-neutral-800 dark:via-neutral-800 dark:to-neutral-900 ${className ?? 'aspect-[16/9] w-full'}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -114,7 +115,6 @@ export function LeadCard({ article, href, locale }: { article: Article; href: st
         className="aspect-[16/10] w-full sm:aspect-[16/9]"
         overlay
       />
-      {/* Content sits below image with refined spacing */}
       <div className="relative z-10 flex flex-1 flex-col p-5 sm:p-6">
         <div className="mb-2.5 flex flex-wrap items-center gap-2">
           <span className="badge-category">
@@ -267,7 +267,6 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
 
   return (
     <section className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
-      {/* Lead story — 2/3 width */}
       <div className="lg:col-span-2 animate-fade-up">
         <LeadCard
           article={lead}
@@ -276,7 +275,6 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
         />
       </div>
 
-      {/* Right column: secondary + rail */}
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
           {secondary.map((a, idx) => (
@@ -290,15 +288,14 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
           ))}
         </div>
 
-        {/* Side rail — latest / trending tabs */}
         <div
           id="trending"
-          className="scroll-mt-24 overflow-hidden rounded-2.5xl border border-border bg-white shadow-card dark:border-white/10 dark:bg-neutral-900"
+          className="scroll-mt-24 overflow-hidden rounded-[1.25rem] border border-border bg-white shadow-card dark:border-white/10 dark:bg-neutral-900"
         >
           <div
             role="tablist"
             aria-label={t(locale, 'side_column')}
-            className="flex gap-1 border-b border-border/70 bg-muted/50 p-1.5 dark:border-white/8 dark:bg-white/5"
+            className="flex gap-1 border-b border-border/70 bg-muted/50 p-1.5 dark:border-white/10 dark:bg-white/5"
           >
             {(
               [
@@ -335,13 +332,13 @@ export function HeroBentoGrid({ articles, locale }: { articles: Article[]; local
             ))}
           </div>
 
-          <div className="border-t border-border/70 px-4 py-3 text-center dark:border-white/8">
-            <a
+          <div className="border-t border-border/70 px-4 py-3 text-center dark:border-white/10">
+            <Link
               href="/#latest"
               className="text-sm font-bold text-primary transition-colors hover:text-crimson"
             >
               {locale === 'bn' ? 'আরও সংবাদ দেখুন →' : 'More stories →'}
-            </a>
+            </Link>
           </div>
         </div>
       </div>
