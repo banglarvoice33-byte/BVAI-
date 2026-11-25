@@ -33,6 +33,20 @@ export function sourceNameBn(name) {
 const BN_DIGITS = '০১২৩৪৫৬৭৮৯';
 export const toBnDigits = (s) => String(s).replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
 
+// These words normally close a subordinate or contrast clause, not a
+// standalone editorial sentence. Never emit a unit that ends on one merely
+// because a comma or character budget was hit.
+const INCOMPLETE_CLAUSE_END = /(?:নিলেও|যদিও|তবে|কিন্তু|কারণ|ফলে|সত্ত্বেও|তবুও|যাতে|যেহেতু|যখন|যেখানে|যিনি|যেটি|যা|এবং|অথবা|কিংবা)\s*[,،;:：।!?]*$/u;
+
+export function endsWithIncompleteClause(text) {
+  return INCOMPLETE_CLAUSE_END.test(String(text || '').trim());
+}
+
+export function isCompleteSpokenUnit(text) {
+  const value = String(text || '').trim();
+  return words(value).length >= 4 && !endsWithIncompleteClause(value) && /[।!?]$/.test(value);
+}
+
 export function plain(text) {
   return String(text || '')
     .replace(/<[^>]*>/g, ' ')
@@ -52,13 +66,25 @@ export function speakableSentences(text, { maxWords = 26 } = {}) {
   for (const raw of plain(text).split(/(?<=[।!?])\s+|\n+/)) {
     const sentence = raw.trim();
     if (!sentence || words(sentence).length < 4) continue;
-    if (words(sentence).length <= maxWords) { out.push(/[।!?]$/.test(sentence) ? sentence : sentence + '।'); continue; }
+    if (words(sentence).length <= maxWords) {
+      const unit = /[।!?]$/.test(sentence) ? sentence : `${sentence}।`;
+      if (isCompleteSpokenUnit(unit)) out.push(unit);
+      continue;
+    }
     let buffer = '';
     for (const part of sentence.split(/(?<=[,،;])\s+/)) {
-      if (buffer && words(buffer + ' ' + part).length > maxWords) { out.push(buffer.replace(/[,،;]$/, '') + '।'); buffer = part; }
+      const candidate = buffer ? `${buffer} ${part}` : part;
+      if (buffer && words(candidate).length > maxWords && !endsWithIncompleteClause(buffer)) {
+        const unit = `${buffer.replace(/[,،;]$/, '')}।`;
+        if (isCompleteSpokenUnit(unit)) out.push(unit);
+        buffer = part;
+      }
       else buffer = buffer ? buffer + ' ' + part : part;
     }
-    if (buffer && words(buffer).length >= 4) out.push(buffer.replace(/[,،;]$/, '').replace(/[।!?]$/, '') + '।');
+    if (buffer && words(buffer).length >= 4) {
+      const unit = `${buffer.replace(/[,،;]$/, '').replace(/[।!?]$/, '')}।`;
+      if (isCompleteSpokenUnit(unit)) out.push(unit);
+    }
   }
   return out;
 }

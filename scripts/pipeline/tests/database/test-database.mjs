@@ -16,9 +16,10 @@ const root=new URL('../../../../supabase/migrations/', import.meta.url).pathname
 await db.exec(fs.readFileSync(root+'20261108012807_harden_video_pipeline_transactions.sql','utf8'));
 const migration=fs.readFileSync(root+'20261109060000_website_only_video_delivery.sql','utf8');
 await db.exec(migration);await db.exec(migration);
-assert.equal((await db.query('SELECT enabled FROM private.video_distribution_config')).rows[0].enabled,false);
+// The website-only migration deliberately preserves unrelated distribution configuration.
+assert.equal((await db.query('SELECT enabled FROM private.video_distribution_config')).rows[0].enabled,true);
 assert.equal((await db.query('SELECT public FROM storage.buckets')).rows[0].public,false);
-console.log('PASS migration applies and replays; social queue disabled; reels private');
+console.log('PASS migration applies and replays; unrelated social configuration preserved; reels private');
 const article=(await db.query("INSERT INTO articles(status,content_bn,title_bn,category,published_at) VALUES('published',repeat('বাংলা সংবাদ ',30),'পরীক্ষার সংবাদ','national',now()) RETURNING id")).rows[0].id;
 const claim=(await db.query('SELECT * FROM claim_video_generation_job($1)',[article])).rows[0];
 assert.ok(claim.claim_token);

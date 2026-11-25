@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { licenseOk, buildQueries } from '../media-sources.mjs';
-import { sourceNameBn, contentKey, scriptHash, speakableSentences, CTA } from '../video-script.mjs';
+import { sourceNameBn, contentKey, scriptHash, speakableSentences, isCompleteSpokenUnit, CTA } from '../video-script.mjs';
 import { planSlots } from '../generate-video.js';
 import { wrapLines } from '../video-compose.mjs';
 import { parseLoudnormJson, loudnessOk, loudnormFilter } from '../audio-qc.mjs';
@@ -36,6 +36,15 @@ test('long sentences are split at commas, short fragments dropped', () => {
   const long = Array.from({ length: 40 }, (_, i) => `শব্দ${i}`).join(' ');
   const parts = speakableSentences(`${long.slice(0, 120)}, ${long.slice(120)}। ছোট।`);
   assert.ok(parts.length >= 2 && parts.every((p) => p.endsWith('।')) && !parts.includes('ছোট।'));
+});
+
+test('Bengali subordinate clauses are never emitted as standalone narration units', () => {
+  const text = 'সরকার কিছু পদক্ষেপ নিলেও, মানুষের কষ্ট কমেনি এবং পরিস্থিতি এখনো কঠিন। এই ঘটনায় স্থানীয় প্রশাসন তদন্ত শুরু করেছে।';
+  const parts = speakableSentences(text, { maxWords: 8 });
+  assert.ok(parts.length >= 2);
+  assert.ok(parts.every((part) => isCompleteSpokenUnit(part)));
+  assert.ok(parts.every((part) => !/(নিলেও|যদিও|তবে|কিন্তু|কারণ|ফলে|সত্ত্বেও|তবুও)\s*।$/u.test(part)));
+  assert.ok(parts.some((part) => part.includes('মানুষের কষ্ট কমেনি')));
 });
 
 test('slot plan covers the whole timeline with at least three cuts and never more slots than assets', () => {

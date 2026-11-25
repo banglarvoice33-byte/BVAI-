@@ -1,6 +1,6 @@
 // Explainable planning aid, NOT a fact checker or permission to publish.
 import { createHash } from 'node:crypto';
-import { buildNarration } from './video-script.mjs';
+import { buildNarration, isCompleteSpokenUnit } from './video-script.mjs';
 import { normalizeBanglaForTts } from './bangla-normalize.mjs';
 const hash = text => createHash('sha256').update(text).digest('hex');
 
@@ -15,6 +15,7 @@ export const VOICE_DIRECTION_BN = `শুধু অনুমোদিত spoken_
 export function buildProductionPlan(article, { targetChars = 900 } = {}) {
   const narration = buildNarration(article, { targetChars });
   if (!/[\u0980-\u09ff]/u.test(narration.headline) || narration.sentences.length < 2) throw new Error('production_plan_content: Bengali headline and at least one source sentence required');
+  if (narration.sentences.some((sentence) => !isCompleteSpokenUnit(sentence))) throw new Error('production_plan_content: incomplete Bengali sentence boundary');
   const spoken = normalizeBanglaForTts(narration.script);
   const riskText = `${article.category || ''} ${narration.script}`;
   const sensitive = /হত্যা|নিহত|ধর্ষণ|শিশু|আসামি|অভিযোগ|নির্বাচন|চিকিৎসা|মৃত্যু|যুদ্ধ|আদালত/u.test(riskText);
