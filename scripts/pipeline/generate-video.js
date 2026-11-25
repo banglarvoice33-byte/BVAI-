@@ -6,6 +6,7 @@
 //
 // It never publishes. upload-supabase-video.mjs does the transactional finalize; review/website/distribute is decided there.
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,11 +28,14 @@ import { assignVisuals, rankVisuals } from './enhanced/composer.mjs';
 import { inspectWithRepair } from './enhanced/quality-repair.mjs';
 import { emitPipelineEvent } from './enhanced/events.mjs';
 import { technicalReport } from './enhanced/policy.mjs';
+import { AgnesApiError, createAgnesClient, getAgnesKeyCandidates } from './agnes-client.mjs';
+import { agnesSlotSeconds } from './agnes-visuals.mjs';
 
 // Compatibility exports: the repository's contract tests (tests/repair-contract.test.mjs) and older callers use these names.
 export const CLOSING_CTA = CTA;
 export const buildVoiceScript = (article) => buildNarration(article).script;
 export const isMotionMedia = (filename) => /\.(mp4|webm|ogv)$/i.test(String(filename || ''));
+const useAgnesVisuals = () => String(process.env.VIDEO_VISUAL_PROVIDER || 'licensed').toLowerCase() === 'agnes';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TMP = path.join(HERE, '..', '..', 'temp_assets');
@@ -128,8 +132,84 @@ async function gatherMedia(db, claim, article, jobDir, need, beat, source = { ca
   return picked;
 }
 
+/** Hash a downloaded asset without loading a potentially large clip into memory. */
+async function hashFile(file) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const input = fs.createReadStream(file);
+    input.on('error', reject);
+    input.on('data', chunk => hash.update(chunk));
+    input.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+/** Generate one short Agnes clip per visual slot, sequentially by design. */
+async function gatherAgnesMedia(plan, sceneSlots, jobDir, beat, signal) {
+  const keys = getAgnesKeyCandidates();
+  if (!keys.length) throw new AgnesApiError('No Agnes API key is configured', { statusCode: 500 });
+  const assets = [];
+  for (let index = 0; index < sceneSlots.count; index += 1) {
+    if (signal?.aborted) throw new Error('Agnes render aborted');
+    const scene = plan.scenes[index] || plan.scenes.at(-1);
+    const slotDuration = Number(sceneSlots.durations[index] || 4);
+    const seconds = agnesSlotSeconds(slotDuration);
+    const prompt = [
+      'Create a factual, neutral, documentary-style Bengali news visual.',
+      'Use realistic contextual imagery with restrained camera motion.',
+      'Do not include text, captions, logos, watermarks, or invented identifiable people.',
+      'Vertical 9:16 composition, suitable for a Bengali news short.',
+      `Scene context: ${String(scene?.spoken_text || '').trim()}`,
+    ].join(' ');
+    const file = path.join(jobDir, `agnes-${String(index).padStart(3, '0')}.mp4`);
+    let videoId;
+    let result;
+    let lastError;
+    for (const candidate of keys) {
+      try {
+        // Complete one candidate before trying the next; Agnes calls remain sequential.
+        const client = createAgnesClient({ apiKey: candidate.key });
+        videoId = await client.createVideoTask({ prompt, seconds });
+        result = await client.waitForVideo({
+          videoId,
+          timeoutMs: Number(process.env.AGNES_TIMEOUT_MS || 600000),
+          pollIntervalMs: Number(process.env.AGNES_POLL_INTERVAL_MS || 1500),
+        });
+        await client.downloadVideo(result.url, file);
+        break;
+      } catch (error) {
+        fs.rmSync(file, { force: true });
+        lastError = error;
+        if (!(error instanceof AgnesApiError) || !error.retryable) throw error;
+        console.warn(`[agnes] key candidate #${candidate.index} failed; trying the next configured candidate`);
+      }
+    }
+    if (!result || !videoId) throw lastError || new AgnesApiError('All Agnes API key candidates failed', { retryable: true });
+    const sha256 = await hashFile(file);
+    assets.push({
+      file,
+      kind: 'video',
+      provider: 'agnes-ai',
+      title: 'AI-generated contextual visual',
+      author: 'Agnes AI',
+      description: String(scene?.spoken_text || ''),
+      tags: [],
+      // Do not persist the provider's temporary/signed download URL in a public manifest.
+      source_url: 'https://wiki.agnes-ai.com/en/docs/agnes-video-25-flash',
+      license: 'AI-generated output; provider terms apply; editorial review required',
+      license_url: 'https://wiki.agnes-ai.com/en/docs/agnes-video-25-flash',
+      external_id: videoId,
+      sha256,
+      synthetic: true,
+    });
+    await beat();
+  }
+  return assets;
+}
+
 const creditLine = (m) => m
-  ? `${m.kind === 'video' ? 'ভিডিও' : 'ছবি'}: ${m.author} · ${m.license} · ${PROVIDER_LABEL[m.provider] || m.provider}`
+  ? (m.synthetic
+    ? 'এআই-উৎপাদিত ভিজ্যুয়াল · মানব যাচাই আবশ্যক'
+    : `${m.kind === 'video' ? 'ভিডিও' : 'ছবি'}: ${m.author} · ${m.license} · ${PROVIDER_LABEL[m.provider] || m.provider}`)
   : 'প্রতীকী গ্রাফিক · বাংলার ভয়েস';
 
 export async function renderClaim(db, claim, deps = {}) {
@@ -168,19 +248,30 @@ export async function renderClaim(db, claim, deps = {}) {
     const total = Math.max(LIMITS.minTotal, voice.seconds + LIMITS.tail);
     const sceneSlots = renderSlotsFromTimeline(plan.scenes, total);
     const wanted = sceneSlots.count;
-    log(`🎞️ Symbolic B-roll (want up to ${wanted})...`);
-    const media = await gatherMedia(db, claim, article, jobDir, wanted, beat, deps.media);
     const { count, durations } = sceneSlots;
+    const agnes = useAgnesVisuals();
+    log(agnes ? `🎞️ Agnes AI visuals (${wanted} sequential clips)...` : `🎞️ Symbolic B-roll (want up to ${wanted})...`);
+    const media = agnes
+      ? await gatherAgnesMedia(plan, sceneSlots, jobDir, beat, heartbeat.signal)
+      : await gatherMedia(db, claim, article, jobDir, wanted, beat, deps.media);
     plan.visual_cuts = sceneSlots.boundaries;
-    const assignments = assignVisuals(plan.scenes, media, {context: article.title_bn});
+    const assignments = agnes
+      ? plan.scenes.map((scene, index) => ({
+        asset: media[index] || null,
+        selection: media[index] ? { method: 'agnes_scene_generation', score: 1, matched: [] } : null,
+        rank: null,
+      }))
+      : assignVisuals(plan.scenes, media, {context: article.title_bn});
     plan.visual_assets = plan.scenes.map((scene, index) => ({
       spoken_text: scene.spoken_text, start: sceneSlots.boundaries[index], end: sceneSlots.boundaries[index + 1],
       asset: assignments[index].asset ? { source_url: assignments[index].asset.source_url, sha256: assignments[index].asset.sha256, license: assignments[index].asset.license, title: assignments[index].asset.title } : null,
       selection: assignments[index].selection,
-      classification: 'symbolic', relevance_status: 'needs_human_review',
+      classification: agnes ? 'synthetic_realistic' : 'symbolic', relevance_status: 'needs_human_review',
     }));
     fs.writeFileSync(path.join(jobDir, 'production-plan.json'), JSON.stringify(plan, null, 2), { mode: 0o600 });
-    log(`   ${media.length} licensed asset(s) reserved; ${Math.max(0, count - media.length)} branded motion slot(s) fill the rest`);
+    log(agnes
+      ? `   ${media.length} Agnes clip(s) generated; every clip remains subject to human review`
+      : `   ${media.length} licensed asset(s) reserved; ${Math.max(0, count - media.length)} branded motion slot(s) fill the rest`);
 
     log('🎨 Overlays + compose...');
     const { fontsDir, env } = prepareFonts(jobDir);
@@ -188,7 +279,10 @@ export async function renderClaim(db, claim, deps = {}) {
     const sourceName = String(article.source_name || 'নিজস্ব প্রতিবেদক').trim();
     const sourceUrl = article.source_url || (process.env.SITE_URL && article.slug ? new URL('/article/' + encodeURIComponent(article.slug), process.env.SITE_URL).href : null);
     const png = (name) => path.join(jobDir, name);
-    renderBrandOverlay(png('brand.png'), { sourceName }, env);
+    renderBrandOverlay(png('brand.png'), {
+      sourceName,
+      visualLabel: agnes ? 'এআই ভিজ্যুয়াল' : undefined,
+    }, env);
     renderHeadlineBig(png('head_big.png'), article.title_bn, env);
     renderHeadlineSmall(png('head_small.png'), article.title_bn, env);
     renderEndCard(png('end.png'), { host }, env);
@@ -220,9 +314,11 @@ export async function renderClaim(db, claim, deps = {}) {
       audio_duration: voice.seconds, render_duration: renderSeconds, size_bytes: fs.statSync(finalFile).size,
       caption_method: voice.caption_method, script_hash: hash, spoken_script_hash: plan.spoken_script_sha256,
       production_plan: plan, content_key: key, script_chars: voice.script.length,
-      symbolic_visuals: true, synthetic_realistic: false, visual_label: 'প্রতীকী ভিজ্যুয়াল',
+      symbolic_visuals: !agnes,
+      synthetic_realistic: agnes,
+      visual_label: agnes ? 'এআই-উৎপাদিত ভিজ্যুয়াল' : 'প্রতীকী ভিজ্যুয়াল',
       source: { name: sourceName, name_bn: sourceNameBn(sourceName), url: sourceUrl },
-      media: media.filter(m => assignments.some(a => a.asset === m)).map((m) => ({ provider: m.provider, kind: m.kind, title: m.title, author: m.author, license: m.license, license_url: m.license_url, source_url: m.source_url, sha256: m.sha256 })),
+      media: media.filter(m => assignments.some(a => a.asset === m)).map((m) => ({ provider: m.provider, kind: m.kind, title: m.title, author: m.author, license: m.license, license_url: m.license_url, source_url: m.source_url, sha256: m.sha256, ...(m.synthetic ? { synthetic: true, external_id: m.external_id } : {}) })),
       evidence: [], generated_at: new Date().toISOString(),
     };
     // Render is "confirmed" only when the uploader's own contract passes: probe, full decode, loudness, caption sidecar.

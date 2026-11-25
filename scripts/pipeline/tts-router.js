@@ -88,11 +88,15 @@ async function tryCartesia(text, keyObj) {
 async function tryElevenLabs(text, keyObj) {
   const voiceId = process.env.ELEVENLABS_VOICE_ID;
   if (!voiceId) throw new Error('ELEVENLABS_VOICE_ID missing');
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+  const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
+  const outputFormat = process.env.ELEVENLABS_OUTPUT_FORMAT || 'mp3_44100_128';
+  const endpoint = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`);
+  endpoint.searchParams.set('output_format', outputFormat);
+  const res = await fetch(endpoint, {
     signal: AbortSignal.timeout(90000),
     method: 'POST',
     headers: { 'xi-api-key': keyObj.key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-    body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+    body: JSON.stringify({ text, model_id: modelId, voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
   });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());

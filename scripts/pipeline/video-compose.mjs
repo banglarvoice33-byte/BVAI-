@@ -74,13 +74,13 @@ const svg = (inner) => `<?xml version="1.0" encoding="UTF-8"?><svg width="${W}" 
 const text = (x, y, size, fill, content, { weight = 'normal', anchor = 'start' } = {}) =>
   `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}">${esc(content)}</text>`;
 
-/** Persistent layer: brand, honest "symbolic visual" label, and the credited source. */
-export function renderBrandOverlay(outFile, { sourceName }, env) {
+/** Persistent layer: brand, honest visual-origin label, and the credited source. */
+export function renderBrandOverlay(outFile, { sourceName, visualLabel = SYMBOLIC_LABEL }, env) {
   const source = sourceName ? `সূত্র: ${sourceName}` : '';
   svgToPng(svg(
     `<rect x="0" y="0" width="${W}" height="330" fill="url(#top)"/><rect x="0" y="${H - 260}" width="${W}" height="260" fill="url(#bot)"/>`
     + `<rect x="40" y="62" rx="14" width="318" height="76" fill="#D50032"/>${text(199, 115, 40, '#fff', 'বাংলার ভয়েস', { weight: 'bold', anchor: 'middle' })}`
-    + `<rect x="620" y="62" rx="14" width="420" height="76" fill="#FFB300"/>${text(830, 115, 38, '#1a1a1a', SYMBOLIC_LABEL, { weight: 'bold', anchor: 'middle' })}`
+    + `<rect x="620" y="62" rx="14" width="420" height="76" fill="#FFB300"/>${text(830, 115, 38, '#1a1a1a', visualLabel, { weight: 'bold', anchor: 'middle' })}`
     + (source ? text(48, H - 52, 34, '#fff', source, { weight: 'bold' }) : ''),
   ), outFile, env);
 }

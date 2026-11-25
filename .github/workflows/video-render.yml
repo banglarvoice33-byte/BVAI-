@@ -106,6 +106,21 @@ jobs:
       TTS_ELEVENLABS_5: ${{ secrets.TTS_ELEVENLABS_5 }}
       CARTESIA_VOICE_ID: ${{ secrets.CARTESIA_VOICE_ID }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || secrets.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2' }}
+      ELEVENLABS_OUTPUT_FORMAT: ${{ vars.ELEVENLABS_OUTPUT_FORMAT || secrets.ELEVENLABS_OUTPUT_FORMAT || 'mp3_44100_128' }}
+      VIDEO_VISUAL_PROVIDER: ${{ vars.VIDEO_VISUAL_PROVIDER || secrets.VIDEO_VISUAL_PROVIDER || 'licensed' }}
+      AGNES_BASE_URL: ${{ vars.AGNES_BASE_URL || secrets.AGNES_BASE_URL || 'https://apihub.agnes-ai.com/v1' }}
+      AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
+      AGNES_API_KEY_1: ${{ secrets.AGNES_API_KEY_1 }}
+      AGNES_API_KEY_2: ${{ secrets.AGNES_API_KEY_2 }}
+      AGNES_API_KEY_3: ${{ secrets.AGNES_API_KEY_3 }}
+      AGNES_API_KEY_4: ${{ secrets.AGNES_API_KEY_4 }}
+      AGNES_API_KEY_5: ${{ secrets.AGNES_API_KEY_5 }}
+      AGNES_MODEL: ${{ vars.AGNES_MODEL || secrets.AGNES_MODEL || 'agnes-video-2.5-flash' }}
+      AGNES_SIZE: ${{ vars.AGNES_SIZE || secrets.AGNES_SIZE || '720P' }}
+      AGNES_ASPECT_RATIO: ${{ vars.AGNES_ASPECT_RATIO || secrets.AGNES_ASPECT_RATIO || '9:16' }}
+      AGNES_POLL_INTERVAL_MS: ${{ vars.AGNES_POLL_INTERVAL_MS || secrets.AGNES_POLL_INTERVAL_MS || '1500' }}
+      AGNES_TIMEOUT_MS: ${{ vars.AGNES_TIMEOUT_MS || secrets.AGNES_TIMEOUT_MS || '600000' }}
       ARTICLE_ID: ${{ inputs.article_id }}
       VIDEO_PUBLISH_MODE: ${{ (inputs.publish_mode != 'auto' && inputs.publish_mode) || vars.VIDEO_PUBLISH_MODE || secrets.VIDEO_PUBLISH_MODE || '' }}
       VIDEO_REQUIRE_CAPTIONS: 'true'
