@@ -45,10 +45,26 @@ export async function upload() {
   const url = process.env.SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Supabase server credentials missing');
   const supabase = createClient(url,key,{ auth:{ persistSession:false,autoRefreshToken:false } });
-  const mode = process.env.VIDEO_PUBLISH_MODE || 'review';
+  // Resolve publish mode:
+  // - explicit VIDEO_PUBLISH_MODE wins
+  // - empty + youtube (or other) platforms configured → distribute (enqueue outbox)
+  // - otherwise review (safe default; no social upload)
+  const requested = String(process.env.VIDEO_PUBLISH_MODE || '').trim();
+  let mode = requested;
+  if (!mode) {
+    try {
+      const autoTargets = deliveryTargets();
+      mode = autoTargets.length ? 'distribute' : 'review';
+      console.log(`[publish] VIDEO_PUBLISH_MODE unset → auto ${mode} (targets=${autoTargets.map(t=>t.platform).join(',')||'none'})`);
+    } catch (e) {
+      mode = 'review';
+      console.log(`[publish] VIDEO_PUBLISH_MODE unset → review (targets not ready: ${String(e.message||e).slice(0,120)})`);
+    }
+  }
   if (!['website','review','distribute'].includes(mode)) throw new Error('Invalid VIDEO_PUBLISH_MODE');
   const targets=mode==='distribute'?deliveryTargets():[];
-  if(mode==='distribute' && !targets.length)throw new Error('Select VIDEO_DELIVERY_PLATFORMS before distribute mode');
+  if(mode==='distribute' && !targets.length)throw new Error('Select VIDEO_DELIVERY_PLATFORMS and account IDs (e.g. YOUTUBE_CHANNEL_ID) before distribute mode');
+  console.log(`[publish] mode=${mode} targets=${targets.map(t=>t.platform+':'+t.account_id).join(',')||'none'}`);
   const {data:article,error:articleError}=await supabase.from('articles').select('*').eq('id',manifest.article_id).single();
   if(articleError)throw new Error('Article recheck failed');
   assertEditorial(article,mode);
