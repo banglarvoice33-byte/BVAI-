@@ -12,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import {
-  findTopics,
+  findPrimaryTopics,
   financialOrSensitive,
   normalizeCategory,
   TOPIC_QUERIES,
@@ -46,7 +46,8 @@ export function buildQueries({ title_bn = '', content_bn = '', category_key = ''
     return { category, topics: [], queries: [], sensitive };
   }
 
-  const topics = findTopics(haystack);
+  // Ranked topics: sport primary; rain is modifier; flood only on strong inundation words.
+  const topics = findPrimaryTopics(haystack);
   const queries = [];
   const seen = new Set();
 
