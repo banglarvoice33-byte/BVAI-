@@ -4,9 +4,8 @@ name: BVAI Reviewed Media Pipeline
 #                   Needs the vault secret GITHUB_DISPATCH_TOKEN (fine-grained PAT, Actions: read/write) + deployment_settings.GITHUB_REPO.
 # Fallback trigger: the hourly schedules below. They only start the heavy job when the database says a render is due.
 # All schedules are UTC. Dhaka = UTC+6:  01-03 -> 07-09h | 06-08 -> 12-14h | 11-13 -> 17-19h | 14-17 -> 20-23h (peak windows).
-# Controls (GitHub > Settings > Variables):  ENABLE_VIDEO_AUTOMATION=false or VIDEO_AUTOMATION_PAUSED=true  -> pause scheduled runs.
-#   BVAI_VIDEO_SCHEDULER_OWNER=termux -> Termux cron (scripts/pipeline/local-slot.mjs) owns the schedule; Actions only runs on manual dispatch.
-# Scheduled runs are ON by default (the database daily quota + peak windows decide whether a render is due); manual dispatch always works.
+# Controls (GitHub > Settings > Variables OR Secrets):  ENABLE_VIDEO_AUTOMATION=false or VIDEO_AUTOMATION_PAUSED=true  -> pause scheduled runs.
+#   BVAI_VIDEO_SCHEDULER_OWNER=termux -> Termux cron owns the schedule; Actions only runs on manual dispatch.
 on:
   workflow_dispatch:
     inputs:
@@ -33,7 +32,6 @@ permissions:
 
 jobs:
   gate:
-    # Cheap probe (about 10 s): never spend render minutes when no slot/article is due.
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -44,9 +42,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED }}
-          ENABLE_VIDEO_AUTOMATION: ${{ vars.ENABLE_VIDEO_AUTOMATION }}
-          SCHEDULER_OWNER: ${{ vars.BVAI_VIDEO_SCHEDULER_OWNER }}
+          VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED || secrets.VIDEO_AUTOMATION_PAUSED }}
+          ENABLE_VIDEO_AUTOMATION: ${{ vars.ENABLE_VIDEO_AUTOMATION || secrets.ENABLE_VIDEO_AUTOMATION }}
+          SCHEDULER_OWNER: ${{ vars.BVAI_VIDEO_SCHEDULER_OWNER || secrets.BVAI_VIDEO_SCHEDULER_OWNER }}
         run: |
           set -euo pipefail
           echo "probe VIDEO_AUTOMATION_PAUSED=${VIDEO_AUTOMATION_PAUSED:-}"
@@ -54,7 +52,7 @@ jobs:
           echo "probe BVAI_VIDEO_SCHEDULER_OWNER=${SCHEDULER_OWNER:-}"
           if [ "${VIDEO_AUTOMATION_PAUSED:-}" = "true" ]; then
             echo "due=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Gate closed: VIDEO_AUTOMATION_PAUSED=true (GitHub Settings → Variables)."
+            echo "::warning::Gate closed: VIDEO_AUTOMATION_PAUSED=true."
             exit 0
           fi
           if [ "${ENABLE_VIDEO_AUTOMATION:-}" = "false" ]; then
@@ -64,7 +62,7 @@ jobs:
           fi
           if [ "${SCHEDULER_OWNER:-}" = "termux" ]; then
             echo "due=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Gate closed: BVAI_VIDEO_SCHEDULER_OWNER=termux (Termux owns schedule; use workflow_dispatch or clear the variable)."
+            echo "::notice::Gate closed: BVAI_VIDEO_SCHEDULER_OWNER=termux (use workflow_dispatch or clear the variable)."
             exit 0
           fi
           test -n "${SUPABASE_URL:-}" && test -n "${SUPABASE_SERVICE_ROLE_KEY:-}" || { echo '::error::Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY secrets'; exit 1; }
@@ -88,7 +86,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SITE_URL: ${{ vars.SITE_URL || 'https://bvai-chi.vercel.app' }}
+      SITE_URL: ${{ vars.SITE_URL || secrets.SITE_URL || 'https://bvai-chi.vercel.app' }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       VIDEO_RECOVERY_KEY: ${{ secrets.VIDEO_RECOVERY_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
@@ -109,22 +107,22 @@ jobs:
       CARTESIA_VOICE_ID: ${{ secrets.CARTESIA_VOICE_ID }}
       ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       ARTICLE_ID: ${{ inputs.article_id }}
-      VIDEO_PUBLISH_MODE: ${{ (inputs.publish_mode != 'auto' && inputs.publish_mode) || vars.VIDEO_PUBLISH_MODE || '' }}
+      VIDEO_PUBLISH_MODE: ${{ (inputs.publish_mode != 'auto' && inputs.publish_mode) || vars.VIDEO_PUBLISH_MODE || secrets.VIDEO_PUBLISH_MODE || '' }}
       VIDEO_REQUIRE_CAPTIONS: 'true'
       EDGE_CAPTION_FALLBACK: 'true'
-      VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED || 'false' }}
-      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || 'true' }}
-      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS }}
-      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
-      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID }}
-      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
-      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID }}
-      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || 'SELF_ONLY' }}
+      VIDEO_AUTOMATION_PAUSED: ${{ vars.VIDEO_AUTOMATION_PAUSED || secrets.VIDEO_AUTOMATION_PAUSED || 'false' }}
+      VIDEO_DELIVERY_ENABLED: ${{ vars.VIDEO_DELIVERY_ENABLED || secrets.VIDEO_DELIVERY_ENABLED || 'true' }}
+      VIDEO_DELIVERY_PLATFORMS: ${{ vars.VIDEO_DELIVERY_PLATFORMS || secrets.VIDEO_DELIVERY_PLATFORMS }}
+      YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID || secrets.YOUTUBE_CHANNEL_ID }}
+      SOCIAL_FACEBOOK_PAGE_ID: ${{ vars.SOCIAL_FACEBOOK_PAGE_ID || secrets.SOCIAL_FACEBOOK_PAGE_ID }}
+      SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ vars.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID || secrets.SOCIAL_INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+      TIKTOK_OPEN_ID: ${{ vars.TIKTOK_OPEN_ID || secrets.TIKTOK_OPEN_ID }}
+      TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY || secrets.TIKTOK_PRIVACY || 'SELF_ONLY' }}
       FACEBOOK_GRAPH_VERSION: ${{ vars.FACEBOOK_GRAPH_VERSION || 'v21.0' }}
-      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || 'public' }}
+      YOUTUBE_PRIVACY: ${{ vars.YOUTUBE_PRIVACY || secrets.YOUTUBE_PRIVACY || 'public' }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN || secrets.GOOGLE_REFRESH_TOKEN || secrets.GMAIL_REFRESH_TOKEN }}
       SOCIAL_FACEBOOK_PAGE_TOKEN: ${{ secrets.SOCIAL_FACEBOOK_PAGE_TOKEN }}
       SOCIAL_INSTAGRAM_ACCESS_TOKEN: ${{ secrets.SOCIAL_INSTAGRAM_ACCESS_TOKEN }}
       TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
@@ -147,6 +145,12 @@ jobs:
           test -n "$TTS_SARVAM_1$TTS_CARTESIA_1$TTS_ELEVENLABS_1$TTS_SONEXLABS_1" || \
             echo '::warning::No paid TTS key in GitHub Secrets; vault keys or the free Edge voice will be used'
           [ -n "$GROQ_API_KEY" ] || echo '::notice::GROQ_API_KEY empty here (vault may hydrate it); otherwise Edge-matched captions are used'
+          if [ -z "${YOUTUBE_REFRESH_TOKEN:-}" ] && echo "${VIDEO_DELIVERY_PLATFORMS:-}" | grep -qi youtube; then
+            echo '::warning::YOUTUBE_REFRESH_TOKEN missing — YouTube upload will fail even if platforms=youtube. YOUTUBE_API_KEY alone cannot upload videos.'
+          fi
+          if [ -z "${YOUTUBE_CHANNEL_ID:-}" ] && echo "${VIDEO_DELIVERY_PLATFORMS:-}" | grep -qi youtube; then
+            echo '::warning::YOUTUBE_CHANNEL_ID missing — set as Variable or Secret (UC…).'
+          fi
       - name: Ensure recovery key for CI encrypt step
         run: |
           if [ -z "$VIDEO_RECOVERY_KEY" ]; then
