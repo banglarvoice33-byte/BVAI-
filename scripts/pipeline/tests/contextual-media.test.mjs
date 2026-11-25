@@ -58,6 +58,49 @@ test('rejects the search-query echo, unrelated weather and wrong sport', () => {
   );
 });
 
+test('rejects baseball, music-stand and generic stadium when target is cricket', () => {
+  const scene = { spoken_text: 'ঢাকায় ক্রিকেট ম্যাচে বৃষ্টি' };
+  const list = [
+    asset('baseball, field, stadium, bleachers, sports', {
+      provider: 'pixabay',
+      query: 'cricket stadium',
+      license_url: 'https://pixabay.com/service/license/',
+    }),
+    asset('music stand, instrument, music, old music, musical, stadium', {
+      provider: 'pixabay',
+      query: 'cricket stadium',
+      license_url: 'https://pixabay.com/service/license/',
+    }),
+    asset('montreal, aerial view, stadium, city, streets', {
+      provider: 'pixabay',
+      query: 'cricket stadium',
+      license_url: 'https://pixabay.com/service/license/',
+    }),
+    asset('stadium, cricket, top view, drone', {
+      provider: 'pixabay',
+      query: 'cricket stadium',
+      license_url: 'https://pixabay.com/service/license/',
+    }),
+    asset('stadium, british, cricket, somerset, taunton', {
+      provider: 'pixabay',
+      query: 'cricket stadium',
+      license_url: 'https://pixabay.com/service/license/',
+    }),
+  ];
+  const ranks = rankVisuals(scene, list, { context: scene.spoken_text });
+  const byIndex = Object.fromEntries(ranks.map((r) => [r.index, r]));
+  const accepted = ranks.filter((r) => r.score > 0).map((r) => r.index).sort((a, b) => a - b);
+  assert.deepEqual(accepted, [3, 4], `accepted=${accepted} methods=${JSON.stringify(byIndex)}`);
+  assert.equal(byIndex[0].method, 'wrong_sport_reject');
+  assert.equal(byIndex[0].score, 0);
+  assert.equal(byIndex[1].method, 'offtopic_reject');
+  assert.equal(byIndex[1].score, 0);
+  // Generic stadium without cricket token: not accepted under sport target.
+  assert.equal(byIndex[2].score, 0);
+  assert.ok(byIndex[3].score > 0);
+  assert.ok(byIndex[4].score > 0);
+});
+
 test('coverage is scene-local, assets unique, and sensitive footage not inferred', () => {
   const scenes = [
     { spoken_text: 'জলাবদ্ধতা দেখা গেছে' },

@@ -1,11 +1,12 @@
 /**
- * Visual ranking for symbolic B-roll.
+ * Visual ranking for symbolic B-roll (v4).
  *
  * Rules:
- * - Rank only independent provider metadata; never treat the article title echo as proof.
- * - Curated search queries we emitted (e.g. "cricket stadium") ARE allowed as weak evidence
- *   only for thin-title stock APIs (Pexels/Pixabay) — never for Wikimedia alone.
- * - Sports dominate: wrong-sport footage is ineligible even if rain tags match.
+ * - Never treat the article title echo as proof.
+ * - Curated search queries are weak evidence only for thin-title stock APIs
+ *   (Pexels/Pixabay) — and only when tags do not contradict the target sport.
+ * - Wrong-sport tags (baseball when target is cricket, etc.) are hard rejects.
+ * - Off-topic tags (music stand, instrument) with no sport corroboration are rejects.
  * - Sensitive / crime scenes get no stock faces.
  */
 import { findTopics, findPrimaryTopics, financialOrSensitive, TOPIC_QUERIES } from '../visual-topics.mjs';
@@ -29,7 +30,7 @@ const https = (value) => {
   }
 };
 
-/** Map a curated search query back to topic ids (exact TOPIC_QUERIES or strong token). */
+/** Map a curated search query back to topic ids. */
 function topicsForQuery(query = '') {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
@@ -37,7 +38,6 @@ function topicsForQuery(query = '') {
   for (const [id, phrases] of Object.entries(TOPIC_QUERIES || {})) {
     if ((phrases || []).some((p) => String(p).toLowerCase() === q)) ids.push(id);
   }
-  // Sport + rain compound queries we emit beyond the static lexicon.
   if (/\bcricket\b/.test(q)) ids.push('cricket');
   if (/\bfootball\b|\bsoccer\b/.test(q)) ids.push('football');
   if (/\brain\b|\bmonsoon\b|\bwet\b/.test(q)) ids.push('rain');
@@ -45,9 +45,86 @@ function topicsForQuery(query = '') {
   return [...new Set(ids)];
 }
 
+/**
+ * Competing sport tokens that must not appear when a different sport is the target.
+ * Keys are target topic ids; values are forbidden token patterns (case-insensitive).
+ */
+const SPORT_NEGATIVES = {
+  cricket: [
+    /\bbaseball\b/,
+    /\bsoftball\b/,
+    /\bfootball\b/,
+    /\bsoccer\b/,
+    /\bbasketball\b/,
+    /\bhockey\b/,
+    /\brugby\b/,
+    /\btennis\b/,
+    /\bgolf\b/,
+    /\bvolleyball\b/,
+    /\bamerican football\b/,
+  ],
+  football: [
+    /\bcricket\b/,
+    /\bbaseball\b/,
+    /\bsoftball\b/,
+    /\bbasketball\b/,
+    /\bhockey\b/,
+    /\brugby\b/,
+    /\btennis\b/,
+    /\bgolf\b/,
+  ],
+};
+
+/** Tags that prove the clip is not sports B-roll at all. */
+const OFFTOPIC_NEGATIVES = [
+  /\bmusic stand\b/,
+  /\binstrument\b/,
+  /\bmusical\b/,
+  /\bpiano\b/,
+  /\bviolin\b/,
+  /\borchestra\b/,
+  /\bcooking\b/,
+  /\brecipe\b/,
+  /\bkitchen\b/,
+  /\bwedding\b/,
+  /\bfuneral\b/,
+  /\breal estate\b/,
+  /\bfashion show\b/,
+];
+
+/** Positive corroboration tokens per sport (for stock thin-title boost). */
+const SPORT_POSITIVES = {
+  cricket: [/\bcricket\b/, /\bwicket\b/, /\bbatsman\b/, /\bbowler\b/, /\bpitch\b/, /\bstumps\b/],
+  football: [/\bfootball\b/, /\bsoccer\b/, /\bgoalkeeper\b/, /\bstadium\b/],
+};
+
+function hasWrongSport(text, targetIds) {
+  const t = String(text || '').toLowerCase();
+  for (const id of targetIds) {
+    for (const re of SPORT_NEGATIVES[id] || []) {
+      if (re.test(t)) return true;
+    }
+  }
+  return false;
+}
+
+function hasOfftopic(text) {
+  const t = String(text || '').toLowerCase();
+  return OFFTOPIC_NEGATIVES.some((re) => re.test(t));
+}
+
+function hasPositiveSport(text, targetIds) {
+  const t = String(text || '').toLowerCase();
+  for (const id of targetIds) {
+    for (const re of SPORT_POSITIVES[id] || []) {
+      if (re.test(t)) return true;
+    }
+  }
+  return false;
+}
+
 export function rankVisuals(scene, assets, { context = '', sensitive = false } = {}) {
   const spoken = scene.spoken_text || '';
-  // Primary ranking target: sport first, rain as modifier, flood only with inundation words.
   const sceneTopics = findPrimaryTopics(spoken);
   const contextTopics = findPrimaryTopics(context);
   const target = sceneTopics.length ? sceneTopics : contextTopics;
@@ -56,6 +133,7 @@ export function rankVisuals(scene, assets, { context = '', sensitive = false } =
   const leadSports = contextTopics.filter((t) => t[4]);
   const topics = sceneSports.length ? sceneSports : leadSports.length ? leadSports : target;
   const targetIds = new Set(topics.map((t) => t[0]));
+  const sportTargetIds = [...targetIds].filter((id) => SPORT_NEGATIVES[id] || SPORT_POSITIVES[id]);
   const tokens = words(spoken);
 
   return assets
@@ -65,7 +143,6 @@ export function rankVisuals(scene, assets, { context = '', sensitive = false } =
         asset.description,
         ...(Array.isArray(asset.tags) ? asset.tags : []),
       ].join(' ');
-      // Metadata taxonomy on title/tags (Wikimedia-style).
       const metadata = findTopics(description);
       const rights = Boolean(
         asset.author?.trim() &&
@@ -74,9 +151,8 @@ export function rankVisuals(scene, assets, { context = '', sensitive = false } =
           https(asset.license_url || asset.source_url),
       );
       const matched = metadata.filter((t) => targetIds.has(t[0])).map((t) => t[0]);
-      const hasOtherSport = metadata.some((t) => t[4] && !targetIds.has(t[0]));
+      const hasOtherSportMeta = metadata.some((t) => t[4] && !targetIds.has(t[0]));
 
-      // Curated query credit (Pexels/Pixabay often lack topical titles).
       const queryTopicIds = topicsForQuery(asset.query).filter((id) => targetIds.has(id));
       const queryAligned = queryTopicIds.length > 0;
 
@@ -84,25 +160,63 @@ export function rankVisuals(scene, assets, { context = '', sensitive = false } =
         (t) => tokens.has(t) && /[\u0980-\u09ff]/u.test(t),
       );
 
-      // No stock media on sensitive stories.
-      const baseOk =
-        rights &&
-        !sensitive &&
-        !financialOrSensitive(spoken) &&
-        !hasOtherSport;
-
-      // Stock APIs often return photographer names as titles — curated query is the only topical signal.
-      // Wikimedia / generic sources must corroborate via title/tags (never query echo alone).
       const stockThinTitle = /^(pexels|pixabay)$/i.test(String(asset.provider || ''));
+      const descWrongSport = sportTargetIds.length > 0 && hasWrongSport(description, sportTargetIds);
+      const descOfftopic = hasOfftopic(description);
+      const descPositive = sportTargetIds.length === 0 || hasPositiveSport(description, sportTargetIds);
+
+      // Hard rejects before scoring.
+      if (!rights) {
+        return { index, score: 0, matched: [], rights: false, classification: 'symbolic', method: 'no_rights' };
+      }
+      if (sensitive || financialOrSensitive(spoken)) {
+        return { index, score: 0, matched: [], rights, classification: 'symbolic', method: 'sensitive_block' };
+      }
+      if (hasOtherSportMeta || descWrongSport) {
+        return {
+          index,
+          score: 0,
+          matched: [],
+          rights,
+          classification: 'symbolic',
+          method: 'wrong_sport_reject',
+        };
+      }
+      if (descOfftopic && !descPositive) {
+        return {
+          index,
+          score: 0,
+          matched: [],
+          rights,
+          classification: 'symbolic',
+          method: 'offtopic_reject',
+        };
+      }
+
       let score = 0;
-      if (baseOk) {
-        if (topics.length) {
-          if (matched.length) score = 10 * matched.length + Number(asset.kind === 'video');
-          else if (queryAligned && stockThinTitle) score = 6 + Number(asset.kind === 'video');
-          else if (lexical.length) score = 4 * lexical.length;
+      let method = 'none';
+
+      if (topics.length) {
+        if (matched.length) {
+          // Taxonomy match on title/tags (best).
+          score = 10 * matched.length + Number(asset.kind === 'video');
+          method = 'provider_metadata_taxonomy_v4';
+        } else if (queryAligned && stockThinTitle && descPositive) {
+          // Stock API: curated query + positive sport token in tags/title.
+          score = 8 + Number(asset.kind === 'video');
+          method = 'curated_query_positive_v4';
+        } else if (queryAligned && stockThinTitle && !sportTargetIds.length) {
+          // Non-sport story: query alignment alone is acceptable for stock.
+          score = 6 + Number(asset.kind === 'video');
+          method = 'curated_query_alignment_v4';
         } else if (lexical.length) {
           score = 4 * lexical.length;
+          method = 'lexical_bn_v4';
         }
+        // queryAligned + stock + sport target + NO positive token → score 0 (reject weak stadium noise)
+      } else if (lexical.length) {
+        score = 4 * lexical.length;
+        method = 'lexical_bn_v4';
       }
 
       return {
@@ -111,18 +225,13 @@ export function rankVisuals(scene, assets, { context = '', sensitive = false } =
         matched: matched.length ? matched : queryTopicIds,
         rights,
         classification: 'symbolic',
-        method: matched.length
-          ? 'provider_metadata_taxonomy_v3'
-          : queryAligned && stockThinTitle
-            ? 'curated_query_alignment_v3'
-            : 'lexical_bn_v3',
+        method,
       };
     })
     .sort((a, b) => b.score - a.score || a.index - b.index);
 }
 
 export function assignVisuals(scenes, assets, options = {}) {
-  // Assign scarce scenes first so flexible scenes do not consume all eligible assets.
   const ordered = scenes
     .map((scene, index) => ({
       index,
