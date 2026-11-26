@@ -29,7 +29,30 @@ function splitScript(text) {
     }
   }
   if (buf) scenes.push(buf);
-  return scenes.length ? scenes : ['\u09b8\u0982\u09ac\u09be\u09a6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8'];
+  return (scenes.length ? scenes : ['\u09b8\u0982\u09ac\u09be\u09a6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8']).slice(0, 6);
+}
+
+async function resolveScript(job) {
+  const fromJob =
+    (job.payload && (job.payload.script || job.payload.narration)) ||
+    job.script_text ||
+    '';
+  if (String(fromJob).trim().length >= 40) return String(fromJob).trim();
+
+  if (!job.article_id) return '\u09b8\u0982\u09ac\u09be\u09a6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8';
+
+  const { data: article, error } = await db
+    .from('articles')
+    .select('title_bn, content_bn, summary_bn')
+    .eq('id', job.article_id)
+    .maybeSingle();
+  if (error) throw new Error(`article_load: ${error.message}`);
+  if (!article) return '\u09b8\u0982\u09ac\u09be\u09a6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8';
+
+  const body = String(article.content_bn || article.summary_bn || '').trim();
+  const title = String(article.title_bn || '').trim();
+  const combined = [title, body].filter(Boolean).join('\u0964 ').slice(0, 1200);
+  return combined.length >= 40 ? combined : title || '\u09b8\u0982\u09ac\u09be\u09a6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09c7\u09a6\u09a8';
 }
 
 async function uploadToReels(localFile, job, fileSha) {
@@ -53,9 +76,19 @@ async function runOne(job) {
   const hb = setInterval(() => heartbeat(db, job.id, WORKER_ID, 900).catch(() => {}), 60000);
   try {
     await logEvent(db, job.id, 'started');
-    const script =
-      job.payload?.script || job.script_text || job.payload?.narration || '';
+    const script = await resolveScript(job);
+    await db
+      .from('agnes_video_jobs')
+      .update({
+        script_text: script,
+        payload: { ...(job.payload || {}), script },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.id);
+
     const scenes = splitScript(script);
+    await logEvent(db, job.id, 'script_ready', { scenes: scenes.length, chars: script.length });
+
     const clipFiles = [];
     for (const [i, scene] of scenes.entries()) {
       const videoId = await agnes.create({ prompt: scene, seconds: '8', aspect_ratio: '9:16' });
@@ -65,6 +98,7 @@ async function runOne(job) {
       clipFiles.push(dest);
       await logEvent(db, job.id, 'clip_ready', { index: i });
     }
+
     const audioPath = path.join(workDir, 'voice.mp3');
     const tts = await synthesizeTts(script, audioPath);
     await logEvent(db, job.id, 'tts_ready', { provider: tts.provider });
@@ -72,7 +106,7 @@ async function runOne(job) {
     const { file, manifest } = await renderVideo({
       clipFiles,
       audioPath,
-      watermarkPath: process.env.WATERMARK_PNG_PATH,
+      watermarkPath: process.env.WATERMARK_PNG_PATH || '',
       workDir,
     });
     const fileSha = sha256(fs.readFileSync(file));
@@ -104,6 +138,7 @@ async function runOne(job) {
   } catch (err) {
     await failJob(db, job.id, WORKER_ID, err.message);
     await logEvent(db, job.id, 'failed', { message: err.message });
+    console.error('job_failed', job.id, err.message);
   } finally {
     clearInterval(hb);
     fs.rmSync(workDir, { recursive: true, force: true });
@@ -111,7 +146,22 @@ async function runOne(job) {
 }
 
 async function loop() {
-  console.log(JSON.stringify({ event: 'agnes_worker_start', worker_id: WORKER_ID }));
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('FATAL: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing');
+    process.exit(1);
+  }
+  if (!process.env.AGNES_API_KEY) {
+    console.error('FATAL: AGNES_API_KEY missing');
+    process.exit(1);
+  }
+  console.log(
+    JSON.stringify({
+      event: 'agnes_worker_start',
+      worker_id: WORKER_ID,
+      publish_mode: process.env.VIDEO_PUBLISH_MODE || '',
+      platforms: process.env.VIDEO_DELIVERY_PLATFORMS || '',
+    }),
+  );
   while (true) {
     try {
       const job = await claimJob(db, WORKER_ID, 900);
@@ -119,7 +169,7 @@ async function loop() {
         await sleep(5000);
         continue;
       }
-      console.log(JSON.stringify({ event: 'job_claimed', job_id: job.id }));
+      console.log(JSON.stringify({ event: 'job_claimed', job_id: job.id, article_id: job.article_id }));
       await runOne(job);
     } catch (e) {
       console.error('worker_loop_error', e.message);
