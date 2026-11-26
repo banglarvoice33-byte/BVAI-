@@ -60,14 +60,6 @@ services:
         sync: false
       - key: TTS_SARVAM_KEY
         sync: false
-      - key: OAUTH_CLIENT_ID
-        sync: false
-      - key: OAUTH_CLIENT_SECRET
-        sync: false
-      - key: YOUTUBE_REFRESH_TOKEN
-        sync: false
-      - key: YOUTUBE_CHANNEL_ID
-        sync: false
       - key: WATERMARK_PNG_PATH
         value: ""
 
@@ -81,8 +73,22 @@ services:
       - key: NODE_ENV
         value: production
       - key: VIDEO_PUBLISH_MODE
-        value: review
+        value: distribute
+      - key: VIDEO_DELIVERY_ENABLED
+        value: "true"
+      - key: VIDEO_DELIVERY_PLATFORMS
+        value: youtube
+      - key: VIDEO_DISTRIBUTION_WORKER_ENABLED
+        value: "false"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: YOUTUBE_CHANNEL_ID
+        sync: false
+      - key: YOUTUBE_REFRESH_TOKEN
+        sync: false
+      - key: OAUTH_CLIENT_ID
+        sync: false
+      - key: OAUTH_CLIENT_SECRET
         sync: false
