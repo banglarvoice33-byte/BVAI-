@@ -16,15 +16,18 @@ services:
             - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
 
-    - type: worker
-    name: bvai-worker
+    - type: web
+    name: bvai-api
     env: docker
     plan: starter
-    rootDir: worker
-    dockerfilePath: ./Dockerfile
+    rootDir: .
+    dockerfilePath: ./ops/api.Dockerfile
+    healthCheckPath: /health
     envVars:
             - key: NODE_ENV
         value: production
+            - key: PORT
+        value: 10000
             - key: SUPABASE_URL
         sync: false
             - key: SUPABASE_SERVICE_ROLE_KEY
@@ -33,16 +36,14 @@ services:
         sync: false
 
     - type: worker
-    name: bvai-video-renderer
+    name: bvai-worker
     env: docker
-    plan: starter
+    plan: standard
     rootDir: .
-    dockerfilePath: ./deploy/video-renderer.Dockerfile
+    dockerfilePath: ./ops/render.Dockerfile
     envVars:
             - key: NODE_ENV
         value: production
-            - key: VIDEO_PUBLISH_MODE
-        value: review
             - key: SUPABASE_URL
         sync: false
             - key: SUPABASE_SERVICE_ROLE_KEY
@@ -66,4 +67,22 @@ services:
             - key: YOUTUBE_REFRESH_TOKEN
         sync: false
             - key: YOUTUBE_CHANNEL_ID
+        sync: false
+            - key: WATERMARK_PNG_PATH
+        value: ""
+
+    - type: worker
+    name: bvai-video-renderer
+    env: docker
+    plan: starter
+    rootDir: .
+    dockerfilePath: ./deploy/video-renderer.Dockerfile
+    envVars:
+            - key: NODE_ENV
+        value: production
+            - key: VIDEO_PUBLISH_MODE
+        value: review
+            - key: SUPABASE_URL
+        sync: false
+            - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
