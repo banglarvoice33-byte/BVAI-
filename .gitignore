@@ -148,3 +148,4 @@ migration_before.txt
 banglarvoice24news-release.keystore
 bv-pass.txt
 setup-bv-signing.sh
+render_video_env.json
