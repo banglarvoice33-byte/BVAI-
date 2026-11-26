@@ -1,5 +1,5 @@
 services:
-    - type: web
+  - type: web
     name: bvai-frontend
     env: docker
     plan: starter
@@ -7,16 +7,16 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
     envVars:
-            - key: NODE_ENV
+      - key: NODE_ENV
         value: production
-            - key: PORT
+      - key: PORT
         value: 3000
-            - key: NEXT_PUBLIC_SUPABASE_URL
+      - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
-            - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
 
-    - type: web
+  - type: web
     name: bvai-api
     env: docker
     plan: starter
@@ -24,65 +24,65 @@ services:
     dockerfilePath: ./ops/api.Dockerfile
     healthCheckPath: /health
     envVars:
-            - key: NODE_ENV
+      - key: NODE_ENV
         value: production
-            - key: PORT
+      - key: PORT
         value: 10000
-            - key: SUPABASE_URL
+      - key: SUPABASE_URL
         sync: false
-            - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-            - key: ADMIN_TOKEN
+      - key: ADMIN_TOKEN
         sync: false
 
-    - type: worker
+  - type: worker
     name: bvai-worker
     env: docker
     plan: standard
     rootDir: .
     dockerfilePath: ./ops/render.Dockerfile
     envVars:
-            - key: NODE_ENV
+      - key: NODE_ENV
         value: production
-            - key: SUPABASE_URL
+      - key: SUPABASE_URL
         sync: false
-            - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-            - key: AGNES_API_KEY
+      - key: AGNES_API_KEY
         sync: false
-            - key: TTS_ELEVENLABS_1
+      - key: TTS_ELEVENLABS_1
         sync: false
-            - key: ELEVENLABS_VOICE_ID
+      - key: ELEVENLABS_VOICE_ID
         sync: false
-            - key: TTS_CARTESIA_KEY
+      - key: TTS_CARTESIA_KEY
         sync: false
-            - key: CARTESIA_VOICE_ID
+      - key: CARTESIA_VOICE_ID
         sync: false
-            - key: TTS_SARVAM_KEY
+      - key: TTS_SARVAM_KEY
         sync: false
-            - key: OAUTH_CLIENT_ID
+      - key: OAUTH_CLIENT_ID
         sync: false
-            - key: OAUTH_CLIENT_SECRET
+      - key: OAUTH_CLIENT_SECRET
         sync: false
-            - key: YOUTUBE_REFRESH_TOKEN
+      - key: YOUTUBE_REFRESH_TOKEN
         sync: false
-            - key: YOUTUBE_CHANNEL_ID
+      - key: YOUTUBE_CHANNEL_ID
         sync: false
-            - key: WATERMARK_PNG_PATH
+      - key: WATERMARK_PNG_PATH
         value: ""
 
-    - type: worker
+  - type: worker
     name: bvai-video-renderer
     env: docker
     plan: starter
     rootDir: .
     dockerfilePath: ./deploy/video-renderer.Dockerfile
     envVars:
-            - key: NODE_ENV
+      - key: NODE_ENV
         value: production
-            - key: VIDEO_PUBLISH_MODE
+      - key: VIDEO_PUBLISH_MODE
         value: review
-            - key: SUPABASE_URL
+      - key: SUPABASE_URL
         sync: false
-            - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
