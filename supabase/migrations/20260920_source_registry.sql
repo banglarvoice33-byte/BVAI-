@@ -55,3 +55,6 @@ drop policy if exists "Service role can write source_registry" on public.source_
 create policy "Service role can write source_registry"
   on public.source_registry for all
   using (auth.role() = 'service_role');
+
+-- Column existed in production but was never created by a migration.
+alter table public.source_registry add column if not exists feed_enabled boolean not null default true;

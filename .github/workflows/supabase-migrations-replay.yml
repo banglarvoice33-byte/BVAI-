@@ -1,0 +1,20 @@
+name: supabase-migrations-replay
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/supabase-migrations-replay.yml"
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+      - name: Replay every migration on a clean database
+        run: supabase db start
+      - name: Run pgTAP tests
+        run: supabase test db
