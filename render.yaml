@@ -1,47 +1,69 @@
 services:
-  - type: web
-    name: bvai-api
-    runtime: docker
-    dockerfilePath: ops/api.Dockerfile
+    - type: web
+    name: bvai-frontend
+    env: docker
     plan: starter
-    healthCheckPath: /health
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
     envVars:
-      - key: SUPABASE_URL
+            - key: NODE_ENV
+        value: production
+            - key: PORT
+        value: 3000
+            - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: ADMIN_TOKEN
+            - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
 
-  - type: worker
+    - type: worker
     name: bvai-worker
-    runtime: docker
-    dockerfilePath: ops/render.Dockerfile
-    plan: standard
+    env: docker
+    plan: starter
+    rootDir: worker
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: SUPABASE_URL
+            - key: NODE_ENV
+        value: production
+            - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+            - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: AGNES_API_KEY
+            - key: ADMIN_TOKEN
         sync: false
-      - key: TTS_ELEVENLABS_1
+
+    - type: worker
+    name: bvai-video-renderer
+    env: docker
+    plan: starter
+    rootDir: .
+    dockerfilePath: ./deploy/video-renderer.Dockerfile
+    envVars:
+            - key: NODE_ENV
+        value: production
+            - key: VIDEO_PUBLISH_MODE
+        value: review
+            - key: SUPABASE_URL
         sync: false
-      - key: ELEVENLABS_VOICE_ID
+            - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: TTS_CARTESIA_KEY
+            - key: AGNES_API_KEY
         sync: false
-      - key: CARTESIA_VOICE_ID
+            - key: TTS_ELEVENLABS_1
         sync: false
-      - key: TTS_SARVAM_KEY
+            - key: ELEVENLABS_VOICE_ID
         sync: false
-      - key: OAUTH_CLIENT_ID
+            - key: TTS_CARTESIA_KEY
         sync: false
-      - key: OAUTH_CLIENT_SECRET
+            - key: CARTESIA_VOICE_ID
         sync: false
-      - key: YOUTUBE_REFRESH_TOKEN
+            - key: TTS_SARVAM_KEY
         sync: false
-      - key: YOUTUBE_CHANNEL_ID
+            - key: OAUTH_CLIENT_ID
         sync: false
-      - key: WATERMARK_PNG_PATH
-        value: ""
+            - key: OAUTH_CLIENT_SECRET
+        sync: false
+            - key: YOUTUBE_REFRESH_TOKEN
+        sync: false
+            - key: YOUTUBE_CHANNEL_ID
+        sync: false
