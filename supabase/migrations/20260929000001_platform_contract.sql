@@ -18,13 +18,10 @@
 -- Enum values and added columns are not dropped (Postgres cannot un-add enum values).
 
 do $$ begin
-  alter type public.app_role add value if not exists 'reader';
 exception when duplicate_object then null; end $$;
 do $$ begin
-  alter type public.app_role add value if not exists 'reporter';
 exception when duplicate_object then null; end $$;
 do $$ begin
-  alter type public.app_role add value if not exists 'editor';
 exception when duplicate_object then null; end $$;
 
 create or replace function public.platform_role()

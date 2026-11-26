@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: bvai-api
+    runtime: docker
+    dockerfilePath: ops/api.Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+
+  - type: worker
+    name: bvai-worker
+    runtime: docker
+    dockerfilePath: ops/render.Dockerfile
+    plan: standard
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AGNES_API_KEY
+        sync: false
+      - key: TTS_ELEVENLABS_1
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: TTS_CARTESIA_KEY
+        sync: false
+      - key: CARTESIA_VOICE_ID
+        sync: false
+      - key: TTS_SARVAM_KEY
+        sync: false
+      - key: OAUTH_CLIENT_ID
+        sync: false
+      - key: OAUTH_CLIENT_SECRET
+        sync: false
+      - key: YOUTUBE_REFRESH_TOKEN
+        sync: false
+      - key: YOUTUBE_CHANNEL_ID
+        sync: false
+      - key: WATERMARK_PNG_PATH
+        value: ""
