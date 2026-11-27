@@ -16,7 +16,7 @@ import { guardVideoClip } from './perceptual-video.mjs';
 import { captionGuard } from './caption-qc.mjs';
 import { synthesizeVoice, audioDuration, scrubSecrets } from './voice-captions.js';
 import { buildNarration, contentKey, scriptHash, sourceNameBn, CTA } from './video-script.mjs';
-import { normalizeBanglaForTts } from './bangla-normalize.mjs';
+import { normalizeSpeechText as normalizeBanglaForTts } from './bangla-speech.mjs';
 import { candidates, download } from './media-sources.mjs';
 import { prepareFonts, renderBrandOverlay, renderHeadlineBig, renderHeadlineSmall, renderEndCard, renderCreditStrip, renderSegment, composeFinal, probeDuration, FONT_FAMILY } from './video-compose.mjs';
 import { inspectRender } from './upload-supabase-video.mjs';
