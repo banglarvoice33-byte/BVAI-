@@ -117,7 +117,7 @@ export function findTopics(text = '') {
   const t = String(text || '').toLowerCase();
   if (!t.trim()) return [];
   return TOPICS.filter(([, , , , , keys]) =>
-    keys.some((k) => t.includes(String(k).toLowerCase())),
+    keys.some((k) => keyMatches(t, k)),
   );
 }
 
@@ -183,3 +183,35 @@ export const TOPIC_QUERIES = {
 };
 
 export { TOPICS, CATEGORY_MAP };
+
+// Longer words that merely CONTAIN a topic key but mean something else (Bengali compounds).
+const NOT_THIS_WORD = {
+  'পাখি': ['উটপাখি'],
+  'ট্রেন': ['ট্রেনিং', 'ট্রেনার'],
+  'টিকা': ['টিকাটুলি'],
+};
+
+const LATIN_KEY = /^[a-z0-9][a-z0-9 -]*$/;
+const latinPatterns = new Map();
+
+/**
+ * English keys match whole words only ("rain" must not hit "train", "ship" must not hit "championship");
+ * short keys also accept a plural. Long keys stay stems ("inundat" -> inundated). Bengali keys stay
+ * substring matches because suffixes attach to the word (বৃষ্টিতে), minus the confusable words above.
+ */
+function keyMatches(text, key) {
+  const k = String(key).toLowerCase();
+  if (!k) return false;
+  if (LATIN_KEY.test(k)) {
+    let re = latinPatterns.get(k);
+    if (!re) {
+      const body = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      re = new RegExp('(?<![a-z0-9])' + body + (k.length > 6 ? '' : '(?:s|es)?(?![a-z0-9])'));
+      latinPatterns.set(k, re);
+    }
+    return re.test(text);
+  }
+  let t = text;
+  for (const longer of NOT_THIS_WORD[k] ?? []) t = t.split(longer).join(' ');
+  return t.includes(k);
+}

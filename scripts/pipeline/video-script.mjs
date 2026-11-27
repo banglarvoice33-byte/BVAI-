@@ -2,7 +2,7 @@
 // Rules (editorial fidelity):
 //  * Only sentences that already exist in the published article are spoken. No invented impact/context lines.
 //  * No "today"/date claims are added: the source's own time context is preserved.
-//  * The source is credited aloud (when it has a Bengali name) and on screen.
+//  * The source is shown on screen only; it is never spoken.
 //  * The mandatory closing line is always the last sentence.
 import { createHash } from 'node:crypto';
 
@@ -100,17 +100,16 @@ export function scriptHash(script) {
 
 /**
  * @returns {{script:string, sentences:string[], usedAll:boolean, chars:number}}
- * targetChars is the body budget; the headline, source credit and closing line are always included.
+ * targetChars is the body budget; the headline and closing line are always included; the source is shown on screen only.
  */
 export function buildNarration(article, { targetChars = 900 } = {}) {
   const headline = plain(article.title_bn).replace(/[।!?]+$/, '');
   if (!headline) throw new Error('article_missing_bengali_headline');
-  const credit = sourceNameBn(article.source_name);
   const pool = speakableSentences(article.content_bn || article.excerpt_bn || '');
   const headlineKey = norm(headline);
   const body = pool.filter((s) => norm(s) !== headlineKey && !norm(s).startsWith(headlineKey));
   const lead = headline + '।';
-  const tail = (credit ? `সূত্র: ${credit}। ` : '') + CTA;
+  const tail = CTA; // source name is shown on screen only, never spoken
   const chosen = [];
   let chars = lead.length + tail.length + 2;
   let usedAll = true;
