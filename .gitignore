@@ -149,3 +149,10 @@ banglarvoice24news-release.keystore
 bv-pass.txt
 setup-bv-signing.sh
 render_video_env.json
+
+# Voiceover test artifacts
+test-*.mts
+test_bn_*.mp3
+tts_result.txt
+*.log
+.env.tmp
