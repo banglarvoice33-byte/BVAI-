@@ -140,7 +140,6 @@ export function normalizeBanglaForSpeech(text) {
 
   out = out.replace(/[০-৯\d]{1,3}(?:,[০-৯\d]{2,3})+/g, (m) => {
     let w = numToWords(m);
-    if (/[0-9]/.test(m)) w = w.replace(/পঞ্চাশ/g, 'পঞচাশ');
     changes.push({ kind: 'number', from: m, to: w });
     return w;
   });
