@@ -17,5 +17,12 @@ RUN chmod +x run-bvai.sh scripts/pipeline/render-loop.sh \
     && mkdir -p /app/temp_assets /app/logs \
     && chown -R node:node /app
 
-CMD ["bash", "scripts/pipeline/render-loop.sh"]
+ENV NODE_ENV=production \
+    VIDEO_PUBLISH_MODE=distribute \
+    VIDEO_DISTRIBUTION_WORKER_ENABLED=false \
+    VIDEO_DELIVERY_ENABLED=true \
+    RENDER_LOOP_INTERVAL_SEC=300
 
+USER node
+
+CMD ["bash", "scripts/pipeline/render-loop.sh"]
