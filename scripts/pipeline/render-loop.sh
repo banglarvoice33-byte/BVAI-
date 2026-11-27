@@ -27,12 +27,13 @@ so this stays off there.
 idle inbound traffic; only a Background Worker is
 always-on.
 HEALTH_PID=""
+PORT="${PORT:-10000}"
 if [[ -n "${PORT:-}" ]]; then
     if [[ "$PORT" =~ ^[0-9]+$ ]] && (( PORT >= 1
 && PORT <= 65535 )); then
         node --input-type=module -e '
         import http from "node:http";
-        const port = Number(process.env.PORT);
+        const port = Number(process.env.PORT || 10000);
         http.createServer((req, res) => {
             res.writeHead(200, { "content-type": "text/
 plain; charset=utf-8", "cache-control":

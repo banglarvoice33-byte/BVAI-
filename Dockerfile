@@ -20,6 +20,7 @@ RUN chmod +x run-bvai.sh scripts/pipeline/render-loop.sh \
   && mkdir -p /app/temp_assets /app/logs \
   && chown -R node:node /app
 
+EXPOSE 10000
 ENV NODE_ENV=production \
   VIDEO_PUBLISH_MODE=distribute \
   VIDEO_DELIVERY_ENABLED=true \
