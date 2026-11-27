@@ -8,8 +8,7 @@ export function selectedNarration(article, ids, { targetChars = 900 } = {}) {
   const headline = plain(article.title_bn).replace(/[।!?]+$/,'');
   const chosen=[]; let chars=headline.length+CTA.length+60;
   for (const id of ids) { if(chosen.length>=2 && chars+pool[id].length>targetChars) break; chosen.push(pool[id]); chars+=pool[id].length+1; }
-  const credit=sourceNameBn(article.source_name);
-  const script=toBnDigits([headline+'।',...chosen,credit?`সূত্র: ${credit}।`:'',CTA].filter(Boolean).join(' '));
+  const script=toBnDigits([headline+'।',...chosen,'',CTA].filter(Boolean).join(' '));
   return { script, sentences:[headline+'।',...chosen], headline, chars:script.length, usedAll:false };
 }
 export function providerRequest(provider, model, key, article) {

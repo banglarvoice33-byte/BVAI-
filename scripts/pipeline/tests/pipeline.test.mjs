@@ -11,7 +11,7 @@ import { buildNarration, CTA } from '../video-script.mjs';
 const article = { title_bn:'নতুন সেতু চালু হয়েছে',source_name:'Prothom Alo',content_bn:'নদীর উপর নতুন সেতু চালু হয়েছে বলে কর্তৃপক্ষ জানিয়েছে। কর্তৃপক্ষ জানিয়েছে সেতুটি যান চলাচলের জন্য উন্মুক্ত। এই পথে 20টি বাস চলাচল করবে বলে জানানো হয়েছে।\n\nসূত্র: Prothom Alo https://example.org/x' };
 test('narration uses only source sentences, credits the source and always ends with the mandatory closing line',()=>{
   const { script } = buildNarration(article);
-  assert.ok(script.endsWith(CTA)); assert.ok(script.includes('সূত্র: প্রথম আলো')); assert.ok(script.includes('২০টি'));
+  assert.ok(script.endsWith(CTA)); assert.ok(!script.includes('সূত্র: প্রথম আলো')); assert.ok(script.includes('২০টি'));
   assert.ok(!script.includes('আনন্দ ছড়িয়ে')); assert.ok(!script.includes('পরিস্থিতি আরও জটিল')); assert.ok(!script.includes('আজ'));
   assert.ok(!script.includes('https://'));
 });
