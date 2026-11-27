@@ -1,14 +1,12 @@
-# Default Dockerfile at repo root for Render services that leave "Dockerfile Path" empty.
-# Continuous Banglar Voice video render on Render.com (Background Worker recommended).
-# Prefer explicit path deploy/video-renderer.Dockerfile in Render settings when possible.
-FROM node:22-bookworm-slim
+FROM docker.io/library/node:22-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg librsvg2-bin fontconfig fonts-noto-core python3 util-linux ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+RUN pip3 install --break-system-packages edge-tts
 
+WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
@@ -19,13 +17,5 @@ RUN chmod +x run-bvai.sh scripts/pipeline/render-loop.sh \
     && mkdir -p /app/temp_assets /app/logs \
     && chown -R node:node /app
 
-ENV NODE_ENV=production \
-    VIDEO_PUBLISH_MODE=distribute \
-    VIDEO_DISTRIBUTION_WORKER_ENABLED=false \
-    VIDEO_DELIVERY_ENABLED=true \
-    RENDER_LOOP_INTERVAL_SEC=300
-
-USER node
-
-# Long-running process — required for Render workers; also works if mis-typed as web
 CMD ["bash", "scripts/pipeline/render-loop.sh"]
+
