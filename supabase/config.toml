@@ -37,3 +37,7 @@ verify_jwt = false
 
 [functions.youtube-sync]
 verify_jwt = false
+
+# Authenticates inside the handler with VIDEO_UPLOAD_TOKEN; the platform JWT check must stay off.
+[functions.video-upload-authorize]
+verify_jwt = false
