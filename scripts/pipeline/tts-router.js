@@ -106,10 +106,10 @@ async function tryElevenLabs(text, keyObj) {
 
 export async function synthesizeVoiceRouted(text, opts = {}) {
   const attempts = [
+    ...getKeys('TTS_ELEVENLABS', 5).map(k => ({ provider: 'elevenLabs', ...k, fn: tryElevenLabs })),
     ...getKeys('TTS_SARVAM', 3).map(k => ({ provider: 'sarvam', ...k, fn: trySarvam })),
     ...getKeys('TTS_SONEXLABS', 3).map(k => ({ provider: 'sonexLabs', ...k, fn: trySonexLabs })),
     ...getKeys('TTS_CARTESIA', 2).map(k => ({ provider: 'cartesia', ...k, fn: tryCartesia })),
-    ...getKeys('TTS_ELEVENLABS', 5).map(k => ({ provider: 'elevenLabs', ...k, fn: tryElevenLabs })),
   ];
   let lastErr = null;
   for (const a of attempts) {

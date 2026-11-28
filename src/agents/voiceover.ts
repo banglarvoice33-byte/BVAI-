@@ -22,7 +22,7 @@ export interface VoiceoverResult {
 
 /**
  * বাংলা TTS অডিও তৈরি করে।
- * গুরুত্বপূর্ণ: eleven_v4 মডেল এবং language_code='bn' ব্যবহার করতে হবে।
+ * গুরুত্বপূর্ণ: eleven_multilingual_v2 মডেল এবং language_code='bn' ব্যবহার করতে হবে।
  */
 export async function generateSceneVoiceover(
   scene: VoiceoverScene,
@@ -34,7 +34,7 @@ export async function generateSceneVoiceover(
 
   const payload: Record<string, unknown> = {
     text: safeText,
-    model_id: 'eleven_v4',
+    model_id: 'eleven_multilingual_v2',
     language_code: 'bn',
     voice_settings: {
       stability: 0.62,
