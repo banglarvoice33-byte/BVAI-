@@ -14,6 +14,17 @@ function getKeys(prefix, count) {
 }
 
 
+
+async function tryEdgeTTS(text) {
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const run = promisify(execFile);
+  const out = 'edge-fallback.mp3';
+  // বাংলাদেশি বাংলা নারী কণ্ঠ — Nabanita
+  await run('edge-tts', ['--voice', 'bn-BD-NabanitaNeural', '--rate', '+0%', '--pitch', '+0Hz', '-t', text, '--write-media', out], { timeout: 60000 });
+  return out;
+}
+
 async function trySarvamSingle(text, keyObj) {
   const res = await fetch('https://api.sarvam.ai/text-to-speech', {
     method: 'POST',
@@ -39,6 +50,8 @@ export function splitText(text, limit = 450) {
   if (current) chunks.push(current);
   return chunks;
 }
+
+
 async function trySarvam(text, keyObj) {
   const chunks = splitText(text);
   if (chunks.length === 1) return trySarvamSingle(chunks[0], keyObj);
@@ -110,6 +123,7 @@ export async function synthesizeVoiceRouted(text, opts = {}) {
     ...getKeys('TTS_ELEVENLABS', 5).map(k => ({ provider: 'elevenLabs', ...k, fn: tryElevenLabs })),
     ...getKeys('TTS_SONEXLABS', 3).map(k => ({ provider: 'sonexLabs', ...k, fn: trySonexLabs })),
     ...getKeys('TTS_CARTESIA', 2).map(k => ({ provider: 'cartesia', ...k, fn: tryCartesia })),
+    { provider: 'edgeTTS', fn: tryEdgeTTS },
   ];
   let lastErr = null;
   for (const a of attempts) {
