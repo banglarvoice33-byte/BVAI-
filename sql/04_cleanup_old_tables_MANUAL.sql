@@ -1,0 +1,15 @@
+-- 04_cleanup_old_tables_MANUAL.sql
+-- ONLY if 00_preflight.sql showed tables from the earlier draft migrations (v2/v3) AND you checked
+-- that they are empty and nothing else in your project uses them. "agent_runs", "video_candidates"
+-- and "presenter_runs" are generic names: another feature may own a table with the same name.
+-- Nothing below runs by itself: remove the leading "-- " from a line to use it.
+--
+-- select 'video_pipeline_jobs' t, count(*) from public.video_pipeline_jobs
+-- union all select 'article_pipeline_jobs', count(*) from public.article_pipeline_jobs
+-- union all select 'social_distribution_jobs', count(*) from public.social_distribution_jobs
+-- union all select 'agent_runs', count(*) from public.agent_runs
+-- union all select 'video_candidates', count(*) from public.video_candidates
+-- union all select 'presenter_runs', count(*) from public.presenter_runs;
+--
+-- drop table if exists public.presenter_runs, public.video_candidates, public.agent_runs,
+--   public.social_distribution_jobs, public.article_pipeline_jobs, public.video_pipeline_jobs;
