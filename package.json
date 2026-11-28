@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
-    "dotenv": "^18.0.6",
+    "dotenv": "^18.0.10",
     "express": "^4.22.3",
     "pg": "^8.23.1"
   },
@@ -21,12 +21,15 @@
     "check:review-gate": "cmp -s scripts/pipeline/quality-v3/review-contract.mjs frontend/lib/video-review.mjs",
     "test:enhanced-db": "node scripts/pipeline/tests/database/test-enhanced-policy.mjs",
     "test:all-pipeline": "npm test && npm run test:captions && npm run test:review-db && npm run test:enhanced-db",
-    "test:quality-repair": "node scripts/pipeline/tests/quality-repair-e2e.mjs && node scripts/pipeline/tests/quality-repair-integration.mjs"
+    "test:quality-repair": "node scripts/pipeline/tests/quality-repair-e2e.mjs && node scripts/pipeline/tests/quality-repair-integration.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=22.12"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.16"
+    "@electric-sql/pglite": "0.5.16",
+    "@types/node": "^26.6.11",
+    "typescript": "^5.9.3"
   }
 }
