@@ -18,7 +18,7 @@ async function trySarvamSingle(text, keyObj) {
   const res = await fetch('https://api.sarvam.ai/text-to-speech', {
     method: 'POST',
     headers: { 'api-subscription-key': keyObj.key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, language_code: 'bn-IN', speaker: process.env.SARVAM_SPEAKER || 'priya', pace: 1.0, speech_sample_rate: 22050, model: 'bulbul:v3', output_audio_codec: 'mp3' }),
+    body: JSON.stringify({ text, language_code: 'bn-IN', speaker: process.env.SARVAM_SPEAKER || 'roopa_bn_conversational', pace: 1.0, speech_sample_rate: 22050, model: 'bulbul:v4-flash', output_audio_codec: 'mp3' }),
     signal: AbortSignal.timeout(90000)
   });
   if (!res.ok) { const eb = await res.text().catch(()=> ''); throw new Error(`Sarvam ${res.status} ${eb.slice(0,300)}`); }
