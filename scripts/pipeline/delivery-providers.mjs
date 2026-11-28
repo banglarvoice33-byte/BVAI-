@@ -12,7 +12,13 @@ async function jsonRequest(url,options={}) {
   try {response=await fetch(url,{...options,redirect:'manual',signal:AbortSignal.timeout(90000)});}
   catch {throw new DeliveryError('Provider request interrupted',{ambiguous:options.method==='POST' || options.method==='PUT'});}
   const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new DeliveryError(`Provider HTTP ${response.status}`,{ambiguous:response.status>=500,permanent:[400,401,403,404].includes(response.status)});
+  if(!response.ok) {
+    // Surface only the provider's machine-readable error code (Google: "invalid_grant", "PERMISSION_DENIED", "quotaExceeded").
+    // Never the free-text message/body: it can echo request parameters. The strict charset check keeps outbox.last_error clean.
+    const raw=typeof data?.error==='string'?data.error:(data?.error?.status||data?.error?.errors?.[0]?.reason);
+    const code=typeof raw==='string'&&/^[A-Za-z0-9_.-]{1,64}$/.test(raw)?` (${raw})`:'';
+    throw new DeliveryError(`Provider HTTP ${response.status}${code}`,{ambiguous:response.status>=500,permanent:[400,401,403,404].includes(response.status)});
+  }
   return data;
 }
 const auth=t=>({Authorization:`Bearer ${t}`});
